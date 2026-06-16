@@ -1,0 +1,39 @@
+# https://github.com/markhedleyjones/container-magic
+names:
+  image: anomalica-assimilator
+  workspace: workspace
+  user: nonroot
+
+stages:
+  base:
+    from: python:3.12-slim
+    steps:
+      - pip:
+          install:
+            - click
+            - fastembed
+            - levenshtein
+            - huggingface-hub
+            - pydantic
+            - sentence-transformers
+            - sqlite-vec
+      - env:
+          EMBEDDING_MODEL_PATH: /opt/models/qwen3-embedding
+          RERANKER_MODEL_PATH: /opt/models/ms-marco-minilm
+      - run:
+          - python -c "from huggingface_hub import snapshot_download; snapshot_download('electroglyph/Qwen3-Embedding-0.6B-onnx-uint8',
+            local_dir='/opt/models/qwen3-embedding')"
+          - python -c "from huggingface_hub import snapshot_download; snapshot_download('cross-encoder/ms-marco-MiniLM-L-6-v2',
+            local_dir='/opt/models/ms-marco-minilm')"
+
+  development:
+    from: base
+    steps:
+      - pip:
+          install:
+            - pytest
+
+  production:
+    from: base
+    steps:
+      - copy: workspace
