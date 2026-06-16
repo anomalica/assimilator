@@ -101,6 +101,35 @@ def import_cmd(ctx: click.Context, file_path: str) -> None:
 @main.command()
 @click.argument("directory", type=click.Path(exists=True))
 @click.pass_context
+def assimilate(ctx: click.Context, directory: str) -> None:
+    """Integrate a directory of digest YAML files into the existing graph.
+
+    Incremental: builds on the current database rather than wiping it. This is
+    the everyday verb - point it at the digests directory and it folds each one
+    into the accumulating knowledge graph. Use `rebuild` for a clean slate.
+    """
+    files = sorted(Path(directory).glob("**/*.yaml"))
+    if not files:
+        click.echo(f"No .yaml digest files found in {directory}")
+        return
+
+    click.echo(f"Assimilating {len(files)} digest files from {directory}")
+    for i, f in enumerate(files, 1):
+        click.echo(f"\n[{i}/{len(files)}] {f.name}")
+        ctx.invoke(import_cmd, file_path=str(f))
+
+    domain_conn = _connect(ctx.obj["db_path"])
+    s = get_stats(domain_conn)
+    click.echo(
+        f"\nAssimilation complete. Domain: {s['active_nodes']} nodes, "
+        f"{s['records']} records, {s['claims']} claims."
+    )
+    domain_conn.close()
+
+
+@main.command()
+@click.argument("directory", type=click.Path(exists=True))
+@click.pass_context
 def rebuild(ctx: click.Context, directory: str) -> None:
     """Rebuild the graph from a directory of digest YAML files.
 
