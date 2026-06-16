@@ -19,7 +19,7 @@ The digester decomposes each source record into a per-record digest file (nodes 
 
 The graph is maintained incrementally - seeded once, grown each run - and the SQLite database it produces is the public, downloadable dataset and the source the assembler reads to build articles. The graph is **derived data**: it is fully rebuildable from the digests, which remain the source of truth.
 
-Most of the assimilator is deterministic - the entity matching is local (Levenshtein plus local embeddings). Two passes are AI-assisted: **consolidate** (deciding entity merges) and **corroborate** (verifying that two claims assert the same fact). Those call the model through the same transport and spend gate as the rest of the pipeline (the Claude subscription by default, the metered API behind a toggle).
+Most of the assimilator is deterministic - the entity matching is local (Levenshtein plus local embeddings). The AI-assisted work is **corroborate** (verifying that two near-identical claims from different records assert the same fact before linking them as corroboration). It calls the model through the same transport and spend gate as the rest of the pipeline (the Claude subscription by default, the metered API behind a toggle). A second AI helper, **consolidate** (de-duplicating near-identical claims), exists as a library function but is not yet wired to a command.
 
 ## Commands
 
