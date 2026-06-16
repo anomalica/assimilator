@@ -10,6 +10,7 @@ stages:
     steps:
       - pip:
           install:
+            - anthropic
             - click
             - fastembed
             - levenshtein
@@ -28,7 +29,16 @@ stages:
 
   development:
     from: base
+    runtime:
+      network_mode: host
+      volumes:
+        - ~/.local/bin/claude:/usr/local/bin/claude:ro
+        - ~/.claude:~/.claude
+        - ~/.claude.json:~/.claude.json
+        - ~/repos/anomalica/anomalica-common/src:/opt/anomalica-common:ro
     steps:
+      - env:
+          PYTHONPATH: /opt/anomalica-common
       - pip:
           install:
             - pytest
