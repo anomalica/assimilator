@@ -302,9 +302,11 @@ def corroborate(
     Claude is consulted. Pairs below --rerank-min are dropped, cutting the
     number of Claude calls without losing genuine corroborations.
     """
-    from anomalica_common.llm import _call_cli, _parse_json
+    from anomalica_common.llm import _call, _parse_json, resolve_use_api
     from assimilator.database import insert_corroboration
     from assimilator.embeddings import deserialise_f32, search_similar_claims
+
+    use_api = resolve_use_api("ASSIMILATOR_USE_API")
 
     conn = _connect(ctx.obj["db_path"])
     init_vec(conn)
@@ -372,7 +374,7 @@ def corroborate(
 
         prompt = CORROBORATION_VERIFY_PROMPT.format(pairs_text="\n".join(lines))
         click.echo(f"  Verifying pairs {batch_start + 1}-{batch_start + len(batch)}...")
-        raw = _call_cli(prompt, "", model)
+        raw = _call(prompt, "", model, use_api=use_api)
         data = _parse_json(raw)
         decisions = {
             d.get("pair_id"): d.get("verdict") for d in data.get("decisions", [])
