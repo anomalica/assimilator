@@ -35,6 +35,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+import yaml
+
 # --- Lanes, job types, statuses (aligned to workbench src/lib/schedule.ts) ---
 
 LANE_CLAUDE = "claude"
@@ -226,27 +228,47 @@ def _reviewed_hashes(ingests_dir: Path) -> set[str]:
     return out
 
 
-def _digested_stems(digests_dir: Path) -> set[str]:
+def _digested_versions(digests_dir: Path) -> dict[str, str | None]:
+    """Map content_hash -> the digest's processing_version for every digest.
+
+    Keyed by ``record.content_hash`` (not the friendly filename), so an
+    audio/video digest is detected despite the record's ``.v2`` store suffix that
+    the filename stem carries but the digest filename does not. The
+    processing_version is the freshness key: a digest is current only while it
+    equals the record's current body version.
+    """
     records = digests_dir / "records"
+    out: dict[str, str | None] = {}
     if not records.is_dir():
-        return set()
-    return {y.stem for y in records.glob("*.yaml")}
-
-
-def _record_stem(md_path: Path, ingests_dir: Path) -> str | None:
-    """Resolve a record's friendly stem (matches the digest filename) via the
-    records/ symlink that points at this store file, if present."""
-    records = ingests_dir / "records"
-    if not records.is_dir():
-        return None
-    target = md_path.resolve()
-    for link in records.glob("*.md"):
+        return out
+    for y in records.glob("*.yaml"):
         try:
-            if link.resolve() == target:
-                return link.stem
-        except OSError:
+            data = yaml.safe_load(y.read_text())
+        except (OSError, yaml.YAMLError):
             continue
-    return None
+        rec = (data or {}).get("record") or {}
+        ch = _bare_hash(rec.get("content_hash"))
+        if len(ch) == 64:
+            out[ch] = rec.get("processing_version")
+    return out
+
+
+def _record_frontmatter(md_path: Path) -> dict:
+    try:
+        text = md_path.read_text(errors="ignore")
+    except OSError:
+        return {}
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return {}
+    try:
+        return yaml.safe_load(parts[1]) or {}
+    except yaml.YAMLError:
+        return {}
+
+
+def _record_processing_version(md_path: Path) -> str | None:
+    return (_record_frontmatter(md_path).get("processing") or {}).get("version")
 
 
 def _ingested_source_ids(ingests_dir: Path) -> set[str]:
@@ -346,29 +368,42 @@ def enumerate_digest_jobs(
     demand: dict[str, float],
 ) -> list[Job]:
     digestible = _digestible_hashes(ingests_dir)
-    digested = _digested_stems(digests_dir)
+    digested = _digested_versions(digests_dir)
     jobs: list[Job] = []
     for h in sorted(digestible):
         md = store.get(h)
         if md is None:
             continue
-        stem = _record_stem(md, ingests_dir)
-        if stem and stem in digested:
-            continue  # already digested
+        trigger = "never_done"
+        if h in digested:
+            digest_ver = digested[h]
+            record_ver = _record_processing_version(md)
+            # Missing-safe (matches anomalica_common.staleness): only re-digest
+            # when both versions are present and differ. A current digest -> the
+            # job is done, so it drops; this is the completion signal the runner
+            # relies on to stop re-spending tokens on an already-digested record.
+            if not (digest_ver and record_ver and str(digest_ver) != str(record_ver)):
+                continue
+            trigger = "stale"
         d = demand.get(h)
+        fm = _record_frontmatter(md)
+        label = fm.get("friendly_name") or fm.get("title") or f"record {h[:12]}"
+        drivers = [
+            Driver("readiness", "digestible", band="normal"),
+            Driver("demand", _demand_str(d), band="off" if d is None else None),
+        ]
+        if trigger == "stale":
+            drivers.insert(0, Driver("freshness", "body re-extracted", band="urgent"))
         jobs.append(
             Job(
                 id=f"digest:{h}",
                 type="digest",
                 lane=LANE_CLAUDE,
-                target=Target(kind="record", label=stem or f"record {h[:12]}", hash=h),
+                target=Target(kind="record", label=label, hash=h),
                 status=STATUS_ELIGIBLE,
-                trigger="never_done",
+                trigger=trigger,
                 value=d,
-                drivers=[
-                    Driver("readiness", "digestible", band="normal"),
-                    Driver("demand", _demand_str(d), band="off" if d is None else None),
-                ],
+                drivers=drivers,
             )
         )
     return jobs

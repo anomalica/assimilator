@@ -12,6 +12,8 @@ import json
 import math
 import sqlite3
 
+import yaml
+
 from assimilator import scheduler
 from assimilator.database import init_db, insert_claim, insert_node, insert_record
 from anomalica_common.digest.models import Claim, Node, Record
@@ -129,6 +131,15 @@ def test_review_queue_excludes_reviewed_and_ranks_by_demand(tmp_path):
     assert h2["demand"] == round(1.0 + math.log1p(1), 3)
 
 
+def _write_digest(digests, content_hash, version=None):
+    rec = {"content_hash": "sha256:" + content_hash}
+    if version is not None:
+        rec["processing_version"] = version
+    (digests / "records" / f"{content_hash[:20]}.yaml").write_text(
+        yaml.safe_dump({"record": rec})
+    )
+
+
 def test_digest_job_for_digestible_not_yet_digested(tmp_path):
     ingests, digests, sources = _corpus(tmp_path)
     conn = _graph_with_shared_node()
@@ -136,8 +147,56 @@ def test_digest_job_for_digestible_not_yet_digested(tmp_path):
     digest = [j for j in q["jobs"] if j["type"] == "digest"]
     assert len(digest) == 1
     assert digest[0]["target"]["hash"] == H1
+    assert digest[0]["trigger"] == "never_done"
     assert digest[0]["lane"] == "claude"
     assert digest[0]["value"] == round(1.0 + math.log1p(1), 3)  # H1's graph demand
+
+
+def test_digest_dropped_when_current_digest_exists(tmp_path):
+    # Credit safety: an already-digested record must NOT be re-enumerated as a
+    # job, even when its store file carries a .v2 suffix the digest name lacks.
+    # Match by content_hash, not filename stem.
+    ingests, digests, sources = _corpus(tmp_path)
+    _write_digest(digests, H1)  # record has no version -> missing-safe = current
+    conn = _graph_with_shared_node()
+    q = scheduler.build_queue(conn, ingests, digests, sources, "T")
+    assert not [
+        j for j in q["jobs"] if j["type"] == "digest" and j["target"]["hash"] == H1
+    ]
+
+
+def test_digest_v2_suffix_does_not_defeat_completion(tmp_path):
+    # The exact Bob Lazar bug: store file is {hash}.v2.md, digest is {slug}.yaml.
+    # content_hash match must still drop it.
+    ingests, digests, sources = _corpus(tmp_path)
+    store = ingests / "store"
+    (store / f"{H1}.md").unlink()
+    (store / f"{H1}.v2.md").write_text(f"---\ncontent_hash: sha256:{H1}\n---\nbody\n")
+    _write_digest(digests, H1)
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    q = scheduler.build_queue(conn, ingests, digests, sources, "T")
+    assert not [
+        j for j in q["jobs"] if j["type"] == "digest" and j["target"]["hash"] == H1
+    ]
+
+
+def test_digest_stale_when_body_version_differs(tmp_path):
+    # A digest of an older body version re-appears as a 'stale' re-digest, not
+    # 'never_done' and not dropped.
+    ingests, digests, sources = _corpus(tmp_path)
+    store = ingests / "store"
+    (store / f"{H1}.md").write_text(
+        f"---\ncontent_hash: sha256:{H1}\nprocessing:\n  version: new\n---\nbody\n"
+    )
+    _write_digest(digests, H1, version="old")
+    conn = _graph_with_shared_node()
+    q = scheduler.build_queue(conn, ingests, digests, sources, "T")
+    digest = [
+        j for j in q["jobs"] if j["type"] == "digest" and j["target"]["hash"] == H1
+    ]
+    assert len(digest) == 1
+    assert digest[0]["trigger"] == "stale"
 
 
 def test_corroborate_blocked_without_embeddings(tmp_path):
