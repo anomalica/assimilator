@@ -11,14 +11,18 @@ import re
 import sqlite3
 
 from assimilator.database import (
+    delete_claim,
     find_node_by_name,
     get_record_by_title,
+    get_record_claim_hashes,
     insert_alias,
     insert_claim,
     insert_node,
     insert_record,
+    update_claim_hash,
 )
 from assimilator.matching import match_node, normalise_node_name
+from anomalica_common.digest import claim_hash
 from anomalica_common.digest.models import Claim, Node, Record
 
 
@@ -298,6 +302,8 @@ def import_extraction(
         "nodes_matched": 0,
         "nodes_rejected": 0,
         "claims_created": 0,
+        "claims_carried": 0,
+        "claims_deleted": 0,
         "claims_rejected": 0,
         "record_id": None,
     }
@@ -476,12 +482,21 @@ def import_extraction(
             (node_name_to_id[producer_name], record.id),
         )
 
-    # Import claims from the specified section
+    # Import claims from the specified section. On a re-import of an existing
+    # record the record's claim set is RECONCILED, not blindly re-inserted:
+    # each incoming claim is matched to a prior one by claim_hash (carrying its
+    # uuid and created_at forward), genuinely-new claims are inserted, and prior
+    # claims whose hash no longer appears are deleted. Without this the
+    # digester's per-emission claim uuids would both duplicate unchanged claims
+    # and make every re-digest read as 100% changed (a page-staleness false
+    # positive). claim_hash is the shared canonical hash from anomalica-common,
+    # computed here because only the importer holds the resolved graph ids.
     if section == "infrastructure":
         claims = parsed["infrastructure_claims"]
     else:
         claims = parsed["domain_claims"]
 
+    resolved_claims: list[tuple[Claim, str]] = []
     for claim_def in claims:
         # Resolve node references by name
         ref_ids = []
@@ -510,23 +525,107 @@ def import_extraction(
                         node_name_to_id[speaker_name] = speaker_match[0]
                         break
 
-        insert_claim(
-            conn,
-            Claim(
-                id=claim_def["id"],
-                content=claim_def["content"],
-                original_excerpt=claim_def.get("original_excerpt"),
-                claim_type=claim_def["claim_type"],
-                attestation=claim_def.get("attestation"),
-                record_id=record.id,
-                speaker_id=speaker_id,
-                location_in_record=claim_def.get("location_in_record"),
-                date=claim_def.get("date"),
-                date_end=claim_def.get("date_end"),
-                node_references=ref_ids,
-            ),
+        claim = Claim(
+            id=claim_def["id"],
+            content=claim_def["content"],
+            original_excerpt=claim_def.get("original_excerpt"),
+            claim_type=claim_def["claim_type"],
+            attestation=claim_def.get("attestation"),
+            record_id=record.id,
+            speaker_id=speaker_id,
+            location_in_record=claim_def.get("location_in_record"),
+            date=claim_def.get("date"),
+            date_end=claim_def.get("date_end"),
+            node_references=ref_ids,
         )
-        counts["claims_created"] += 1
+        chash = claim_hash(
+            content=claim.content,
+            claim_type=claim.claim_type.value,
+            attestation=claim.attestation.value if claim.attestation else None,
+            speaker_id=speaker_id,
+            record_id=record.id,
+            location_in_record=claim.location_in_record,
+            date=claim.date,
+            date_end=claim.date_end,
+            node_ids=ref_ids,
+            original_excerpt=claim.original_excerpt,
+        )
+        resolved_claims.append((claim, chash))
+
+    # Reconcile against the record's prior claims (empty for a first import).
+    prior = get_record_claim_hashes(conn, record.id) if existing_record else {}
+    for claim, chash in resolved_claims:
+        pool = prior.get(chash)
+        if pool:
+            # Carry forward: an identical claim already exists for this record;
+            # leave its row (uuid + created_at) untouched.
+            pool.pop()
+            counts["claims_carried"] += 1
+        else:
+            insert_claim(conn, claim, claim_hash=chash)
+            counts["claims_created"] += 1
+    # Prior claims left unmatched were removed in the new digest - delete them.
+    for leftover in prior.values():
+        for claim_id, _created in leftover:
+            delete_claim(conn, claim_id)
+            counts["claims_deleted"] += 1
 
     conn.commit()
     return counts
+
+
+def backfill_claim_hashes(
+    conn: sqlite3.Connection, on_progress: callable = None
+) -> dict:
+    """Compute and store claim_hash for every claim in the database.
+
+    Pure compute, no AI: the meaning-bearing fields and the resolved graph ids
+    (speaker_id, claim_node_refs) are already in the database, so the same
+    canonical hash the importer computes can be reproduced for the existing rows.
+    Idempotent - safe to re-run; a row gets re-stamped with whatever the current
+    hash definition yields.
+    """
+    log = on_progress or (lambda _: None)
+    rows = conn.execute(
+        "SELECT id, content, claim_type, attestation, record_id, speaker_id, "
+        "location_in_record, date, date_end, original_excerpt FROM claims"
+    ).fetchall()
+    updated = 0
+    for (
+        claim_id,
+        content,
+        claim_type,
+        attestation,
+        record_id,
+        speaker_id,
+        location,
+        date,
+        date_end,
+        original_excerpt,
+    ) in rows:
+        node_ids = [
+            r[0]
+            for r in conn.execute(
+                "SELECT node_id FROM claim_node_refs WHERE claim_id = ?", (claim_id,)
+            ).fetchall()
+        ]
+        update_claim_hash(
+            conn,
+            claim_id,
+            claim_hash(
+                content=content,
+                claim_type=claim_type,
+                attestation=attestation,
+                speaker_id=speaker_id,
+                record_id=record_id,
+                location_in_record=location,
+                date=date,
+                date_end=date_end,
+                node_ids=node_ids,
+                original_excerpt=original_excerpt,
+            ),
+        )
+        updated += 1
+    conn.commit()
+    log(f"Backfilled claim_hash for {updated} claims")
+    return {"updated": updated}

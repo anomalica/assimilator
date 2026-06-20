@@ -48,7 +48,12 @@ CREATE TABLE IF NOT EXISTS claims (
         'witness_testimony',
         'investigation_finding',
         'cover_up_evidence'
-    ))
+    )),
+    -- Appended last to match the ALTER TABLE migration's column position, so
+    -- fresh and upgraded databases share one column order (claims are read
+    -- positionally in _row_to_claim). claim_hash is not part of the Claim model;
+    -- it is the page-staleness fingerprint, read directly when needed.
+    claim_hash TEXT
 );
 
 CREATE TABLE IF NOT EXISTS claim_node_refs (
@@ -74,6 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(node_type);
 CREATE INDEX IF NOT EXISTS idx_nodes_name ON nodes(name);
 CREATE INDEX IF NOT EXISTS idx_claims_record ON claims(record_id);
 CREATE INDEX IF NOT EXISTS idx_claims_speaker ON claims(speaker_id);
+CREATE INDEX IF NOT EXISTS idx_claims_hash ON claims(claim_hash);
 -- idx_claims_role is created in init_db after the claim_role column is
 -- guaranteed to exist (it's added by ALTER TABLE on upgraded databases).
 CREATE INDEX IF NOT EXISTS idx_claim_refs_node ON claim_node_refs(node_id);
@@ -103,6 +109,12 @@ def init_db(conn: sqlite3.Connection) -> None:
                 "claim_role IN ('official_explanation', 'witness_testimony', "
                 "'investigation_finding', 'cover_up_evidence'))"
             )
+        # Page-staleness migration: add the claim_hash column to pre-existing
+        # databases so the hash index in SCHEMA can be created on both fresh and
+        # upgraded databases. Existing rows are backfilled by the
+        # `backfill-claim-hashes` command (pure compute, no AI).
+        if "claim_hash" not in cols:
+            conn.execute("ALTER TABLE claims ADD COLUMN claim_hash TEXT")
     conn.executescript(SCHEMA)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claims_role ON claims(claim_role)")
 
@@ -209,13 +221,20 @@ def get_record_by_title(conn: sqlite3.Connection, title: str) -> Record | None:
     return _row_to_record(row)
 
 
-def insert_claim(conn: sqlite3.Connection, claim: Claim) -> Claim:
-    now = _now()
+def insert_claim(
+    conn: sqlite3.Connection,
+    claim: Claim,
+    claim_hash: str | None = None,
+    created_at: str | None = None,
+) -> Claim:
+    # created_at is overridable so a carried-forward claim keeps its original
+    # timestamp across a re-import (the row is rewritten, not first-seen).
+    now = created_at or _now()
     metadata_json = json.dumps(claim.metadata) if claim.metadata else None
     conn.execute(
         "INSERT INTO claims (id, content, original_excerpt, claim_type, attestation, record_id, speaker_id, "
-        "location_in_record, date, date_end, confidence, metadata, created_at, claim_role) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "location_in_record, date, date_end, claim_hash, confidence, metadata, created_at, claim_role) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             claim.id,
             claim.content,
@@ -227,6 +246,7 @@ def insert_claim(conn: sqlite3.Connection, claim: Claim) -> Claim:
             claim.location_in_record,
             claim.date,
             claim.date_end,
+            claim_hash,
             claim.confidence,
             metadata_json,
             now,
@@ -239,6 +259,42 @@ def insert_claim(conn: sqlite3.Connection, claim: Claim) -> Claim:
             (claim.id, node_id),
         )
     return claim.model_copy(update={"created_at": datetime.fromisoformat(now)})
+
+
+def get_record_claim_hashes(
+    conn: sqlite3.Connection, record_id: str
+) -> dict[str, list[tuple[str, str]]]:
+    """Map each claim_hash to the (claim_id, created_at) rows carrying it for a
+    record. The value is a list so duplicate-hash claims within one record are
+    handled (matched one-for-one on re-import). Rows with a null claim_hash (not
+    yet backfilled) are skipped - they reconcile as if absent."""
+    rows = conn.execute(
+        "SELECT claim_hash, id, created_at FROM claims "
+        "WHERE record_id = ? AND claim_hash IS NOT NULL",
+        (record_id,),
+    ).fetchall()
+    out: dict[str, list[tuple[str, str]]] = {}
+    for h, cid, created in rows:
+        out.setdefault(h, []).append((cid, created))
+    return out
+
+
+def delete_claim(conn: sqlite3.Connection, claim_id: str) -> None:
+    """Remove a claim and its node references (used when a re-import drops a
+    claim that no longer appears in the record's digest)."""
+    conn.execute("DELETE FROM claim_node_refs WHERE claim_id = ?", (claim_id,))
+    conn.execute(
+        "DELETE FROM corroborations WHERE claim_a = ? OR claim_b = ?",
+        (claim_id, claim_id),
+    )
+    conn.execute("DELETE FROM claims WHERE id = ?", (claim_id,))
+
+
+def update_claim_hash(conn: sqlite3.Connection, claim_id: str, claim_hash: str) -> None:
+    """Set the claim_hash for an existing row (used by the backfill command)."""
+    conn.execute(
+        "UPDATE claims SET claim_hash = ? WHERE id = ?", (claim_hash, claim_id)
+    )
 
 
 def get_claims_for_node(conn: sqlite3.Connection, node_id: str) -> list[Claim]:

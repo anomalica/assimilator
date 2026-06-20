@@ -33,6 +33,16 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _reconcile_suffix(counts: dict) -> str:
+    """Show carried/deleted only on a re-import, where they are non-zero."""
+    parts = []
+    if counts.get("claims_carried"):
+        parts.append(f"{counts['claims_carried']} carried")
+    if counts.get("claims_deleted"):
+        parts.append(f"{counts['claims_deleted']} deleted")
+    return f" ({', '.join(parts)})" if parts else ""
+
+
 @click.group()
 @click.option(
     "--db", type=click.Path(), default=str(DEFAULT_DB), envvar="ASSIMILATOR_DB"
@@ -75,7 +85,7 @@ def import_cmd(ctx: click.Context, file_path: str) -> None:
         click.echo(
             f"  Domain: {counts['nodes_created']} new nodes, "
             f"{counts['nodes_matched']} matched, "
-            f"{counts['claims_created']} claims"
+            f"{counts['claims_created']} claims" + _reconcile_suffix(counts)
         )
 
     if parsed["infrastructure_claims"]:
@@ -91,7 +101,7 @@ def import_cmd(ctx: click.Context, file_path: str) -> None:
         click.echo(
             f"  Infrastructure: {counts['nodes_created']} new nodes, "
             f"{counts['nodes_matched']} matched, "
-            f"{counts['claims_created']} claims"
+            f"{counts['claims_created']} claims" + _reconcile_suffix(counts)
         )
 
     domain_conn.close()
@@ -563,6 +573,24 @@ def backfill_record_fields_cmd(digests_dir: str, ingests_dir: str | None) -> Non
     click.echo(f"Backfilled {total} fields across {len(results)} digests:")
     for fname, fields in sorted(results.items()):
         click.echo(f"  {fname}: {', '.join(fields)}")
+
+
+@main.command(name="backfill-claim-hashes")
+@click.pass_context
+def backfill_claim_hashes_cmd(ctx: click.Context) -> None:
+    """Compute claim_hash for every existing claim in the graph.
+
+    The claim_hash column is added empty on migration; this fills it. Pure
+    compute, no AI - the resolved graph ids are already stored. Run once after
+    upgrading; the importer maintains the hash for all claims it touches after.
+    """
+    from assimilator.import_markdown import backfill_claim_hashes
+
+    for label, key in (("Domain", "db_path"), ("Infrastructure", "infra_db_path")):
+        conn = _connect(ctx.obj[key])
+        result = backfill_claim_hashes(conn, on_progress=click.echo)
+        click.echo(f"  {label}: {result['updated']} claims hashed")
+        conn.close()
 
 
 @main.command(name="export-obsidian")
