@@ -575,6 +575,89 @@ def backfill_record_fields_cmd(digests_dir: str, ingests_dir: str | None) -> Non
         click.echo(f"  {fname}: {', '.join(fields)}")
 
 
+@main.command(name="schedule")
+@click.option(
+    "--ingests",
+    type=click.Path(),
+    default=lambda: os.environ.get("ANOMALICA_INGESTS_DIR"),
+    help="Path to the ingests repo (default: ANOMALICA_INGESTS_DIR or ../ingests)",
+)
+@click.option(
+    "--digests",
+    type=click.Path(),
+    default=lambda: os.environ.get("ANOMALICA_DIGESTS_DIR"),
+    help="Path to the digests repo (default: ANOMALICA_DIGESTS_DIR or ../digests)",
+)
+@click.option(
+    "--sources",
+    type=click.Path(),
+    default=lambda: os.environ.get("ANOMALICA_SOURCES_DIR"),
+    help="Path to the raw sources dir (default: ANOMALICA_SOURCES_DIR or ../sources)",
+)
+@click.option(
+    "--out",
+    type=click.Path(),
+    default=None,
+    help="Where to write the queue JSON (default: SCHEDULER_QUEUE_PATH)",
+)
+@click.pass_context
+def schedule_cmd(
+    ctx: click.Context,
+    ingests: str | None,
+    digests: str | None,
+    sources: str | None,
+    out: str | None,
+) -> None:
+    """Enumerate the real pending pipeline jobs from current corpus state.
+
+    Writes a prioritised queue JSON the workbench reads for its Schedule view.
+    Real work only - ingest/review/digest/corroborate jobs computed from actual
+    state, ranked by per-job-specific drivers. No AI, no money.
+    """
+    from assimilator import scheduler
+
+    ingests_dir, digests_dir, sources_dir = _resolve_corpus_dirs(
+        ingests, digests, sources
+    )
+    out_path = Path(out) if out else scheduler.default_queue_path()
+
+    # Read-only: enumeration only reads the graph; never migrate or write the
+    # live DB just to compute a queue.
+    db_path = ctx.obj["db_path"]
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    queue = scheduler.build_queue(
+        conn, ingests_dir, digests_dir, sources_dir, scheduler.now_iso()
+    )
+    conn.close()
+    scheduler.write_queue(queue, out_path)
+
+    by_lane: dict[str, int] = {}
+    for job in queue["jobs"]:
+        by_lane[job["lane"]] = by_lane.get(job["lane"], 0) + 1
+    click.echo(f"Wrote {out_path}")
+    click.echo(
+        f"  {len(queue['jobs'])} jobs "
+        f"({', '.join(f'{n} {lane}' for lane, n in sorted(by_lane.items()))}), "
+        f"{len(queue['reviewQueue'])} awaiting review, "
+        f"{len(queue['recordDemand'])} records with graph demand"
+    )
+
+
+def _resolve_corpus_dirs(
+    ingests: str | None, digests: str | None, sources: str | None
+) -> tuple[Path, Path, Path]:
+    """Resolve the ingests/digests/sources dirs from flags, env, or sibling repos.
+
+    The Anomalica repos live side by side, so when a path is not given we look
+    for siblings of this repo's parent (…/anomalica/{ingests,digests,sources}).
+    """
+    root = Path(__file__).resolve().parents[3]  # …/anomalica (repos live side by side)
+    ingests_dir = Path(ingests) if ingests else root / "ingests"
+    digests_dir = Path(digests) if digests else root / "digests"
+    sources_dir = Path(sources) if sources else root / "sources"
+    return ingests_dir, digests_dir, sources_dir
+
+
 @main.command(name="backfill-claim-hashes")
 @click.pass_context
 def backfill_claim_hashes_cmd(ctx: click.Context) -> None:
