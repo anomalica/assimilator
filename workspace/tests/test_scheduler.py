@@ -181,6 +181,22 @@ def test_digest_v2_suffix_does_not_defeat_completion(tmp_path):
     ]
 
 
+def test_nested_digest_still_detected_complete(tmp_path):
+    # A slash in a record title nests the digest in a subdirectory; rglob must
+    # still recognise it as complete, else the job re-dispatches forever.
+    ingests, digests, sources = _corpus(tmp_path)
+    sub = digests / "records" / "nested"
+    sub.mkdir()
+    (sub / "x.yaml").write_text(
+        yaml.safe_dump({"record": {"content_hash": "sha256:" + H1}})
+    )
+    conn = _graph_with_shared_node()
+    q = scheduler.build_queue(conn, ingests, digests, sources, "T")
+    assert not [
+        j for j in q["jobs"] if j["type"] == "digest" and j["target"]["hash"] == H1
+    ]
+
+
 def test_digest_stale_when_body_version_differs(tmp_path):
     # A digest of an older body version re-appears as a 'stale' re-digest, not
     # 'never_done' and not dropped.

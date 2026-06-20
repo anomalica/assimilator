@@ -241,7 +241,10 @@ def _digested_versions(digests_dir: Path) -> dict[str, str | None]:
     out: dict[str, str | None] = {}
     if not records.is_dir():
         return out
-    for y in records.glob("*.yaml"):
+    # rglob, not glob: a slash in a record title nests the digest in a
+    # subdirectory; a non-recursive scan would miss it and re-dispatch the job
+    # forever. Defence-in-depth alongside the flat-path keying upstream.
+    for y in records.rglob("*.yaml"):
         try:
             data = yaml.safe_load(y.read_text())
         except (OSError, yaml.YAMLError):
@@ -548,3 +551,90 @@ def write_queue(queue: dict, path: Path) -> None:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def resolve_corpus_dirs(
+    ingests: str | None = None,
+    digests: str | None = None,
+    sources: str | None = None,
+) -> tuple[Path, Path, Path]:
+    """Resolve the ingests/digests/sources dirs from args, env, or sibling repos.
+
+    The Anomalica repos live side by side, so an unspecified path defaults to a
+    sibling of this repo (…/anomalica/{ingests,digests,sources}). Env overrides:
+    ANOMALICA_INGESTS_DIR / ANOMALICA_DIGESTS_DIR / ANOMALICA_SOURCES_DIR.
+    """
+    root = Path(__file__).resolve().parents[3]  # …/anomalica
+    ingests = ingests or os.environ.get("ANOMALICA_INGESTS_DIR")
+    digests = digests or os.environ.get("ANOMALICA_DIGESTS_DIR")
+    sources = sources or os.environ.get("ANOMALICA_SOURCES_DIR")
+    return (
+        Path(ingests) if ingests else root / "ingests",
+        Path(digests) if digests else root / "digests",
+        Path(sources) if sources else root / "sources",
+    )
+
+
+def run_schedule(
+    db_path: str | Path,
+    ingests: str | None = None,
+    digests: str | None = None,
+    sources: str | None = None,
+    out: str | None = None,
+) -> tuple[dict, Path]:
+    """Build the queue from current corpus state and write it. Read-only on the
+    graph DB - enumeration never mutates the live database."""
+    ingests_dir, digests_dir, sources_dir = resolve_corpus_dirs(
+        ingests, digests, sources
+    )
+    out_path = Path(out) if out else default_queue_path()
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        queue = build_queue(conn, ingests_dir, digests_dir, sources_dir, now_iso())
+    finally:
+        conn.close()
+    write_queue(queue, out_path)
+    return queue, out_path
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Host-runnable entry point: `python -m assimilator.scheduler`.
+
+    Deliberately depends on nothing beyond the standard library + pyyaml (no
+    click, no fastembed, no anomalica_common), so a plain host process - such as
+    the workbench's uvicorn backend - can regenerate the queue without the
+    container-magic `assimilator` tool or the heavy CLI imports.
+    """
+    import argparse
+
+    default_db = os.environ.get(
+        "ASSIMILATOR_DB",
+        str(Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"),
+    )
+    parser = argparse.ArgumentParser(
+        prog="assimilator.scheduler",
+        description="Emit the real pending-job queue from current corpus state.",
+    )
+    parser.add_argument("--db", default=default_db, help="graph DB (read-only)")
+    parser.add_argument("--ingests", default=None)
+    parser.add_argument("--digests", default=None)
+    parser.add_argument("--sources", default=None)
+    parser.add_argument("--out", default=None, help="queue JSON path")
+    args = parser.parse_args(argv)
+
+    queue, out_path = run_schedule(
+        args.db, args.ingests, args.digests, args.sources, args.out
+    )
+    by_lane: dict[str, int] = {}
+    for job in queue["jobs"]:
+        by_lane[job["lane"]] = by_lane.get(job["lane"], 0) + 1
+    lanes = ", ".join(f"{n} {lane}" for lane, n in sorted(by_lane.items()))
+    print(f"Wrote {out_path}")
+    print(
+        f"  {len(queue['jobs'])} jobs ({lanes}), {len(queue['reviewQueue'])} awaiting review"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

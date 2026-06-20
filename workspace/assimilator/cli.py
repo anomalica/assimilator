@@ -616,21 +616,12 @@ def schedule_cmd(
     """
     from assimilator import scheduler
 
-    ingests_dir, digests_dir, sources_dir = _resolve_corpus_dirs(
-        ingests, digests, sources
+    # Shares resolve_corpus_dirs + run_schedule with the host-runnable
+    # `python -m assimilator.scheduler` entry, so the in-container CLI and the
+    # workbench's host invocation produce an identical queue.
+    queue, out_path = scheduler.run_schedule(
+        ctx.obj["db_path"], ingests, digests, sources, out
     )
-    out_path = Path(out) if out else scheduler.default_queue_path()
-
-    # Read-only: enumeration only reads the graph; never migrate or write the
-    # live DB just to compute a queue.
-    db_path = ctx.obj["db_path"]
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    queue = scheduler.build_queue(
-        conn, ingests_dir, digests_dir, sources_dir, scheduler.now_iso()
-    )
-    conn.close()
-    scheduler.write_queue(queue, out_path)
-
     by_lane: dict[str, int] = {}
     for job in queue["jobs"]:
         by_lane[job["lane"]] = by_lane.get(job["lane"], 0) + 1
@@ -641,21 +632,6 @@ def schedule_cmd(
         f"{len(queue['reviewQueue'])} awaiting review, "
         f"{len(queue['recordDemand'])} records with graph demand"
     )
-
-
-def _resolve_corpus_dirs(
-    ingests: str | None, digests: str | None, sources: str | None
-) -> tuple[Path, Path, Path]:
-    """Resolve the ingests/digests/sources dirs from flags, env, or sibling repos.
-
-    The Anomalica repos live side by side, so when a path is not given we look
-    for siblings of this repo's parent (…/anomalica/{ingests,digests,sources}).
-    """
-    root = Path(__file__).resolve().parents[3]  # …/anomalica (repos live side by side)
-    ingests_dir = Path(ingests) if ingests else root / "ingests"
-    digests_dir = Path(digests) if digests else root / "digests"
-    sources_dir = Path(sources) if sources else root / "sources"
-    return ingests_dir, digests_dir, sources_dir
 
 
 @main.command(name="backfill-claim-hashes")
