@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -44,18 +45,23 @@ STATUS_ELIGIBLE = "eligible"
 STATUS_BLOCKED = "blocked"
 STATUS_READINESS_GATED = "readiness_gated"
 
-# Per-source-type effort hints for the ingest (GPU) lane. Audio/video carry the
-# real GPU cost (transcription + diarisation); the rest are cheaper extraction.
-_INGEST_EFFORT = {
-    "opus": ("~GPU transcription", "audio/video"),
-    "mp3": ("~GPU transcription", "audio/video"),
-    "wav": ("~GPU transcription", "audio/video"),
-    "mp4": ("~GPU transcription", "audio/video"),
-    "json": ("~transcript import", "transcript"),
-    "html": ("~web extraction", "web page"),
-    "pdf": ("~PDF extraction", "document"),
-    "epub": ("~ebook extraction", "ebook"),
+# Per-source-type ingest spec: (effort, type label, lane). Only audio/video go
+# in the GPU lane - that is the transcription cost. Web, PDF and ebook ingest is
+# cheap local extraction with no GPU, so it runs in the eager light-local lane.
+_INGEST_SPEC = {
+    "opus": ("~GPU transcription", "audio/video", LANE_GPU),
+    "mp3": ("~GPU transcription", "audio/video", LANE_GPU),
+    "wav": ("~GPU transcription", "audio/video", LANE_GPU),
+    "mp4": ("~GPU transcription", "audio/video", LANE_GPU),
+    "m4a": ("~GPU transcription", "audio/video", LANE_GPU),
+    "webm": ("~GPU transcription", "audio/video", LANE_GPU),
+    "mkv": ("~GPU transcription", "audio/video", LANE_GPU),
+    "html": ("~web extraction", "web page", LANE_EAGER),
+    "pdf": ("~PDF extraction", "document", LANE_EAGER),
+    "epub": ("~ebook extraction", "ebook", LANE_EAGER),
 }
+
+_SOURCE_HASH_RE = re.compile(r"^source_hash:\s*sha256:([0-9a-f]{64})", re.MULTILINE)
 
 
 @dataclass
@@ -243,8 +249,55 @@ def _record_stem(md_path: Path, ingests_dir: Path) -> str | None:
     return None
 
 
+def _ingested_source_ids(ingests_dir: Path) -> set[str]:
+    """Every source-byte identity already ingested, across the per-type hash
+    inconsistency (record-format.md).
+
+    A source file in sources/ is named by the hash of its own bytes. Whether that
+    matches a record depends on the record type:
+    - audio / pdf: content_hash is over the source bytes, so it equals the
+      store filename - covered by the store names.
+    - web: content_hash is over the extracted body, but the record records the
+      source bytes separately in `source_hash` - covered by that field.
+    - ebook: content_hash is over the body and no source_hash is written, but the
+      verification sidecar's `sha256` is the source-byte hash - covered there.
+
+    Union all three so a web page or ebook already ingested is not re-listed as a
+    pending ingest job.
+    """
+    store = ingests_dir / "store"
+    ids: set[str] = set()
+    if not store.is_dir():
+        return ids
+    for md in store.glob("*.md"):
+        stem = md.stem.split(".", 1)[0]
+        if len(stem) == 64:
+            ids.add(stem)
+        try:
+            head = md.read_text(errors="ignore")[:8192]
+        except OSError:
+            continue
+        m = _SOURCE_HASH_RE.search(head)
+        if m:
+            ids.add(m.group(1))
+    for vj in store.glob("*.verification.json"):
+        try:
+            data = json.loads(vj.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        sh = _bare_hash(data.get("sha256"))
+        if len(sh) == 64:
+            ids.add(sh)
+    return ids
+
+
 def _pending_ingest(sources_dir: Path, ingested: set[str]) -> list[tuple[str, str]]:
-    """List (hash, ext) for source files not yet ingested."""
+    """List (hash, ext) for source files whose byte-hash is not yet ingested.
+
+    Transcript sidecars (``{hash}.transcript.json``) are paired output of an
+    audio/video source, not a source themselves; their stem is not a bare hash so
+    they fall through the 64-hex check.
+    """
     if not sources_dir.is_dir():
         return []
     out: list[tuple[str, str]] = []
@@ -263,12 +316,14 @@ def _pending_ingest(sources_dir: Path, ingested: set[str]) -> list[tuple[str, st
 def enumerate_ingest_jobs(sources_dir: Path, ingested: set[str]) -> list[Job]:
     jobs: list[Job] = []
     for h, ext in sorted(_pending_ingest(sources_dir, ingested)):
-        effort, type_label = _INGEST_EFFORT.get(ext, ("~extraction", ext or "unknown"))
+        effort, type_label, lane = _INGEST_SPEC.get(
+            ext, ("~extraction", ext or "unknown", LANE_EAGER)
+        )
         jobs.append(
             Job(
                 id=f"ingest:{h}",
                 type="ingest",
-                lane=LANE_GPU,
+                lane=lane,
                 target=Target(kind="record", label=f"{type_label} {h[:12]}", hash=h),
                 status=STATUS_ELIGIBLE,
                 trigger="never_done",
@@ -419,11 +474,10 @@ def build_queue(
     generated_at: str,
 ) -> dict:
     store = _store_records(ingests_dir)
-    ingested = set(store.keys())
     demand = compute_record_demand(conn)
 
     jobs: list[Job] = []
-    jobs += enumerate_ingest_jobs(sources_dir, ingested)
+    jobs += enumerate_ingest_jobs(sources_dir, _ingested_source_ids(ingests_dir))
     jobs += enumerate_digest_jobs(ingests_dir, digests_dir, store, demand)
     jobs += enumerate_graph_jobs(conn)
     review_queue = enumerate_review_queue(ingests_dir, store, demand)

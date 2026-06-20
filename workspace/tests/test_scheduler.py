@@ -74,17 +74,47 @@ def _graph_with_shared_node() -> sqlite3.Connection:
     return conn
 
 
-def test_pending_ingest_excludes_already_ingested(tmp_path):
+def test_pending_ingest_excludes_already_ingested_and_lanes_by_type(tmp_path):
     ingests, digests, sources = _corpus(tmp_path)
     conn = sqlite3.connect(":memory:")
     init_db(conn)
     q = scheduler.build_queue(conn, ingests, digests, sources, "T")
     ingest = [j for j in q["jobs"] if j["type"] == "ingest"]
-    hashes = {j["target"]["hash"] for j in ingest}
-    assert hashes == {H3, H4}  # H1 is already in the store, excluded
-    assert all(j["lane"] == "gpu" for j in ingest)
-    audio = next(j for j in ingest if j["target"]["hash"] == H3)
-    assert audio["drivers"][0]["value"] == "audio/video"
+    by_hash = {j["target"]["hash"]: j for j in ingest}
+    assert set(by_hash) == {H3, H4}  # H1 is already in the store, excluded
+    # Only audio/video belongs in the GPU lane; pdf is light-local eager.
+    assert by_hash[H3]["lane"] == "gpu"  # .opus
+    assert by_hash[H3]["drivers"][0]["value"] == "audio/video"
+    assert by_hash[H4]["lane"] == "eager"  # .pdf
+
+
+def test_web_and_ebook_dedup_via_source_hash_and_verification(tmp_path):
+    # A web page (body-hashed record) and an ebook (verification-named source)
+    # already ingested must NOT be re-listed as pending, despite their source
+    # bytes hashing differently from their content_hash.
+    ingests, digests, sources = _corpus(tmp_path)
+    store = ingests / "store"
+    web_src, ebook_src = "a" * 64, "b" * 64
+    body_web, body_ebook = "c" * 64, "d" * 64
+    (store / f"{body_web}.md").write_text(
+        f"---\nsource_type: web\ncontent_hash: sha256:{body_web}\n"
+        f"source_hash: sha256:{web_src}\n---\nbody\n"
+    )
+    (store / f"{body_ebook}.md").write_text(
+        f"---\nsource_type: ebook\ncontent_hash: sha256:{body_ebook}\n---\nbody\n"
+    )
+    (store / f"{body_ebook}.verification.json").write_text(
+        json.dumps({"sha256": ebook_src, "challenges": []})
+    )
+    (sources / f"{web_src}.html").write_text("raw html")
+    (sources / f"{ebook_src}.epub").write_text("raw epub")
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    q = scheduler.build_queue(conn, ingests, digests, sources, "T")
+    pending = {j["target"]["hash"] for j in q["jobs"] if j["type"] == "ingest"}
+    assert web_src not in pending  # matched via frontmatter source_hash
+    assert ebook_src not in pending  # matched via verification.json sha256
 
 
 def test_review_queue_excludes_reviewed_and_ranks_by_demand(tmp_path):
