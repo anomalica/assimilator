@@ -629,3 +629,72 @@ def backfill_claim_hashes(
     conn.commit()
     log(f"Backfilled claim_hash for {updated} claims")
     return {"updated": updated}
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Host-runnable entry point: `python -m assimilator.import_markdown <digest>`.
+
+    The deterministic fold of one reviewed digest YAML into the graph - no Claude,
+    no money. Deliberately avoids the embeddings/CLI imports (no fastembed), so the
+    runner's eager worker can flow a freshly produced digest into the graph
+    host-side. Needs anomalica_common + python-Levenshtein on the path; not
+    fastembed. Set ANOMALICA_INGESTS_DIR so content_hash resolves for older
+    digests that do not carry it.
+    """
+    import argparse
+    from pathlib import Path
+
+    from anomalica_common.digest.yaml_format import parse_digest_yaml
+    from assimilator.database import init_db
+
+    default_db = os.environ.get(
+        "ASSIMILATOR_DB",
+        str(Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"),
+    )
+    parser = argparse.ArgumentParser(
+        prog="assimilator.import_markdown",
+        description="Import one reviewed digest YAML into the graph (no AI).",
+    )
+    parser.add_argument("digest", help="path to the digest YAML")
+    parser.add_argument("--db", default=default_db, help="domain graph DB")
+    args = parser.parse_args(argv)
+
+    db_path = Path(args.db)
+    infra_path = db_path.parent / "infrastructure.db"
+    parsed = parse_digest_yaml(Path(args.digest).read_text())
+
+    def _open(path: Path) -> sqlite3.Connection:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(path))
+        init_db(conn)
+        return conn
+
+    domain_conn, infra_conn = _open(db_path), _open(infra_path)
+    try:
+        if parsed["domain_claims"]:
+            import_extraction(
+                domain_conn,
+                parsed,
+                section="domain",
+                lookup_conns=[infra_conn],
+                source_path=args.digest,
+                on_progress=print,
+            )
+        if parsed["infrastructure_claims"]:
+            import_extraction(
+                infra_conn,
+                parsed,
+                section="infrastructure",
+                lookup_conns=[domain_conn],
+                source_path=args.digest,
+                on_progress=print,
+            )
+    finally:
+        domain_conn.close()
+        infra_conn.close()
+    print(f"Imported {Path(args.digest).name}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
