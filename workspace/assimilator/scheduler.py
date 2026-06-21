@@ -228,17 +228,17 @@ def _reviewed_hashes(ingests_dir: Path) -> set[str]:
     return out
 
 
-def _digested_versions(digests_dir: Path) -> dict[str, str | None]:
-    """Map content_hash -> the digest's processing_version for every digest.
+def _digest_index(digests_dir: Path) -> dict[str, dict]:
+    """Map content_hash -> {version, title} for every digest on disk.
 
     Keyed by ``record.content_hash`` (not the friendly filename), so an
     audio/video digest is detected despite the record's ``.v2`` store suffix that
-    the filename stem carries but the digest filename does not. The
-    processing_version is the freshness key: a digest is current only while it
-    equals the record's current body version.
+    the filename stem carries but the digest filename does not. processing_version
+    is the digest-freshness key (a digest is current only while it equals the
+    record's current body version); title labels the import/digest jobs.
     """
     records = digests_dir / "records"
-    out: dict[str, str | None] = {}
+    out: dict[str, dict] = {}
     if not records.is_dir():
         return out
     # rglob, not glob: a slash in a record title nests the digest in a
@@ -252,8 +252,23 @@ def _digested_versions(digests_dir: Path) -> dict[str, str | None]:
         rec = (data or {}).get("record") or {}
         ch = _bare_hash(rec.get("content_hash"))
         if len(ch) == 64:
-            out[ch] = rec.get("processing_version")
+            out[ch] = {
+                "version": rec.get("processing_version"),
+                "title": rec.get("title"),
+                "record_id": rec.get("id"),
+            }
     return out
+
+
+def _graph_record_ids(conn: sqlite3.Connection) -> set[str]:
+    return {r[0] for r in conn.execute("SELECT id FROM records").fetchall()}
+
+
+def _graph_record_hashes(conn: sqlite3.Connection) -> set[str]:
+    rows = conn.execute(
+        "SELECT content_hash FROM records WHERE content_hash IS NOT NULL"
+    ).fetchall()
+    return {_bare_hash(r[0]) for r in rows}
 
 
 def _record_frontmatter(md_path: Path) -> dict:
@@ -364,22 +379,60 @@ def enumerate_ingest_jobs(sources_dir: Path, ingested: set[str]) -> list[Job]:
     return jobs
 
 
+def enumerate_import_jobs(
+    conn: sqlite3.Connection, digest_index: dict[str, dict]
+) -> list[Job]:
+    """A digest on disk whose record is not yet in the graph is a pending import.
+
+    Import is the deterministic fold of a digest into the graph - no Claude, no
+    money - so it is an eager light-local job. Surfacing it makes the downstream
+    work visible in the schedule and lets the runner's eager worker flow a freshly
+    produced digest into the graph instead of dead-ending after digestion.
+
+    Imported if the digest's record.id OR its content_hash is already in the
+    graph. record.id is the primary key (always present); content_hash is the
+    fallback for an id-less digest. Keying on content_hash alone would falsely
+    flag a record imported without its ingests dir (null content_hash in the
+    graph) as "not imported".
+    """
+    in_graph_ids = _graph_record_ids(conn)
+    in_graph_hashes = _graph_record_hashes(conn)
+    jobs: list[Job] = []
+    for h in sorted(digest_index):
+        record_id = digest_index[h].get("record_id")
+        if (record_id and record_id in in_graph_ids) or h in in_graph_hashes:
+            continue  # already imported
+        title = digest_index[h].get("title") or f"record {h[:12]}"
+        jobs.append(
+            Job(
+                id=f"import:{h}",
+                type="import",
+                lane=LANE_EAGER,
+                target=Target(kind="record", label=title, hash=h),
+                status=STATUS_ELIGIBLE,
+                trigger="never_done",
+                effort="~local import",
+                drivers=[Driver("source", "digest on disk, not yet in graph")],
+            )
+        )
+    return jobs
+
+
 def enumerate_digest_jobs(
     ingests_dir: Path,
-    digests_dir: Path,
+    digest_index: dict[str, dict],
     store: dict[str, Path],
     demand: dict[str, float],
 ) -> list[Job]:
     digestible = _digestible_hashes(ingests_dir)
-    digested = _digested_versions(digests_dir)
     jobs: list[Job] = []
     for h in sorted(digestible):
         md = store.get(h)
         if md is None:
             continue
         trigger = "never_done"
-        if h in digested:
-            digest_ver = digested[h]
+        if h in digest_index:
+            digest_ver = digest_index[h].get("version")
             record_ver = _record_processing_version(md)
             # Missing-safe (matches anomalica_common.staleness): only re-digest
             # when both versions are present and differ. A current digest -> the
@@ -513,10 +566,12 @@ def build_queue(
 ) -> dict:
     store = _store_records(ingests_dir)
     demand = compute_record_demand(conn)
+    digest_index = _digest_index(digests_dir)
 
     jobs: list[Job] = []
     jobs += enumerate_ingest_jobs(sources_dir, _ingested_source_ids(ingests_dir))
-    jobs += enumerate_digest_jobs(ingests_dir, digests_dir, store, demand)
+    jobs += enumerate_digest_jobs(ingests_dir, digest_index, store, demand)
+    jobs += enumerate_import_jobs(conn, digest_index)
     jobs += enumerate_graph_jobs(conn)
     review_queue = enumerate_review_queue(ingests_dir, store, demand)
 

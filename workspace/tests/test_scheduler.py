@@ -181,6 +181,28 @@ def test_digest_v2_suffix_does_not_defeat_completion(tmp_path):
     ]
 
 
+def test_import_job_for_digest_not_in_graph(tmp_path):
+    # A digest on disk whose record is not in the graph is a pending eager
+    # import; one whose record IS in the graph (by id, even with a null
+    # content_hash) is not.
+    ingests, digests, sources = _corpus(tmp_path)
+    conn = _graph_with_shared_node()  # graph record ids: r1, r2
+    recs = digests / "records"
+    (recs / "new.yaml").write_text(
+        yaml.safe_dump(
+            {"record": {"content_hash": "sha256:" + "e" * 64, "id": "r-new"}}
+        )
+    )
+    (recs / "old.yaml").write_text(
+        yaml.safe_dump({"record": {"content_hash": "sha256:" + "f" * 64, "id": "r1"}})
+    )
+    q = scheduler.build_queue(conn, ingests, digests, sources, "T")
+    imp = {j["target"]["hash"] for j in q["jobs"] if j["type"] == "import"}
+    assert "e" * 64 in imp  # r-new not in graph -> eager import job
+    assert "f" * 64 not in imp  # r1 in graph by id -> already imported
+    assert all(j["lane"] == "eager" for j in q["jobs"] if j["type"] == "import")
+
+
 def test_nested_digest_still_detected_complete(tmp_path):
     # A slash in a record title nests the digest in a subdirectory; rglob must
     # still recognise it as complete, else the job re-dispatches forever.
