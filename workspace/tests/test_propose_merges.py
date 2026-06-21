@@ -69,6 +69,10 @@ def test_structured_name_false_positives_blocked():
         ("ros", "USA, New Mexico, Roswell"),
         ("azt", "USA, New Mexico, Aztec"),
         ("dul", "USA, New Mexico, Dulce"),
+        # leaf is a hard-token designator (a digit-bearing token) - must still
+        # not link to a plain-word leaf (the workbench-reported S4/Fallon leak).
+        ("s4", "USA, Nevada, S4"),
+        ("fal", "USA, Nevada, Fallon"),
     ]
     secs = [("s32", "NDAA Section 1632"), ("s73", "NDAA Section 1673")]
     for nid, name in towns:
@@ -89,12 +93,11 @@ def test_structured_name_false_positives_blocked():
             )
     conn.commit()
     cands = pm.propose(conn)
-    # no candidate may group two different towns or the two sections
+    # no candidate may group two distinct places or the two sections
+    place_ids = {"ros", "azt", "dul", "s4", "fal"}
     for c in cands:
         ids = set(c["node_ids"])
-        assert not (
-            {"ros", "azt"} <= ids or {"ros", "dul"} <= ids or {"azt", "dul"} <= ids
-        )
+        assert len(ids & place_ids) < 2  # never two distinct places together
         assert {"s32", "s73"} != ids
 
 

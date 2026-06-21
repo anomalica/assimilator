@@ -29,11 +29,9 @@ import sqlite3
 from collections import defaultdict
 from pathlib import Path
 
-from Levenshtein import ratio as levenshtein_ratio
-
 from assimilator.matching import (
     FUZZY_NAME_THRESHOLD,
-    _distinctive_tokens_disagree,
+    fuzzy_name_similarity,
     name_equivalence_key,
 )
 
@@ -79,11 +77,13 @@ def _name_equiv_edges(conn: sqlite3.Connection) -> list[tuple[str, str, str, flo
 
 
 def _fuzzy_edges(conn: sqlite3.Connection) -> list[tuple[str, str, str, float]]:
-    """High-Levenshtein name pairs within a type, PRECISION-FILTERED: a pair that
-    disagrees on a distinguishing token (a town in a structured place name, a
-    section/bill number, a squadron designator) is rejected, so "USA, New Mexico,
-    Roswell" never links to "...Aztec" and "Section 1632" never links to "1673".
-    This is the #23 false-positive guard, applied before clustering."""
+    """Similar-name pairs within a type, scored by the SAME structure-aware metric
+    match_node uses (fuzzy_name_similarity), not raw Levenshtein. It compares
+    comma-structured names component-wise and collapses to 0 when a required
+    component differs - so distinct entities sharing a hierarchy prefix don't
+    link: "USA, New Mexico, Roswell"/"...Aztec", "USA, Nevada, S4"/"...Fallon"
+    (leaf differs), "NDAA Section 1632"/"1673" (hard-token conflict). The #23
+    precision guard, applied before clustering."""
     by_type: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for nid, name, node_type in _active_nodes(conn):
         by_type[node_type].append((nid, name))
@@ -92,12 +92,9 @@ def _fuzzy_edges(conn: sqlite3.Connection) -> list[tuple[str, str, str, float]]:
         for i in range(len(members)):
             for j in range(i + 1, len(members)):
                 a, b = members[i], members[j]
-                if levenshtein_ratio(a[1].lower(), b[1].lower()) < FUZZY_NAME_THRESHOLD:
-                    continue
-                if _distinctive_tokens_disagree(a[1], b[1]):
-                    continue  # distinct entities sharing a structured prefix
-                sim = levenshtein_ratio(a[1].lower(), b[1].lower())
-                edges.append((a[0], b[0], "fuzzy", round(sim, 3)))
+                sim = fuzzy_name_similarity(a[1].lower(), b[1].lower())
+                if sim >= FUZZY_NAME_THRESHOLD:
+                    edges.append((a[0], b[0], "fuzzy", round(sim, 3)))
     return edges
 
 
