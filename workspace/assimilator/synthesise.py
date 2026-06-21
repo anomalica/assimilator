@@ -1,0 +1,318 @@
+"""Synthesiser: decide which pages exist and emit one brief per page.
+
+The brief is the language-neutral fact bundle that is the assembler's SOLE input
+(decisions 0008/0036): the graph slice for one page, before any prose. The writer
+renders the brief and invents nothing of its own. The brief is also the staleness
+unit and the audit record - its ``brief_hash`` (over the ordered
+``(claim_id, claim_hash)`` pairs plus page identity) is the scheduler's diff key
+and the assembler's ``built_from`` freeze (ADR 0010).
+
+This stage is deterministic - graph slice in, brief out, no AI and no money - so
+it is an eager light-local step (the AI cost is the downstream *assemble*). v1
+emits one brief per entity node (the all-entities page set); the "which topics
+deserve a page" threshold refines once algorithmic-evidence-scoring is pinned.
+
+Brief format is YAML, consistent with the digest interchange. Per-claim evidence
+is neutral (score null) until scoring is pinned; ``independent_sources`` is real.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import sqlite3
+import unicodedata
+from pathlib import Path
+
+import yaml
+
+from assimilator.database import get_independent_source_count
+
+SCHEMA = "anomalica/brief/1"
+
+# Per-brief claim cap. A hub entity can be referenced by thousands of claims,
+# which would make one brief too large for the assembler to render in a single
+# pass. Until evidence-scoring is pinned (which will RANK claims so the cap keeps
+# the strongest), claims are ordered chronologically and the first MAX are kept;
+# claim_count vs claim_count_total on the page makes any truncation explicit, not
+# silent. Tunable via ANOMALICA_BRIEF_MAX_CLAIMS.
+MAX_CLAIMS = int(os.environ.get("ANOMALICA_BRIEF_MAX_CLAIMS", "200"))
+
+_SLUG_STRIP = re.compile(r"[^a-z0-9]+")
+
+
+def slugify(title: str) -> str:
+    """Lower-case ASCII slug: transliterate, drop non-alphanumerics to hyphens."""
+    norm = unicodedata.normalize("NFKD", title or "")
+    ascii_only = norm.encode("ascii", "ignore").decode("ascii").lower()
+    return _SLUG_STRIP.sub("-", ascii_only).strip("-") or "untitled"
+
+
+def resolve_slug(metadata: object, title: str) -> str:
+    """metadata.explicit_slug (ADR 0028 pattern short-URLs) else slugify(title).
+
+    Resolved here, at emission, because the assembler loses node.metadata once it
+    writes from the brief alone - without this a pattern page's URL and its
+    cross-links would silently break.
+    """
+    meta = metadata
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except json.JSONDecodeError:
+            meta = None
+    if isinstance(meta, dict) and meta.get("explicit_slug"):
+        return str(meta["explicit_slug"])
+    return slugify(title)
+
+
+def _graph_version(conn: sqlite3.Connection) -> str | None:
+    """A coarse DB-state stamp (the latest claim mutation), not the reconstruction
+    key - brief_hash carries the specific slice. Moves when the graph that could
+    affect a brief moves."""
+    row = conn.execute("SELECT MAX(created_at) FROM claims").fetchone()
+    return row[0] if row else None
+
+
+def brief_hash(node_id: str, kind: str, ordered_pairs: list[tuple[str, str]]) -> str:
+    """sha256 over the ordered (claim_id, claim_hash) selection plus page identity.
+
+    The claims list is ORDER-SENSITIVE (it is the selection order), so it is not
+    sorted; page identity is fixed. This is one fingerprint with three uses: the
+    scheduler's staleness diff, the assembler's built_from freeze, ADR 0010's
+    knowledge-graph-data audit component.
+    """
+    blob = json.dumps(
+        {
+            "kind": kind,
+            "node_id": node_id,
+            "claims": [[c, h] for c, h in ordered_pairs],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _claim_node_refs(conn: sqlite3.Connection, claim_id: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT n.id, n.name FROM claim_node_refs cnr JOIN nodes n ON n.id = cnr.node_id "
+        "WHERE cnr.claim_id = ?",
+        (claim_id,),
+    ).fetchall()
+    return [{"node_id": r[0], "title": r[1]} for r in rows]
+
+
+def build_entity_brief(conn: sqlite3.Connection, node_id: str) -> dict | None:
+    """Build the brief for one entity node from its graph slice.
+
+    Mirrors the assembler's --node read contract (node + claims-where-speaker-or-
+    referenced + related-nodes) so the brief covers everything the writer reads,
+    and adds the freezer fields (claim_hash per claim, brief_hash, resolved slugs).
+    """
+    node = conn.execute(
+        "SELECT id, node_type, name, metadata FROM nodes WHERE id = ?", (node_id,)
+    ).fetchone()
+    if node is None:
+        return None
+    nid, node_type, name, metadata = node
+
+    rows = conn.execute(
+        """
+        SELECT DISTINCT c.id, c.content, c.original_excerpt, c.claim_type,
+               c.attestation, c.location_in_record, c.date, c.date_end, c.claim_hash,
+               c.speaker_id, sp.name,
+               c.record_id, r.title, r.date, r.reference, r.content_hash, r.friendly_name
+        FROM claims c
+        LEFT JOIN records r ON r.id = c.record_id
+        LEFT JOIN nodes sp ON sp.id = c.speaker_id
+        WHERE c.speaker_id = ?
+           OR c.id IN (SELECT claim_id FROM claim_node_refs WHERE node_id = ?)
+        ORDER BY r.date, c.location_in_record
+        """,
+        (node_id, node_id),
+    ).fetchall()
+
+    claim_count_total = len(rows)
+    claims: list[dict] = []
+    ordered_pairs: list[tuple[str, str]] = []
+    for row in rows[:MAX_CLAIMS]:
+        (
+            cid,
+            content,
+            excerpt,
+            claim_type,
+            attestation,
+            location,
+            date,
+            date_end,
+            chash,
+            speaker_id,
+            speaker_name,
+            rec_id,
+            rtitle,
+            rdate,
+            rref,
+            rhash,
+            rfriendly,
+        ) = row
+        claims.append(
+            {
+                "claim_id": cid,
+                "claim_hash": chash,
+                "content": content,
+                "original_excerpt": excerpt,
+                "claim_type": claim_type,
+                "attestation": attestation,
+                "speaker": {"node_id": speaker_id, "title": speaker_name}
+                if speaker_id
+                else None,
+                "node_refs": _claim_node_refs(conn, cid),
+                "date": date,
+                "date_end": date_end,
+                "location_in_record": location,
+                "evidence": {
+                    "score": None,  # neutral until algorithmic-evidence-scoring pins
+                    "independent_sources": get_independent_source_count(conn, cid),
+                },
+                "provenance": {
+                    "record_id": rec_id,
+                    "record_title": rtitle,
+                    "record_date": rdate,
+                    "record_reference": rref,
+                    "content_hash": rhash,
+                    "friendly_name": rfriendly,
+                },
+            }
+        )
+        ordered_pairs.append((cid, chash or ""))
+
+    related = conn.execute(
+        """
+        SELECT b.node_id, n.name, n.node_type, n.metadata, COUNT(*) AS shared
+        FROM claim_node_refs a
+        JOIN claim_node_refs b ON b.claim_id = a.claim_id AND b.node_id != a.node_id
+        JOIN nodes n ON n.id = b.node_id
+        WHERE a.node_id = ? AND n.retired_at IS NULL
+        GROUP BY b.node_id
+        ORDER BY shared DESC, n.name
+        LIMIT 30
+        """,
+        (node_id,),
+    ).fetchall()
+    related_nodes = [
+        {
+            "node_id": r[0],
+            "title": r[1],
+            "node_type": r[2],
+            "slug": resolve_slug(r[3], r[1]),
+            "shared_claims": r[4],
+        }
+        for r in related
+    ]
+
+    return {
+        "schema": SCHEMA,
+        "brief_hash": brief_hash(nid, "entity", ordered_pairs),
+        "page": {
+            "kind": "entity",
+            "node_id": nid,
+            "node_type": node_type,
+            "title": name,
+            "slug": resolve_slug(metadata, name),
+            "claim_count": len(claims),
+            "claim_count_total": claim_count_total,
+        },
+        "generated": {"graph_version": _graph_version(conn)},
+        "related_nodes": related_nodes,
+        "claims": claims,
+    }
+
+
+def entity_node_ids(conn: sqlite3.Connection) -> list[str]:
+    """The all-entities page set: every non-retired node carrying at least one
+    claim (as speaker or referenced). The evidence-threshold refinement (which
+    of these truly merit a page) lands when scoring is pinned."""
+    rows = conn.execute(
+        """
+        SELECT n.id FROM nodes n
+        WHERE n.retired_at IS NULL
+          AND (EXISTS (SELECT 1 FROM claims c WHERE c.speaker_id = n.id)
+            OR EXISTS (SELECT 1 FROM claim_node_refs r WHERE r.node_id = n.id))
+        ORDER BY n.id
+        """
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def write_brief(brief: dict, out_dir: Path) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"{brief['page']['slug']}.yaml"
+    path.write_text(yaml.safe_dump(brief, sort_keys=False, allow_unicode=True))
+    return path
+
+
+def default_briefs_dir() -> Path:
+    return Path(
+        os.environ.get(
+            "ANOMALICA_BRIEFS_DIR",
+            str(Path.home() / ".local" / "share" / "assimilator" / "briefs"),
+        )
+    )
+
+
+def emit_all(conn: sqlite3.Connection, out_dir: Path, on_progress=None) -> dict:
+    log = on_progress or (lambda _: None)
+    written = 0
+    for node_id in entity_node_ids(conn):
+        brief = build_entity_brief(conn, node_id)
+        if brief is None or not brief["claims"]:
+            continue
+        write_brief(brief, out_dir)
+        written += 1
+    log(f"Emitted {written} briefs to {out_dir}")
+    return {"written": written}
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Host-runnable entry point: `python -m assimilator.synthesise`.
+
+    Emits briefs from the graph (deterministic, no Claude, no fastembed). Needs
+    anomalica_common + pyyaml on the path. With --node, emits one brief.
+    """
+    import argparse
+
+    default_db = os.environ.get(
+        "ASSIMILATOR_DB",
+        str(Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"),
+    )
+    parser = argparse.ArgumentParser(
+        prog="assimilator.synthesise",
+        description="Emit one brief per entity page from the graph (no AI).",
+    )
+    parser.add_argument("--db", default=default_db, help="graph DB (read-only)")
+    parser.add_argument("--out", default=None, help="briefs dir")
+    parser.add_argument("--node", default=None, help="emit only this node id")
+    args = parser.parse_args(argv)
+
+    out_dir = Path(args.out) if args.out else default_briefs_dir()
+    conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
+    try:
+        if args.node:
+            brief = build_entity_brief(conn, args.node)
+            if brief is None:
+                print(f"No such node: {args.node}")
+                return 1
+            print(f"Wrote {write_brief(brief, out_dir)}")
+        else:
+            result = emit_all(conn, out_dir, on_progress=print)
+            print(f"Emitted {result['written']} briefs to {out_dir}")
+    finally:
+        conn.close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

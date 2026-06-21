@@ -353,9 +353,44 @@ def _pending_ingest(sources_dir: Path, ingested: set[str]) -> list[tuple[str, st
 # --- Enumerators (one per real job type) ---
 
 
-def enumerate_ingest_jobs(sources_dir: Path, ingested: set[str]) -> list[Job]:
+def _superseded_hashes(sources_dir: Path) -> set[str]:
+    """Hashes of source files deliberately superseded - re-ingested under a new,
+    stable hash so the content lives elsewhere - excluded from the ingest lane.
+
+    Maintained as a flat file (one 64-hex hash per line, ``#`` comments allowed)
+    so the list grows without a code change. Default location:
+    ``<sources>/superseded.txt`` (override ANOMALICA_SUPERSEDED_FILE). Preferred
+    over parsing git delete-messages at schedule time, which is fragile.
+    """
+    path = Path(
+        os.environ.get("ANOMALICA_SUPERSEDED_FILE", str(sources_dir / "superseded.txt"))
+    )
+    out: set[str] = set()
+    if not path.is_file():
+        return out
+    for line in path.read_text().splitlines():
+        h = line.split("#", 1)[0].strip()
+        if len(h) == 64:
+            out.add(h)
+    return out
+
+
+def _default_briefs_dir() -> Path:
+    return Path(
+        os.environ.get(
+            "ANOMALICA_BRIEFS_DIR",
+            str(Path.home() / ".local" / "share" / "assimilator" / "briefs"),
+        )
+    )
+
+
+def enumerate_ingest_jobs(
+    sources_dir: Path, ingested: set[str], superseded: set[str] = frozenset()
+) -> list[Job]:
     jobs: list[Job] = []
     for h, ext in sorted(_pending_ingest(sources_dir, ingested)):
+        if h in superseded:
+            continue  # re-ingested under a new hash; not real pending work
         effort, type_label, lane = _INGEST_SPEC.get(
             ext, ("~extraction", ext or "unknown", LANE_EAGER)
         )
@@ -490,6 +525,103 @@ def enumerate_review_queue(
     return items
 
 
+def enumerate_synthesise_jobs(
+    conn: sqlite3.Connection, briefs_dir: Path | None
+) -> list[Job]:
+    """An entity page with no brief on disk is a pending synthesise job.
+
+    Synthesise is deterministic (graph slice -> brief, no Claude), so it is eager.
+    Page set is all entities (the evidence threshold refines later). Slug is
+    resolved cheaply from the node alone, so this does not build every brief.
+    """
+    from assimilator.synthesise import resolve_slug
+
+    rows = conn.execute(
+        """
+        SELECT n.id, n.name, n.node_type, n.metadata FROM nodes n
+        WHERE n.retired_at IS NULL
+          AND (EXISTS (SELECT 1 FROM claims c WHERE c.speaker_id = n.id)
+            OR EXISTS (SELECT 1 FROM claim_node_refs r WHERE r.node_id = n.id))
+        ORDER BY n.name
+        """
+    ).fetchall()
+    jobs: list[Job] = []
+    for node_id, name, node_type, metadata in rows:
+        slug = resolve_slug(metadata, name)
+        if briefs_dir is not None and (briefs_dir / f"{slug}.yaml").exists():
+            continue  # brief already emitted
+        jobs.append(
+            Job(
+                id=f"synthesise:{node_id}",
+                type="synthesise",
+                lane=LANE_EAGER,
+                target=Target(kind="page", label=name),
+                status=STATUS_ELIGIBLE,
+                trigger="never_done",
+                effort="~local graph slice",
+                drivers=[Driver("node type", node_type)],
+            )
+        )
+    return jobs
+
+
+def _article_brief_hashes(content_dir: Path) -> set[str]:
+    """The brief_hash each assembled article was frozen from (its built_from)."""
+    out: set[str] = set()
+    if not content_dir or not content_dir.is_dir():
+        return out
+    for md in content_dir.rglob("*.md"):
+        try:
+            text = md.read_text(errors="ignore")
+        except OSError:
+            continue
+        parts = text.split("---", 2)
+        if len(parts) < 3:
+            continue
+        try:
+            fm = yaml.safe_load(parts[1]) or {}
+        except yaml.YAMLError:
+            continue
+        built = fm.get("built_from") or {}
+        if isinstance(built, dict) and built.get("brief_hash"):
+            out.add(built["brief_hash"])
+    return out
+
+
+def enumerate_assemble_jobs(
+    briefs_dir: Path | None, content_dir: Path | None
+) -> list[Job]:
+    """A brief whose brief_hash is not frozen into any article is a pending
+    assemble job - the AI writer step, so it is Claude-lane. A brief whose hash
+    changed (graph moved) re-appears here automatically: the old article's
+    built_from no longer matches."""
+    if briefs_dir is None or not briefs_dir.is_dir():
+        return []
+    assembled = _article_brief_hashes(content_dir)
+    jobs: list[Job] = []
+    for bf in sorted(briefs_dir.glob("*.yaml")):
+        try:
+            brief = yaml.safe_load(bf.read_text()) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        brief_hash = brief.get("brief_hash")
+        page = brief.get("page") or {}
+        if not brief_hash or brief_hash in assembled:
+            continue
+        jobs.append(
+            Job(
+                id=f"assemble:{page.get('slug') or bf.stem}",
+                type="assemble",
+                lane=LANE_CLAUDE,
+                target=Target(kind="page", label=page.get("title") or bf.stem),
+                status=STATUS_ELIGIBLE,
+                trigger="never_done",
+                drivers=[Driver("claims", str(page.get("claim_count", "?")))],
+            )
+        )
+    return jobs
+
+
 def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
     """Corroborate pass plus its embedding prerequisite, from current graph state."""
     jobs: list[Job] = []
@@ -563,15 +695,21 @@ def build_queue(
     digests_dir: Path,
     sources_dir: Path,
     generated_at: str,
+    briefs_dir: Path | None = None,
+    content_dir: Path | None = None,
 ) -> dict:
     store = _store_records(ingests_dir)
     demand = compute_record_demand(conn)
     digest_index = _digest_index(digests_dir)
 
     jobs: list[Job] = []
-    jobs += enumerate_ingest_jobs(sources_dir, _ingested_source_ids(ingests_dir))
+    jobs += enumerate_ingest_jobs(
+        sources_dir, _ingested_source_ids(ingests_dir), _superseded_hashes(sources_dir)
+    )
     jobs += enumerate_digest_jobs(ingests_dir, digest_index, store, demand)
     jobs += enumerate_import_jobs(conn, digest_index)
+    jobs += enumerate_synthesise_jobs(conn, briefs_dir)
+    jobs += enumerate_assemble_jobs(briefs_dir, content_dir)
     jobs += enumerate_graph_jobs(conn)
     review_queue = enumerate_review_queue(ingests_dir, store, demand)
 
@@ -642,10 +780,20 @@ def run_schedule(
     ingests_dir, digests_dir, sources_dir = resolve_corpus_dirs(
         ingests, digests, sources
     )
+    root = Path(__file__).resolve().parents[3]  # …/anomalica
+    content_dir = Path(os.environ.get("ANOMALICA_CONTENT_DIR", str(root / "content")))
     out_path = Path(out) if out else default_queue_path()
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
-        queue = build_queue(conn, ingests_dir, digests_dir, sources_dir, now_iso())
+        queue = build_queue(
+            conn,
+            ingests_dir,
+            digests_dir,
+            sources_dir,
+            now_iso(),
+            briefs_dir=_default_briefs_dir(),
+            content_dir=content_dir,
+        )
     finally:
         conn.close()
     write_queue(queue, out_path)

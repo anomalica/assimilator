@@ -203,6 +203,58 @@ def test_import_job_for_digest_not_in_graph(tmp_path):
     assert all(j["lane"] == "eager" for j in q["jobs"] if j["type"] == "import")
 
 
+def test_superseded_source_excluded_from_ingest(tmp_path):
+    ingests, digests, sources = _corpus(tmp_path)
+    (sources / "superseded.txt").write_text(f"{H3}\n# a comment line\n")
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    q = scheduler.build_queue(conn, ingests, digests, sources, "T")
+    pending = {j["target"]["hash"] for j in q["jobs"] if j["type"] == "ingest"}
+    assert H3 not in pending  # listed as superseded -> excluded
+    assert H4 in pending  # still pending
+
+
+def test_synthesise_then_assemble_lifecycle(tmp_path):
+    from assimilator import synthesise
+
+    ingests, digests, sources = _corpus(tmp_path)
+    conn = _graph_with_shared_node()  # node n1 "Shared Person" carries claims
+    briefs, content = tmp_path / "briefs", tmp_path / "content"
+    briefs.mkdir()
+    content.mkdir()
+
+    # No brief yet -> the entity is a pending (eager) synthesise job.
+    q1 = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    syn = [j for j in q1["jobs"] if j["type"] == "synthesise"]
+    assert any(j["target"]["label"] == "Shared Person" for j in syn)
+    assert all(j["lane"] == "eager" for j in syn)
+
+    # Emit the brief -> synthesise drops, a claude-lane assemble job appears.
+    brief = synthesise.build_entity_brief(conn, "n1")
+    synthesise.write_brief(brief, briefs)
+    q2 = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    assert not [
+        j
+        for j in q2["jobs"]
+        if j["type"] == "synthesise" and j["target"]["label"] == "Shared Person"
+    ]
+    asm = [j for j in q2["jobs"] if j["type"] == "assemble"]
+    assert asm and all(j["lane"] == "claude" for j in asm)
+
+    # Freeze an article from this brief_hash -> the assemble job drops.
+    (content / "shared-person.md").write_text(
+        f"---\nbuilt_from:\n  brief_hash: {brief['brief_hash']}\n---\nprose\n"
+    )
+    q3 = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    assert not [j for j in q3["jobs"] if j["type"] == "assemble"]
+
+
 def test_nested_digest_still_detected_complete(tmp_path):
     # A slash in a record title nests the digest in a subdirectory; rglob must
     # still recognise it as complete, else the job re-dispatches forever.
