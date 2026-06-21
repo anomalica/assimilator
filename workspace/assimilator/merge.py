@@ -385,6 +385,11 @@ def main(argv: list[str] | None = None) -> int:
         if not (args.survivor and args.victims and args.name):
             p.error("merge needs --survivor, --victims and --name (or --undo)")
         victim_ids = [v.strip() for v in args.victims.split(",") if v.strip()]
+        # Validate ids BEFORE touching the ledger, so a bad call fails clean with
+        # no partial state (the workbench relies on fail-closed).
+        missing = [n for n in [args.survivor, *victim_ids] if _node(conn, n) is None]
+        if missing:
+            p.error(f"node id(s) not found: {', '.join(missing)}")
         merge_id = str(uuid.uuid4())
         created_at = _now()
         # Ledger first (captures victims' natural identity before they retire),
