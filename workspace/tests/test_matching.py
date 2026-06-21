@@ -271,3 +271,373 @@ def test_apply_doc_terminology_normalises_dates():
     name, _ = _apply_doc_terminology("Underwood Flight 14 November 2004", set(), {})
     assert "14 November 2004" not in name
     assert "2004-11-14" in name
+
+
+# --- Structured-name false-merge regression (precision) ----------------------
+#
+# The fuzzy matcher used full-string Levenshtein, which scored on the shared
+# structure of comma-structured names: "Surname, First" people sharing a first
+# name, and hierarchical "Country, State, City" places sharing a prefix, both
+# crossed the 0.75 threshold and were wrongly merged into one node. These cases
+# assert distinct real-world entities now stay separate.
+
+# People with the same surname OR the same first name - distinct individuals.
+_PERSON_FALSE_MERGES = [
+    ("Hill, Barney", "Hill, Betty"),  # the famous abduction couple
+    ("Walton, Travis", "Taylor, Travis"),
+    ("Lear, John", "Alexander, John"),
+    ("Mariani, Dennis", "Grant, Dennis"),
+    ("Ramsay, Chris", "Sato, Chris"),
+    ("Stevens, Wendell", "Stevens, Ted"),
+]
+
+# Places sharing a "Country, State" prefix but a different city - distinct places.
+_PLACE_FALSE_MERGES = [
+    ("USA, Nevada, Area 51", "USA, Nevada, Las Vegas"),
+    ("USA, Nevada, S4", "USA, Nevada, Fallon"),
+    ("USA, Illinois, Chicago", "USA, Illinois, Wheeling"),
+    ("USA, Arizona, Sedona", "USA, Arizona, Tucson"),
+    ("USA, New Mexico, Los Alamos", "USA, New Mexico, Los Brasos"),
+    ("USA, Pennsylvania, Pittsburgh", "USA, Pennsylvania, Kecksburg"),
+]
+
+
+def _assert_distinct(node_type, existing, incoming):
+    """Insert `existing`, then assert `incoming` does not fuzzy-merge into it."""
+    conn = _db()
+    insert_node(conn, Node(node_type=node_type, name=existing))
+    conn.commit()
+    result = match_node(conn, incoming, node_type.value)
+    assert result is None, f"{incoming!r} wrongly merged into {existing!r}: {result}"
+
+
+def test_distinct_people_sharing_a_name_do_not_merge():
+    for existing, incoming in _PERSON_FALSE_MERGES:
+        _assert_distinct(NodeType.person, existing, incoming)
+        # Symmetric: order of insertion must not matter.
+        _assert_distinct(NodeType.person, incoming, existing)
+
+
+def test_distinct_places_sharing_a_prefix_do_not_merge():
+    for existing, incoming in _PLACE_FALSE_MERGES:
+        _assert_distinct(NodeType.place, existing, incoming)
+        _assert_distinct(NodeType.place, incoming, existing)
+
+
+def test_same_city_in_different_state_does_not_merge():
+    # Same most-specific component, different parent - still distinct places.
+    _assert_distinct(
+        NodeType.place, "USA, Nevada, Springfield", "USA, Illinois, Springfield"
+    )
+
+
+def test_same_first_initial_different_surname_does_not_merge():
+    # An initial must not collapse two different surnames.
+    _assert_distinct(NodeType.person, "Lear, J.", "Alexander, J.")
+
+
+# --- Good merges that must still work (recall) --------------------------------
+
+
+def _assert_merges(node_type, existing, incoming):
+    conn = _db()
+    node = insert_node(conn, Node(node_type=node_type, name=existing))
+    conn.commit()
+    result = match_node(conn, incoming, node_type.value)
+    assert result is not None, f"{incoming!r} failed to merge into {existing!r}"
+    assert result[0] == node.id
+    return result
+
+
+def test_trailing_period_first_name_variant_still_merges():
+    # "Eisenhower, Dwight D" vs "Eisenhower, Dwight D." - same person.
+    res = _assert_merges(
+        NodeType.person, "Eisenhower, Dwight D", "Eisenhower, Dwight D."
+    )
+    assert res[1] == "fuzzy"
+
+
+def test_initial_vs_full_first_name_still_merges():
+    # "K. Day" vs "Kevin Day" - the initial-vs-full case the threshold targets.
+    _assert_merges(NodeType.person, "Kevin Day", "K. Day")
+    _assert_merges(NodeType.person, "K. Day", "Kevin Day")
+
+
+def test_surname_first_typo_still_merges():
+    # Genuine typo in the first name component must still merge.
+    _assert_merges(NodeType.person, "Hill, Barney", "Hill, Barny")
+
+
+def test_place_last_component_typo_still_merges():
+    _assert_merges(
+        NodeType.place, "USA, New Mexico, Los Alamos", "USA, New Mexico, Los Alamus"
+    )
+
+
+# --- fuzzy_name_similarity unit checks ---------------------------------------
+
+
+def test_fuzzy_name_similarity_structured_vs_plain():
+    from assimilator.matching import (
+        fuzzy_name_similarity,
+        FUZZY_NAME_THRESHOLD,
+    )
+
+    # Distinct structured names score below the merge threshold.
+    for a, b in _PERSON_FALSE_MERGES + _PLACE_FALSE_MERGES:
+        assert fuzzy_name_similarity(a.lower(), b.lower()) < FUZZY_NAME_THRESHOLD
+
+    # Variants of the same entity score at or above it.
+    assert (
+        fuzzy_name_similarity("eisenhower, dwight d", "eisenhower, dwight d.")
+        >= FUZZY_NAME_THRESHOLD
+    )
+    assert fuzzy_name_similarity("k. day", "kevin day") >= FUZZY_NAME_THRESHOLD
+    assert fuzzy_name_similarity("david fravor", "david favor") >= FUZZY_NAME_THRESHOLD
+
+
+# --- Plain (non-comma) name false-merge regression (precision) ----------------
+#
+# Whole-string Levenshtein scored plain names on their shared words, so a pair
+# that agreed on every common word but differed on the ONE distinguishing token
+# crossed the 0.75 threshold and wrongly merged. Two token-level discriminators
+# now block that class: a differing hard token (number, year, designator), and a
+# substituted distinctive word (each name holds a proper noun the other lacks).
+# Every case below is a real pair from a 22-digest graph rebuild.
+
+# Differing number, year or alphanumeric designator => different entity.
+_HARD_TOKEN_FALSE_MERGES = [
+    (
+        NodeType.document,
+        "FY2024 National Defense Authorization Act",
+        "FY2023 National Defense Authorization Act",
+    ),
+    (NodeType.document, "Executive Order 12333", "Executive Order 13526"),
+    (
+        NodeType.document,
+        "FY2023 NDAA UAP Section S1632",
+        "FY2023 NDAA UAP Section 1673",
+    ),
+    (
+        NodeType.event,
+        "Woomera 1952 UAP Radar Detection",
+        "Woomera 1954 Radar Detection",
+    ),
+    (
+        NodeType.event,
+        "Erik Nanstiel 2020 garage grey encounter",
+        "Erik Nanstiel 1994 grey encounter",
+    ),
+    (
+        NodeType.event,
+        "Erik Nanstiel 2022 arm surgery encounter",
+        "Erik Nanstiel 1994 grey encounter",
+    ),
+    (
+        NodeType.organisation,
+        "Strike Fighter Squadron 14 (VFA-14)",
+        "Strike Fighter Squadron 41 (VFA-41)",
+    ),
+    (
+        NodeType.organisation,
+        "Strike Fighter Squadron 94 (VFA-94)",
+        "Strike Fighter Squadron 41 (VFA-41)",
+    ),
+    (NodeType.object, "Malaysia Airlines MH17", "Malaysia Airlines MH370"),
+    (NodeType.object, "APG-79 Radar", "APG-73 Radar"),
+    (NodeType.object, "E-2D Hawkeye", "E-2C Hawkeye"),
+    (NodeType.organisation, "Joint Staff J2", "Joint Staff J3"),
+    (
+        NodeType.event,
+        "Unidentified Season 2 Premiere",
+        "Unidentified Season 1 Premiere 2019",
+    ),
+]
+
+# Differing distinctive proper noun => different entity, even with shared words.
+_PROPER_NOUN_FALSE_MERGES = [
+    (NodeType.place, "Andrews Air Force Base", "Vandenberg Air Force Base"),
+    (NodeType.place, "Edwards Air Force Base", "Vandenberg Air Force Base"),
+    (NodeType.place, "Kadena Air Force Base", "Vandenberg Air Force Base"),
+    (NodeType.place, "MacDill Air Force Base", "Vandenberg Air Force Base"),
+    (NodeType.organisation, "Cardiff University", "Stanford University"),
+    (NodeType.organisation, "Harvard University", "Stanford University"),
+    (NodeType.organisation, "University of Colorado", "University of Houston"),
+    (NodeType.organisation, "University of Ottawa", "University of Houston"),
+    (NodeType.organisation, "University of Miami", "University of Maryland"),
+    (
+        NodeType.organisation,
+        "Central Intelligence Agency (CIA)",
+        "Defense Intelligence Agency (DIA)",
+    ),
+    (
+        NodeType.organisation,
+        "Defense Counterintelligence Security Agency (DCSA)",
+        "Defense Intelligence Agency (DIA)",
+    ),
+    (NodeType.organisation, "National Security Council", "National Security Agency"),
+    (
+        NodeType.organisation,
+        "Office of Naval Intelligence",
+        "Director of National Intelligence",
+    ),
+    (
+        NodeType.organisation,
+        "House Permanent Select Committee on Intelligence",
+        "Senate Select Committee on Intelligence",
+    ),
+    (NodeType.object, "Gray Alien Species", "Nordic Alien Species"),
+    (
+        NodeType.organisation,
+        "Royal New Zealand Air Force",
+        "Royal Australian Air Force",
+    ),
+    (NodeType.organisation, "SOL Foundation", "Simons Foundation"),
+    (NodeType.organisation, "SRI International", "EarthTech International"),
+    (NodeType.organisation, "Time Magazine", "GQ Magazine"),
+    (NodeType.organisation, "True Magazine", "GQ Magazine"),
+    (NodeType.organisation, "Washington Post", "Huffington Post"),
+    (NodeType.organisation, "The New Yorker", "The New York Times"),
+    (NodeType.organisation, "Department of Energy", "Department of the Army"),
+    (
+        NodeType.organisation,
+        "Democratic Congressional Campaign Committee",
+        "Democratic National Committee",
+    ),
+    (
+        NodeType.project,
+        "Hexagon NRO Photoreconnaissance Program",
+        "Gambit NRO Photoreconnaissance Program",
+    ),
+    (NodeType.project, "Project Sign", "Project Condign"),
+    (
+        NodeType.organisation,
+        "Air Force Research Laboratory",
+        "Naval Research Laboratory",
+    ),
+    (NodeType.event, "RAF Shawbury UAP Sighting 1993", "RAF Cosford UAP Sighting 1993"),
+    (
+        NodeType.event,
+        "Kadena Air Force Base UAP Sighting",
+        "Eglin Air Force Base UAP Incident",
+    ),
+    (
+        NodeType.person,
+        "Hamdan bin Mohammed Al Maktoum",
+        "Mohammed bin Rashid Al Maktoum",
+    ),
+]
+
+
+def test_hard_token_difference_blocks_plain_merge():
+    for node_type, existing, incoming in _HARD_TOKEN_FALSE_MERGES:
+        _assert_distinct(node_type, existing, incoming)
+        _assert_distinct(node_type, incoming, existing)
+
+
+def test_distinctive_proper_noun_difference_blocks_plain_merge():
+    for node_type, existing, incoming in _PROPER_NOUN_FALSE_MERGES:
+        _assert_distinct(node_type, existing, incoming)
+        _assert_distinct(node_type, incoming, existing)
+
+
+# --- Plain-name good merges that must still work (recall) ----------------------
+#
+# These differ only on common/structural words, articles, spelling, accents or
+# an acronym suffix - the distinctive words agree - so they must still merge.
+
+_PLAIN_GOOD_MERGES = [
+    (NodeType.organisation, "New York Times", "The New York Times"),
+    (NodeType.organisation, "Joe Rogan Experience", "The Joe Rogan Experience"),
+    (NodeType.organisation, "Arlington Institute", "The Arlington Institute"),
+    (NodeType.organisation, "Department of Defense", "Department of Defense (DoD)"),
+    (
+        NodeType.organisation,
+        "Special Access Programs (SAPs)",
+        "Special Access Programs",
+    ),
+    (
+        NodeType.organisation,
+        "Securities Exchange Commission",
+        "Securities and Exchange Commission",
+    ),
+    (
+        NodeType.organisation,
+        "Center for the Study of Extra-terrestrial Intelligence",
+        "Centre for the Study of Extra-terrestrial Intelligence",
+    ),
+    (NodeType.organisation, "US Army Counterintelligence", "Army Counterintelligence"),
+    (
+        NodeType.organisation,
+        "US Army Combat Capabilities Development Command",
+        "Army Combat Capabilities Development Command",
+    ),
+    # A year on one side only is a name-extension, not a substitution.
+    (NodeType.event, "DeLonge Joe Rogan Interview 2017", "DeLonge Joe Rogan Interview"),
+    (
+        NodeType.event,
+        "Vandenberg ICBM UAP Filming",
+        "Vandenberg Atlas ICBM UAP Filming 1964",
+    ),
+    # Same year both sides, one side adds a distinctive word - still a merge.
+    (
+        NodeType.event,
+        "Lake Erie UAP Incident 1988",
+        "Lake Erie Coast Guard UAP Incident 1988",
+    ),
+]
+
+
+def test_plain_good_merges_still_merge():
+    for node_type, existing, incoming in _PLAIN_GOOD_MERGES:
+        res = _assert_merges(node_type, existing, incoming)
+        assert res[1] in ("fuzzy", "acronym")
+
+
+def test_hard_token_difference_scores_below_threshold():
+    from assimilator.matching import fuzzy_name_similarity, FUZZY_NAME_THRESHOLD
+
+    for _type, a, b in _HARD_TOKEN_FALSE_MERGES + _PROPER_NOUN_FALSE_MERGES:
+        assert fuzzy_name_similarity(a.lower(), b.lower()) < FUZZY_NAME_THRESHOLD, (
+            f"{a!r} vs {b!r} should not reach the merge threshold"
+        )
+
+
+def test_distinctive_token_disagreement_helper():
+    from assimilator.matching import _distinctive_tokens_disagree
+
+    # Differing hard token / substituted proper noun => disagreement.
+    assert _distinctive_tokens_disagree(
+        "executive order 12333", "executive order 13526"
+    )
+    assert _distinctive_tokens_disagree("cardiff university", "stanford university")
+    # One-sided extension and spelling variants => agreement.
+    assert not _distinctive_tokens_disagree(
+        "vandenberg icbm uap filming", "vandenberg atlas icbm uap filming 1964"
+    )
+    assert not _distinctive_tokens_disagree(
+        "center for the study of extra-terrestrial intelligence",
+        "centre for the study of extra-terrestrial intelligence",
+    )
+    assert not _distinctive_tokens_disagree("k. day", "kevin day")
+    # A year that only adds words on one side is a name-extension, not a clash.
+    assert not _distinctive_tokens_disagree(
+        "delonge george knapp 2016-03 interview",
+        "delonge george knapp interview 2016",
+    )
+
+
+def test_hard_token_date_prefix_does_not_conflict():
+    from assimilator.matching import _hard_tokens, _hard_tokens_conflict
+
+    # A bare year is the date-prefix of a fuller ISO date for the same event,
+    # so the two should not be treated as conflicting designators.
+    def conflict(a, b):
+        return _hard_tokens_conflict(_hard_tokens(a), _hard_tokens(b))
+
+    assert not conflict("nimitz uap intercept 2004-11-14", "2004 nimitz uap encounter")
+    assert not conflict("knapp 2016-03 interview", "knapp interview 2016")
+    # But a year is NOT a prefix of a different year or designator.
+    assert conflict("woomera 1952 radar", "woomera 1954 radar")
+    assert conflict("fy2024 ndaa", "fy2023 ndaa")
+    assert conflict("executive order 12333", "executive order 13526")
