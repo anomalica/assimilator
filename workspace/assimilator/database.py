@@ -75,6 +75,24 @@ CREATE TABLE IF NOT EXISTS corroborations (
     PRIMARY KEY (claim_a, claim_b)
 );
 
+-- Node-merge curation log. DERIVED: re-populated from the durable curation
+-- ledger on every rebuild+replay; the workbench reads it read-only for its
+-- merged-groups + undo surface. `reversal` is the apply-time data needed to undo
+-- a merge in the live DB (which claim/record refs moved); workbench ignores it.
+CREATE TABLE IF NOT EXISTS node_merges (
+    merge_id TEXT NOT NULL,
+    survivor_id TEXT NOT NULL,
+    victim_id TEXT NOT NULL,
+    victim_prior_name TEXT,
+    survivor_prior_name TEXT,
+    canonical_name TEXT,
+    created_at TEXT NOT NULL,
+    created_by TEXT,
+    undone_at TEXT,
+    reversal TEXT,
+    PRIMARY KEY (merge_id, victim_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(node_type);
 CREATE INDEX IF NOT EXISTS idx_nodes_name ON nodes(name);
 CREATE INDEX IF NOT EXISTS idx_claims_record ON claims(record_id);
