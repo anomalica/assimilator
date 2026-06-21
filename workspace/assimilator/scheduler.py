@@ -525,20 +525,36 @@ def enumerate_review_queue(
     return items
 
 
+def _load_briefs(briefs_dir: Path | None) -> list[dict]:
+    """Read the emitted briefs once (their page identity + brief_hash). Shared by
+    the synthesise and assemble enumerators so the briefs dir is scanned once."""
+    out: list[dict] = []
+    if briefs_dir is None or not briefs_dir.is_dir():
+        return out
+    for bf in sorted(briefs_dir.glob("*.yaml")):
+        try:
+            brief = yaml.safe_load(bf.read_text()) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        out.append(brief)
+    return out
+
+
 def enumerate_synthesise_jobs(
-    conn: sqlite3.Connection, briefs_dir: Path | None
+    conn: sqlite3.Connection, briefs: list[dict]
 ) -> list[Job]:
-    """An entity page with no brief on disk is a pending synthesise job.
+    """An entity page with no brief yet is a pending synthesise job.
 
     Synthesise is deterministic (graph slice -> brief, no Claude), so it is eager.
-    Page set is all entities (the evidence threshold refines later). Slug is
-    resolved cheaply from the node alone, so this does not build every brief.
+    Matched by node_id (the brief carries page.node_id) rather than by slug, so
+    this needs no slugifier here - keeping the scheduler host-light - and is
+    robust to slug collisions. Page set is all entities (the evidence threshold
+    refines later).
     """
-    from assimilator.synthesise import resolve_slug
-
+    have = {(b.get("page") or {}).get("node_id") for b in briefs}
     rows = conn.execute(
         """
-        SELECT n.id, n.name, n.node_type, n.metadata FROM nodes n
+        SELECT n.id, n.name, n.node_type FROM nodes n
         WHERE n.retired_at IS NULL
           AND (EXISTS (SELECT 1 FROM claims c WHERE c.speaker_id = n.id)
             OR EXISTS (SELECT 1 FROM claim_node_refs r WHERE r.node_id = n.id))
@@ -546,9 +562,8 @@ def enumerate_synthesise_jobs(
         """
     ).fetchall()
     jobs: list[Job] = []
-    for node_id, name, node_type, metadata in rows:
-        slug = resolve_slug(metadata, name)
-        if briefs_dir is not None and (briefs_dir / f"{slug}.yaml").exists():
+    for node_id, name, node_type in rows:
+        if node_id in have:
             continue  # brief already emitted
         jobs.append(
             Job(
@@ -565,7 +580,7 @@ def enumerate_synthesise_jobs(
     return jobs
 
 
-def _article_brief_hashes(content_dir: Path) -> set[str]:
+def _article_brief_hashes(content_dir: Path | None) -> set[str]:
     """The brief_hash each assembled article was frozen from (its built_from)."""
     out: set[str] = set()
     if not content_dir or not content_dir.is_dir():
@@ -588,32 +603,24 @@ def _article_brief_hashes(content_dir: Path) -> set[str]:
     return out
 
 
-def enumerate_assemble_jobs(
-    briefs_dir: Path | None, content_dir: Path | None
-) -> list[Job]:
+def enumerate_assemble_jobs(briefs: list[dict], content_dir: Path | None) -> list[Job]:
     """A brief whose brief_hash is not frozen into any article is a pending
     assemble job - the AI writer step, so it is Claude-lane. A brief whose hash
     changed (graph moved) re-appears here automatically: the old article's
     built_from no longer matches."""
-    if briefs_dir is None or not briefs_dir.is_dir():
-        return []
     assembled = _article_brief_hashes(content_dir)
     jobs: list[Job] = []
-    for bf in sorted(briefs_dir.glob("*.yaml")):
-        try:
-            brief = yaml.safe_load(bf.read_text()) or {}
-        except (OSError, yaml.YAMLError):
-            continue
+    for brief in briefs:
         brief_hash = brief.get("brief_hash")
         page = brief.get("page") or {}
         if not brief_hash or brief_hash in assembled:
             continue
         jobs.append(
             Job(
-                id=f"assemble:{page.get('slug') or bf.stem}",
+                id=f"assemble:{page.get('slug') or brief_hash[:12]}",
                 type="assemble",
                 lane=LANE_CLAUDE,
-                target=Target(kind="page", label=page.get("title") or bf.stem),
+                target=Target(kind="page", label=page.get("title") or "page"),
                 status=STATUS_ELIGIBLE,
                 trigger="never_done",
                 drivers=[Driver("claims", str(page.get("claim_count", "?")))],
@@ -708,8 +715,9 @@ def build_queue(
     )
     jobs += enumerate_digest_jobs(ingests_dir, digest_index, store, demand)
     jobs += enumerate_import_jobs(conn, digest_index)
-    jobs += enumerate_synthesise_jobs(conn, briefs_dir)
-    jobs += enumerate_assemble_jobs(briefs_dir, content_dir)
+    briefs = _load_briefs(briefs_dir)
+    jobs += enumerate_synthesise_jobs(conn, briefs)
+    jobs += enumerate_assemble_jobs(briefs, content_dir)
     jobs += enumerate_graph_jobs(conn)
     review_queue = enumerate_review_queue(ingests_dir, store, demand)
 

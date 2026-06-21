@@ -21,13 +21,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import sqlite3
-import unicodedata
 from pathlib import Path
 
 import yaml
 
+from anomalica_common.slug import node_slug
 from assimilator.database import get_independent_source_count
 
 SCHEMA = "anomalica/brief/1"
@@ -39,33 +38,6 @@ SCHEMA = "anomalica/brief/1"
 # claim_count vs claim_count_total on the page makes any truncation explicit, not
 # silent. Tunable via ANOMALICA_BRIEF_MAX_CLAIMS.
 MAX_CLAIMS = int(os.environ.get("ANOMALICA_BRIEF_MAX_CLAIMS", "200"))
-
-_SLUG_STRIP = re.compile(r"[^a-z0-9]+")
-
-
-def slugify(title: str) -> str:
-    """Lower-case ASCII slug: transliterate, drop non-alphanumerics to hyphens."""
-    norm = unicodedata.normalize("NFKD", title or "")
-    ascii_only = norm.encode("ascii", "ignore").decode("ascii").lower()
-    return _SLUG_STRIP.sub("-", ascii_only).strip("-") or "untitled"
-
-
-def resolve_slug(metadata: object, title: str) -> str:
-    """metadata.explicit_slug (ADR 0028 pattern short-URLs) else slugify(title).
-
-    Resolved here, at emission, because the assembler loses node.metadata once it
-    writes from the brief alone - without this a pattern page's URL and its
-    cross-links would silently break.
-    """
-    meta = metadata
-    if isinstance(meta, str):
-        try:
-            meta = json.loads(meta)
-        except json.JSONDecodeError:
-            meta = None
-    if isinstance(meta, dict) and meta.get("explicit_slug"):
-        return str(meta["explicit_slug"])
-    return slugify(title)
 
 
 def _graph_version(conn: sqlite3.Connection) -> str | None:
@@ -105,12 +77,55 @@ def _claim_node_refs(conn: sqlite3.Connection, claim_id: str) -> list[dict]:
     return [{"node_id": r[0], "title": r[1]} for r in rows]
 
 
-def build_entity_brief(conn: sqlite3.Connection, node_id: str) -> dict | None:
+def build_slug_map(conn: sqlite3.Connection) -> tuple[dict[str, str], list[dict]]:
+    """Global node_id -> final URL slug, with collision disambiguation.
+
+    The canonical slug (anomalica_common) is the deployed convention but is per
+    node, so two genuinely-distinct same-name entities collide. Resolved globally
+    and deterministically: within a colliding group the lexicographically-smallest
+    node_id keeps the base slug, the rest append a short node_id. The map is used
+    for BOTH page.slug and related_nodes[].slug so a node's URL is identical
+    wherever it appears.
+
+    Returns the map plus the list of collisions, so a collision that is really one
+    entity wrongly split (the entity-matcher merge bug) is surfaced, not masked.
+    """
+    rows = conn.execute(
+        "SELECT id, name, metadata FROM nodes WHERE retired_at IS NULL"
+    ).fetchall()
+    by_base: dict[str, list[tuple[str, str]]] = {}
+    for node_id, name, metadata in rows:
+        by_base.setdefault(node_slug(name, metadata), []).append((node_id, name))
+
+    slug_map: dict[str, str] = {}
+    collisions: list[dict] = []
+    for base, members in by_base.items():
+        if len(members) == 1:
+            slug_map[members[0][0]] = base
+            continue
+        members.sort(key=lambda m: m[0])  # deterministic winner
+        collisions.append(
+            {
+                "slug": base,
+                "nodes": [m[0] for m in members],
+                "names": [m[1] for m in members],
+            }
+        )
+        for i, (node_id, _name) in enumerate(members):
+            slug_map[node_id] = base if i == 0 else f"{base}-{node_id[:8]}"
+    return slug_map, collisions
+
+
+def build_entity_brief(
+    conn: sqlite3.Connection, node_id: str, slug_map: dict[str, str] | None = None
+) -> dict | None:
     """Build the brief for one entity node from its graph slice.
 
     Mirrors the assembler's --node read contract (node + claims-where-speaker-or-
     referenced + related-nodes) so the brief covers everything the writer reads,
     and adds the freezer fields (claim_hash per claim, brief_hash, resolved slugs).
+    slug_map (from build_slug_map) gives globally-disambiguated slugs; without it,
+    the per-node canonical slug is used (fine for a single-page emit).
     """
     node = conn.execute(
         "SELECT id, node_type, name, metadata FROM nodes WHERE id = ?", (node_id,)
@@ -118,6 +133,10 @@ def build_entity_brief(conn: sqlite3.Connection, node_id: str) -> dict | None:
     if node is None:
         return None
     nid, node_type, name, metadata = node
+    slug_map = slug_map or {}
+
+    def _slug(nid_: str, name_: str, meta_: object) -> str:
+        return slug_map.get(nid_) or node_slug(name_, meta_)
 
     rows = conn.execute(
         """
@@ -207,7 +226,7 @@ def build_entity_brief(conn: sqlite3.Connection, node_id: str) -> dict | None:
             "node_id": r[0],
             "title": r[1],
             "node_type": r[2],
-            "slug": resolve_slug(r[3], r[1]),
+            "slug": _slug(r[0], r[1], r[3]),
             "shared_claims": r[4],
         }
         for r in related
@@ -221,7 +240,7 @@ def build_entity_brief(conn: sqlite3.Connection, node_id: str) -> dict | None:
             "node_id": nid,
             "node_type": node_type,
             "title": name,
-            "slug": resolve_slug(metadata, name),
+            "slug": _slug(nid, name, metadata),
             "claim_count": len(claims),
             "claim_count_total": claim_count_total,
         },
@@ -265,15 +284,23 @@ def default_briefs_dir() -> Path:
 
 def emit_all(conn: sqlite3.Connection, out_dir: Path, on_progress=None) -> dict:
     log = on_progress or (lambda _: None)
+    slug_map, collisions = build_slug_map(conn)
     written = 0
     for node_id in entity_node_ids(conn):
-        brief = build_entity_brief(conn, node_id)
+        brief = build_entity_brief(conn, node_id, slug_map)
         if brief is None or not brief["claims"]:
             continue
         write_brief(brief, out_dir)
         written += 1
     log(f"Emitted {written} briefs to {out_dir}")
-    return {"written": written}
+    if collisions:
+        log(
+            f"NOTE: {len(collisions)} slug collisions disambiguated by node-id "
+            f"suffix - review for entity-matcher merge bugs (same entity split):"
+        )
+        for c in collisions:
+            log(f"  {c['slug']}: {c['names']}")
+    return {"written": written, "collisions": collisions}
 
 
 def main(argv: list[str] | None = None) -> int:
