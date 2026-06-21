@@ -93,6 +93,21 @@ CREATE TABLE IF NOT EXISTS node_merges (
     PRIMARY KEY (merge_id, victim_id)
 );
 
+-- "Not a duplicate" decisions. DERIVED from the durable rejections ledger
+-- (curation/rejections.yaml), re-populated on rebuild. A rejected node set is
+-- confirmed-distinct ground truth: propose-merges excludes it so a similar-named
+-- but genuinely-different pair stops reappearing as a candidate. node_ids is the
+-- JSON set; the workbench reads this read-only to filter its queue.
+CREATE TABLE IF NOT EXISTS node_rejections (
+    rejection_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    reason TEXT,
+    created_at TEXT NOT NULL,
+    created_by TEXT,
+    undone_at TEXT,
+    PRIMARY KEY (rejection_id, node_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(node_type);
 CREATE INDEX IF NOT EXISTS idx_nodes_name ON nodes(name);
 CREATE INDEX IF NOT EXISTS idx_claims_record ON claims(record_id);

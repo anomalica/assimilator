@@ -169,10 +169,11 @@ def rebuild(ctx: click.Context, directory: str) -> None:
     # Replay the durable curation ledger over the freshly-rebuilt graph - merges
     # are graph-level corrections not held in the digests, so a rebuild loses
     # them unless re-applied (keyed on natural identity; ADR 0038).
-    from assimilator.merge import replay_ledger
+    from assimilator.merge import replay_ledger, replay_rejections
 
     domain_conn = _connect(db_path)
     replay_ledger(domain_conn, on_progress=click.echo)
+    replay_rejections(domain_conn, on_progress=click.echo)
     s = get_stats(domain_conn)
     click.echo(
         f"\nRebuild complete. Domain: {s['active_nodes']} nodes, "

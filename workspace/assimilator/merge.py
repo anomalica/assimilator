@@ -352,6 +352,114 @@ def replay_ledger(conn: sqlite3.Connection, on_progress=None) -> dict:
     return {"applied": applied, "skipped": skipped}
 
 
+# --- Rejections ("not a duplicate"): the negative-signal curation ledger ---
+
+
+def rejections_ledger_path() -> Path:
+    root = Path(__file__).resolve().parents[3]  # …/anomalica
+    base = Path(os.environ.get("ANOMALICA_CURATION_DIR", str(root / "curation")))
+    return base / "rejections.yaml"
+
+
+def _append_rejection(entry: dict) -> None:
+    path = rejections_ledger_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as f:
+        f.write("---\n")
+        f.write(yaml.safe_dump(entry, sort_keys=False, allow_unicode=True))
+
+
+def read_rejections() -> list[dict]:
+    path = rejections_ledger_path()
+    if not path.is_file():
+        return []
+    return [e for e in yaml.safe_load_all(path.read_text()) if e]
+
+
+def reject_nodes(
+    conn: sqlite3.Connection,
+    node_ids: list[str],
+    reason: str | None,
+    rejection_id: str,
+    created_at: str | None = None,
+    created_by: str | None = None,
+) -> None:
+    """Record a confirmed-distinct decision for a candidate cluster: durable
+    ledger entry (natural-identity keyed) + derived node_rejections row. propose-
+    merges then excludes this set so the pair stops reappearing."""
+    created_at = created_at or _now()
+    _append_rejection(
+        {
+            "op": "reject",
+            "rejection_id": rejection_id,
+            "at": created_at,
+            "by": created_by,
+            "reason": reason,
+            "nodes": [_natural(conn, n) for n in node_ids if _node(conn, n)],
+            "audit": {"node_ids": list(node_ids)},
+        }
+    )
+    for node_id in sorted(set(node_ids)):
+        conn.execute(
+            "INSERT OR REPLACE INTO node_rejections (rejection_id, node_id, reason, "
+            "created_at, created_by, undone_at) VALUES (?, ?, ?, ?, ?, NULL)",
+            (rejection_id, node_id, reason, created_at, created_by),
+        )
+    conn.commit()
+
+
+def un_reject(conn: sqlite3.Connection, rejection_id: str) -> int:
+    _append_rejection(
+        {"op": "unreject", "rejection_id": rejection_id, "at": _now(), "by": None}
+    )
+    cur = conn.execute(
+        "UPDATE node_rejections SET undone_at = ? WHERE rejection_id = ? AND undone_at IS NULL",
+        (_now(), rejection_id),
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def replay_rejections(conn: sqlite3.Connection, on_progress=None) -> dict:
+    """Re-populate node_rejections from the durable ledger after a rebuild,
+    resolving each rejection's nodes by natural identity."""
+    log = on_progress or (lambda _: None)
+    entries = read_rejections()
+    undone = {e["rejection_id"] for e in entries if e.get("op") == "unreject"}
+    applied = 0
+    for e in entries:
+        if e.get("op") != "reject" or e["rejection_id"] in undone:
+            continue
+        ids = {nid for nid in (_resolve_natural(conn, n) for n in e["nodes"]) if nid}
+        if len(ids) < 2:
+            continue
+        for node_id in sorted(ids):
+            conn.execute(
+                "INSERT OR REPLACE INTO node_rejections (rejection_id, node_id, reason, "
+                "created_at, created_by, undone_at) VALUES (?, ?, ?, ?, ?, NULL)",
+                (e["rejection_id"], node_id, e.get("reason"), e.get("at"), e.get("by")),
+            )
+        applied += 1
+    conn.commit()
+    log(f"Replayed {applied} rejections")
+    return {"applied": applied}
+
+
+def rejected_sets(conn: sqlite3.Connection) -> set[frozenset]:
+    """Active rejected node-id sets (grouped by rejection_id), for propose-merges
+    to exclude the corresponding edges."""
+    by_rej: dict[str, set[str]] = {}
+    try:
+        rows = conn.execute(
+            "SELECT rejection_id, node_id FROM node_rejections WHERE undone_at IS NULL"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return set()
+    for rejection_id, node_id in rows:
+        by_rej.setdefault(rejection_id, set()).add(node_id)
+    return {frozenset(s) for s in by_rej.values()}
+
+
 # --- Host CLI ---
 
 
