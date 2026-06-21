@@ -254,10 +254,12 @@ def _lookup_ingest_metadata(
                 pass
 
     # Fallback: scan every ingest record/symlink for a frontmatter title
-    # match. Slow on a big corpus but unambiguous.
+    # match. Slow on a big corpus but unambiguous. Sorted so that when two
+    # records share a title the same one wins every rebuild (determinism;
+    # order-sensitivity is latent across the import path).
     import yaml as _y
 
-    for ingest in records_dir.glob("*.md"):
+    for ingest in sorted(records_dir.glob("*.md")):
         try:
             target = ingest.resolve() if ingest.is_symlink() else ingest
             with open(target) as f:
