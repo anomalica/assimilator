@@ -31,7 +31,11 @@ from pathlib import Path
 
 from Levenshtein import ratio as levenshtein_ratio
 
-from assimilator.matching import FUZZY_NAME_THRESHOLD, name_equivalence_key
+from assimilator.matching import (
+    FUZZY_NAME_THRESHOLD,
+    _distinctive_tokens_disagree,
+    name_equivalence_key,
+)
 
 
 def _claim_counts(conn: sqlite3.Connection) -> dict[str, int]:
@@ -53,82 +57,106 @@ def _active_nodes(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
     ).fetchall()
 
 
-def _canonical(members: list[tuple[str, str]], counts: dict[str, int]) -> str:
-    """The member name with the most claims becomes the suggested canonical (the
-    dominant form); a human can override in the UI."""
-    return max(members, key=lambda m: counts.get(m[0], 0))[1]
-
-
-def find_name_equiv(conn: sqlite3.Connection, counts: dict[str, int]) -> list[dict]:
-    """Same name (modulo case + acronym suffix). Grouped across types: a same-name
-    group within ONE type is high-confidence ("name-equiv"); a same-name group
-    spanning types is flagged "name-equiv-crosstype" (the 17 collisions like
-    "Special Access Programs" concept+matter) - surfaced for human review with the
-    type difference prominent, NOT auto-merged. (The dangerous cross-type case is
-    SEMANTIC similarity of different names; identical names are high signal.)"""
-    groups: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
+def _name_equiv_edges(conn: sqlite3.Connection) -> list[tuple[str, str, str, float]]:
+    """Pairwise edges among same-name nodes (modulo case + acronym suffix). A
+    same-name group within one type is "name-equiv" (0.95); spanning types is
+    "name-equiv-crosstype" (0.9) - the collisions surfaced flagged for review."""
+    groups: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for nid, name, node_type in _active_nodes(conn):
-        groups[name_equivalence_key(name)].append((nid, name, node_type))
-    out = []
+        groups[name_equivalence_key(name)].append((nid, node_type))
+    edges = []
     for members in groups.values():
         if len(members) < 2:
             continue
-        types = {m[2] for m in members}
-        cross = len(types) > 1
-        out.append(
-            {
-                "node_ids": sorted(m[0] for m in members),
-                "suggested_canonical": _canonical(
-                    [(m[0], m[1]) for m in members], counts
-                ),
-                "score": 0.9 if cross else 0.95,
-                "node_type": max(members, key=lambda m: counts.get(m[0], 0))[2],
-                "reason": "name-equiv-crosstype" if cross else "name-equiv",
-            }
-        )
-    return out
+        cross = len({m[1] for m in members}) > 1
+        reason = "name-equiv-crosstype" if cross else "name-equiv"
+        score = 0.9 if cross else 0.95
+        ids = [m[0] for m in members]
+        for i in range(len(ids)):
+            for j in range(i + 1, len(ids)):
+                edges.append((ids[i], ids[j], reason, score))
+    return edges
 
 
-def find_fuzzy(
-    conn: sqlite3.Connection, counts: dict[str, int], exclude: set[frozenset]
-) -> list[dict]:
+def _fuzzy_edges(conn: sqlite3.Connection) -> list[tuple[str, str, str, float]]:
+    """High-Levenshtein name pairs within a type, PRECISION-FILTERED: a pair that
+    disagrees on a distinguishing token (a town in a structured place name, a
+    section/bill number, a squadron designator) is rejected, so "USA, New Mexico,
+    Roswell" never links to "...Aztec" and "Section 1632" never links to "1673".
+    This is the #23 false-positive guard, applied before clustering."""
     by_type: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for nid, name, node_type in _active_nodes(conn):
         by_type[node_type].append((nid, name))
-    out = []
-    for node_type, members in by_type.items():
+    edges = []
+    for members in by_type.values():
         for i in range(len(members)):
             for j in range(i + 1, len(members)):
                 a, b = members[i], members[j]
-                key = frozenset((a[0], b[0]))
-                if key in exclude:
+                if levenshtein_ratio(a[1].lower(), b[1].lower()) < FUZZY_NAME_THRESHOLD:
                     continue
+                if _distinctive_tokens_disagree(a[1], b[1]):
+                    continue  # distinct entities sharing a structured prefix
                 sim = levenshtein_ratio(a[1].lower(), b[1].lower())
-                if sim < FUZZY_NAME_THRESHOLD:
-                    continue
-                exclude.add(key)
-                out.append(
-                    {
-                        "node_ids": sorted([a[0], b[0]]),
-                        "suggested_canonical": _canonical([a, b], counts),
-                        "score": round(sim, 3),
-                        "node_type": node_type,
-                        "reason": "fuzzy",
-                    }
-                )
-    return out
+                edges.append((a[0], b[0], "fuzzy", round(sim, 3)))
+    return edges
 
 
 def propose(conn: sqlite3.Connection) -> list[dict]:
-    """Deterministic candidate clusters (name-equiv + fuzzy, within type), ranked
-    by score. Embedding/cross-type candidates are added by the --verify pass."""
+    """Candidate clusters: one card per CONNECTED COMPONENT of the similarity
+    graph, not N-choose-2 overlapping pairs. Edges are name-equiv + precision-
+    filtered fuzzy; edges within a rejected (confirmed-distinct) set are removed
+    (which can split a component), and already-merged nodes are absent (active
+    nodes only). Each cluster is resolved once in the workbench. Embedding/cross-
+    type semantic candidates are added by the --verify pass."""
+    from assimilator.merge import rejected_sets
+
     counts = _claim_counts(conn)
-    name_equiv = find_name_equiv(conn, counts)
-    seen = {frozenset(c["node_ids"]) for c in name_equiv}
-    fuzzy = find_fuzzy(conn, counts, seen)
-    candidates = name_equiv + fuzzy
-    candidates.sort(key=lambda c: c["score"], reverse=True)
-    return candidates
+    nodes = {nid: (name, ntype) for nid, name, ntype in _active_nodes(conn)}
+    rejected = rejected_sets(conn)
+
+    # fuzzy first, name-equiv last: a same-name pair also matches fuzzy (ratio
+    # 1.0), and name-equiv is the more meaningful label, so it overwrites in
+    # edge_meta below.
+    edges = _fuzzy_edges(conn) + _name_equiv_edges(conn)
+    edges = [e for e in edges if not any({e[0], e[1]} <= r for r in rejected)]
+
+    parent: dict[str, str] = {}
+
+    def find(x: str) -> str:
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    edge_meta: dict[frozenset, tuple[str, float]] = {}
+    for a, b, reason, score in edges:
+        parent[find(a)] = find(b)
+        edge_meta[frozenset((a, b))] = (reason, score)
+
+    comps: dict[str, set[str]] = defaultdict(set)
+    for pair in edge_meta:
+        for nid in pair:
+            comps[find(nid)].add(nid)
+
+    out = []
+    for members in comps.values():
+        if len(members) < 2:
+            continue
+        internal = [edge_meta[k] for k in edge_meta if k <= members]
+        best_reason, best_score = max(internal, key=lambda rs: rs[1])
+        dominant = max(members, key=lambda n: counts.get(n, 0))
+        out.append(
+            {
+                "node_ids": sorted(members),
+                "suggested_canonical": nodes[dominant][0],
+                "score": best_score,
+                "node_type": nodes[dominant][1],
+                "reason": best_reason,
+            }
+        )
+    out.sort(key=lambda c: c["score"], reverse=True)
+    return out
 
 
 def default_candidates_path() -> Path:
