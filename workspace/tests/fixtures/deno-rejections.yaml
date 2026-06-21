@@ -1,0 +1,22 @@
+op: reject
+rejection_id: 22222222-2222-4222-8222-222222222222
+at: '2026-06-21T05:38:00Z'
+by: reviewer@example.com
+reason: 'distinct provisions: 1632 vs 1673'
+nodes:
+  - name: 'Section 1673: UAP provisions'
+    node_type: matter
+    prior_names: []
+  - name: '@anonymous source'
+    node_type: person
+    prior_names:
+      - '#redacted'
+audit:
+  node_ids:
+    - aaaa0000-0000-4000-8000-00000000000a
+    - bbbb0000-0000-4000-8000-00000000000b
+---
+op: unreject
+rejection_id: 22222222-2222-4222-8222-222222222222
+at: '2026-06-21T06:05:00Z'
+by: null

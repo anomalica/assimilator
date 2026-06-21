@@ -1,0 +1,28 @@
+op: merge
+merge_id: 11111111-1111-4111-8111-111111111111
+at: '2026-06-21T05:37:52Z'
+by: null
+canonical_name: Tic Tac (敦賀)
+survivor:
+  name: Tic Tac (敦賀)
+  node_type: object
+  prior_names: []
+victims:
+  - name: Tic-Tac UAP
+    node_type: object
+    prior_names:
+      - the Tic Tac
+      - Nimitz object
+  - name: 'Object: low observable'
+    node_type: object
+    prior_names: []
+audit:
+  survivor_id: ef5339ab-0000-4000-8000-000000000001
+  victim_ids:
+    - 470164d8-0000-4000-8000-000000000002
+    - 470164d8-0000-4000-8000-000000000003
+---
+op: undo
+merge_id: 11111111-1111-4111-8111-111111111111
+at: '2026-06-21T06:00:00Z'
+by: reviewer@example.com
