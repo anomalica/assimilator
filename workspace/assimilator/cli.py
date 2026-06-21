@@ -139,12 +139,19 @@ def assimilate(ctx: click.Context, directory: str) -> None:
 
 @main.command()
 @click.argument("directory", type=click.Path(exists=True))
+@click.option(
+    "--no-replay",
+    is_flag=True,
+    help="Skip replaying the curation ledger - for a clean reset (e.g. a "
+    "re-digest that rewrites the names the ledger keys on).",
+)
 @click.pass_context
-def rebuild(ctx: click.Context, directory: str) -> None:
+def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
     """Rebuild the graph from a directory of digest YAML files.
 
     Deletes and recreates both domain and infrastructure databases,
-    then imports all .yaml digests from the given directory.
+    then imports all .yaml digests from the given directory, and replays the
+    curation ledger (use --no-replay to skip, for a clean taxonomy reset).
     """
     db_path = ctx.obj["db_path"]
     infra_path = ctx.obj["infra_db_path"]
@@ -168,12 +175,15 @@ def rebuild(ctx: click.Context, directory: str) -> None:
 
     # Replay the durable curation ledger over the freshly-rebuilt graph - merges
     # are graph-level corrections not held in the digests, so a rebuild loses
-    # them unless re-applied (keyed on natural identity; ADR 0038).
-    from assimilator.merge import replay_ledger, replay_rejections
-
+    # them unless re-applied (keyed on natural identity; ADR 0038). --no-replay
+    # skips this for a clean reset (a re-digest rewrites the names the ledger
+    # keys on, so curation restarts fresh after the rebuild).
     domain_conn = _connect(db_path)
-    replay_ledger(domain_conn, on_progress=click.echo)
-    replay_rejections(domain_conn, on_progress=click.echo)
+    if not no_replay:
+        from assimilator.merge import replay_ledger, replay_rejections
+
+        replay_ledger(domain_conn, on_progress=click.echo)
+        replay_rejections(domain_conn, on_progress=click.echo)
     s = get_stats(domain_conn)
     click.echo(
         f"\nRebuild complete. Domain: {s['active_nodes']} nodes, "
