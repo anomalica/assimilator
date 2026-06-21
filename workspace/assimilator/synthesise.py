@@ -69,13 +69,25 @@ def brief_hash(node_id: str, kind: str, ordered_pairs: list[tuple[str, str]]) ->
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
-def _claim_node_refs(conn: sqlite3.Connection, claim_id: str) -> list[dict]:
+def _claim_node_refs(
+    conn: sqlite3.Connection, claim_id: str, slug_map: dict[str, str]
+) -> list[dict]:
     rows = conn.execute(
-        "SELECT n.id, n.name FROM claim_node_refs cnr JOIN nodes n ON n.id = cnr.node_id "
-        "WHERE cnr.claim_id = ?",
+        "SELECT n.id, n.name, n.metadata FROM claim_node_refs cnr "
+        "JOIN nodes n ON n.id = cnr.node_id WHERE cnr.claim_id = ?",
         (claim_id,),
     ).fetchall()
-    return [{"node_id": r[0], "title": r[1]} for r in rows]
+    # Carry the canonical slug (globally disambiguated, same as page.slug and
+    # related_nodes[].slug) so the assembler can link an entity mentioned only via
+    # a claim's node_refs - not just the related-node set - with the right URL.
+    return [
+        {
+            "node_id": r[0],
+            "title": r[1],
+            "slug": slug_map.get(r[0]) or node_slug(r[1], r[2]),
+        }
+        for r in rows
+    ]
 
 
 def build_slug_map(conn: sqlite3.Connection) -> tuple[dict[str, str], list[dict]]:
@@ -189,7 +201,7 @@ def build_entity_brief(
                 "speaker": {"node_id": speaker_id, "title": speaker_name}
                 if speaker_id
                 else None,
-                "node_refs": _claim_node_refs(conn, cid),
+                "node_refs": _claim_node_refs(conn, cid, slug_map),
                 "date": date,
                 "date_end": date_end,
                 "location_in_record": location,
