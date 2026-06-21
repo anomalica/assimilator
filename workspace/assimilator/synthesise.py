@@ -28,6 +28,7 @@ import yaml
 
 from anomalica_common.slug import node_slug
 from assimilator.database import get_independent_source_count
+from assimilator.page_set import page_set_node_ids
 
 SCHEMA = "anomalica/brief/1"
 
@@ -251,19 +252,10 @@ def build_entity_brief(
 
 
 def entity_node_ids(conn: sqlite3.Connection) -> list[str]:
-    """The all-entities page set: every non-retired node carrying at least one
-    claim (as speaker or referenced). The evidence-threshold refinement (which
-    of these truly merit a page) lands when scoring is pinned."""
-    rows = conn.execute(
-        """
-        SELECT n.id FROM nodes n
-        WHERE n.retired_at IS NULL
-          AND (EXISTS (SELECT 1 FROM claims c WHERE c.speaker_id = n.id)
-            OR EXISTS (SELECT 1 FROM claim_node_refs r WHERE r.node_id = n.id))
-        ORDER BY n.id
-        """
-    ).fetchall()
-    return [r[0] for r in rows]
+    """The page set: entities that pass the page floor (>= MIN_CLAIMS distinct
+    claims from >= MIN_SOURCES distinct sources, env-tunable). Runs over the
+    post-merge graph; the evidence-scoring bar refines the floor later."""
+    return page_set_node_ids(conn)
 
 
 def write_brief(brief: dict, out_dir: Path) -> Path:

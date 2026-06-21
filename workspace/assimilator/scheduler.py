@@ -551,20 +551,19 @@ def enumerate_synthesise_jobs(
     robust to slug collisions. Page set is all entities (the evidence threshold
     refines later).
     """
+    from assimilator.page_set import page_set_node_ids
+
     have = {(b.get("page") or {}).get("node_id") for b in briefs}
+    page_ids = set(
+        page_set_node_ids(conn)
+    )  # only floor-passing entities deserve a page
     rows = conn.execute(
-        """
-        SELECT n.id, n.name, n.node_type FROM nodes n
-        WHERE n.retired_at IS NULL
-          AND (EXISTS (SELECT 1 FROM claims c WHERE c.speaker_id = n.id)
-            OR EXISTS (SELECT 1 FROM claim_node_refs r WHERE r.node_id = n.id))
-        ORDER BY n.name
-        """
+        "SELECT id, name, node_type FROM nodes WHERE retired_at IS NULL ORDER BY name"
     ).fetchall()
     jobs: list[Job] = []
     for node_id, name, node_type in rows:
-        if node_id in have:
-            continue  # brief already emitted
+        if node_id not in page_ids or node_id in have:
+            continue  # below the page floor, or brief already emitted
         jobs.append(
             Job(
                 id=f"synthesise:{node_id}",
