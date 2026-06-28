@@ -181,9 +181,11 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
     domain_conn = _connect(db_path)
     if not no_replay:
         from assimilator.merge import replay_ledger, replay_rejections
+        from assimilator.propose_pages import replay_vetoes
 
         replay_ledger(domain_conn, on_progress=click.echo)
         replay_rejections(domain_conn, on_progress=click.echo)
+        replay_vetoes(domain_conn, on_progress=click.echo)
     s = get_stats(domain_conn)
     click.echo(
         f"\nRebuild complete. Domain: {s['active_nodes']} nodes, "
@@ -667,6 +669,28 @@ def backfill_claim_hashes_cmd(ctx: click.Context) -> None:
         result = backfill_claim_hashes(conn, on_progress=click.echo)
         click.echo(f"  {label}: {result['updated']} claims hashed")
         conn.close()
+
+
+@main.command(name="propose-pages")
+@click.pass_context
+def propose_pages_cmd(ctx: click.Context) -> None:
+    """Recompute the article-proposal set from the page-worthiness gate.
+
+    Deterministic, no AI: scores every active node by type tier + independent-
+    source floor (page_gate.py), excludes vetoed nodes, and writes the derived
+    page_proposals table. The dependency gate before synthesise - a brief is only
+    emitted for a proposed node. Run after a merge pass; re-run when the graph
+    moves.
+    """
+    from assimilator.propose_pages import propose
+
+    conn = _connect(ctx.obj["db_path"])
+    rows = propose(conn)
+    by_tier: dict[str, int] = {}
+    for r in rows:
+        by_tier[r["tier"]] = by_tier.get(r["tier"], 0) + 1
+    click.echo(f"{len(rows)} page proposals ({by_tier})")
+    conn.close()
 
 
 @main.command(name="export-obsidian")

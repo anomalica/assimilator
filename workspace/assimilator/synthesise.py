@@ -28,7 +28,7 @@ import yaml
 
 from anomalica_common.slug import node_slug
 from assimilator.database import get_independent_source_count
-from assimilator.page_set import page_set_node_ids
+from assimilator.propose_pages import proposed_node_ids
 
 SCHEMA = "anomalica/brief/1"
 
@@ -264,10 +264,12 @@ def build_entity_brief(
 
 
 def entity_node_ids(conn: sqlite3.Connection) -> list[str]:
-    """The page set: entities that pass the page floor (>= MIN_CLAIMS distinct
-    claims from >= MIN_SOURCES distinct sources, env-tunable). Runs over the
-    post-merge graph; the evidence-scoring bar refines the floor later."""
-    return page_set_node_ids(conn)
+    """The page set the synthesiser emits briefs for: the nodes currently proposed
+    for a page. Page SELECTION is no longer the synthesiser's job - proposal-gen
+    (propose_pages.py) decides via the page-worthiness gate and writes the derived
+    page_proposals table; the synthesiser consumes it. Empty until propose() has
+    run (the dependency gate: proposal-gen precedes synthesise)."""
+    return proposed_node_ids(conn)
 
 
 def write_brief(brief: dict, out_dir: Path) -> Path:

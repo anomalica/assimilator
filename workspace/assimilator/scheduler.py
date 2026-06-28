@@ -548,22 +548,21 @@ def enumerate_synthesise_jobs(
     Synthesise is deterministic (graph slice -> brief, no Claude), so it is eager.
     Matched by node_id (the brief carries page.node_id) rather than by slug, so
     this needs no slugifier here - keeping the scheduler host-light - and is
-    robust to slug collisions. Page set is all entities (the evidence threshold
-    refines later).
+    robust to slug collisions. The page set is the proposal table (propose-pages
+    decides; this consumes it), so synthesise is naturally gated behind proposal-
+    gen - no proposals, no synthesise jobs.
     """
-    from assimilator.page_set import page_set_node_ids
+    from assimilator.propose_pages import proposed_node_ids
 
     have = {(b.get("page") or {}).get("node_id") for b in briefs}
-    page_ids = set(
-        page_set_node_ids(conn)
-    )  # only floor-passing entities deserve a page
+    page_ids = set(proposed_node_ids(conn))  # only proposed entities deserve a page
     rows = conn.execute(
         "SELECT id, name, node_type FROM nodes WHERE retired_at IS NULL ORDER BY name"
     ).fetchall()
     jobs: list[Job] = []
     for node_id, name, node_type in rows:
         if node_id not in page_ids or node_id in have:
-            continue  # below the page floor, or brief already emitted
+            continue  # not proposed, or brief already emitted
         jobs.append(
             Job(
                 id=f"synthesise:{node_id}",
@@ -628,12 +627,49 @@ def enumerate_assemble_jobs(briefs: list[dict], content_dir: Path | None) -> lis
     return jobs
 
 
+def _proposal_table_stale(conn: sqlite3.Connection) -> tuple[bool, int]:
+    """Does the derived page_proposals table reflect the current gate? Returns
+    (stale, gate_count). Stale when the gate-passing (non-vetoed) node set differs
+    from what is recorded - a recompute is then a pending propose-pages job."""
+    from assimilator.page_gate import page_gate_rows
+    from assimilator.propose_pages import vetoed_node_ids
+
+    vetoed = vetoed_node_ids(conn)
+    gate_ids = {r["node_id"] for r in page_gate_rows(conn)} - vetoed
+    try:
+        proposed = {
+            r[0] for r in conn.execute("SELECT node_id FROM page_proposals").fetchall()
+        }
+    except sqlite3.OperationalError:
+        proposed = set()
+    return (gate_ids != proposed, len(gate_ids))
+
+
 def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
-    """Corroborate pass plus its embedding prerequisite, from current graph state."""
+    """Proposal-gen and the corroborate pass (plus its embedding prerequisite),
+    from current graph state."""
     jobs: list[Job] = []
     total_claims = conn.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
     if total_claims == 0:
         return jobs
+
+    stale, gate_count = _proposal_table_stale(conn)
+    if stale:
+        # Proposal-gen is deterministic (gate + ledger, no Claude), so eager. It
+        # gates synthesise: a brief is only emitted for a proposed node, so this
+        # must run after import/merge and before synthesise.
+        jobs.append(
+            Job(
+                id="propose-pages:graph",
+                type="propose-pages",
+                lane=LANE_EAGER,
+                target=Target(kind="page", label="article proposals"),
+                status=STATUS_ELIGIBLE,
+                trigger="stale",
+                effort="~local graph scan",
+                drivers=[Driver("nodes passing gate", str(gate_count))],
+            )
+        )
     embedded = _vec_claims_count(conn)
     recorded = conn.execute("SELECT COUNT(*) FROM corroborations").fetchone()[0]
     if embedded == 0:

@@ -108,6 +108,39 @@ CREATE TABLE IF NOT EXISTS node_rejections (
     PRIMARY KEY (rejection_id, node_id)
 );
 
+-- Article proposals: which nodes earn a published page. DERIVED from the page-
+-- worthiness gate (page_gate.py: node-type tier + independent-source floor),
+-- recomputed each maintenance pass - NOT replayed. The editorial signal that
+-- survives a rebuild is the veto (curation/page-vetoes.yaml, replayed into
+-- page_vetoes); a vetoed node is excluded here. source_count is the distinct-
+-- source-record independence PROXY; independent_source_count is the true
+-- provenance-root count, NULL until evidence-scoring pins it (ADR 0039).
+CREATE TABLE IF NOT EXISTS page_proposals (
+    node_id TEXT PRIMARY KEY,
+    node_type TEXT NOT NULL,
+    tier TEXT NOT NULL,
+    claim_count INTEGER NOT NULL,
+    source_count INTEGER NOT NULL,
+    independent_source_count INTEGER,
+    status TEXT NOT NULL,
+    computed_at TEXT NOT NULL
+);
+
+-- Page vetoes: "this node should never get a page". DERIVED from the durable
+-- curation ledger (curation/page-vetoes.yaml), repopulated on rebuild, keyed on
+-- natural identity. Distinct from node_rejections ("not a duplicate"): a veto
+-- keeps the node in the graph but off the page list (e.g. a node that clears the
+-- floor yet is editorially a mention, not a subject).
+CREATE TABLE IF NOT EXISTS page_vetoes (
+    veto_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    reason TEXT,
+    created_at TEXT NOT NULL,
+    created_by TEXT,
+    undone_at TEXT,
+    PRIMARY KEY (veto_id, node_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(node_type);
 CREATE INDEX IF NOT EXISTS idx_nodes_name ON nodes(name);
 CREATE INDEX IF NOT EXISTS idx_claims_record ON claims(record_id);
@@ -119,6 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_claim_refs_node ON claim_node_refs(node_id);
 CREATE INDEX IF NOT EXISTS idx_aliases_node ON aliases(node_id);
 CREATE INDEX IF NOT EXISTS idx_corr_a ON corroborations(claim_a);
 CREATE INDEX IF NOT EXISTS idx_corr_b ON corroborations(claim_b);
+CREATE INDEX IF NOT EXISTS idx_proposals_status ON page_proposals(status);
 """
 
 
