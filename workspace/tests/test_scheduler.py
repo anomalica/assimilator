@@ -223,6 +223,16 @@ def test_synthesise_then_assemble_lifecycle(tmp_path):
     briefs.mkdir()
     content.mkdir()
 
+    # The synthesiser consumes the proposal table (propose-pages decides the page
+    # set; the gate's floors are tested in test_page_gate). This test exercises the
+    # scheduler lifecycle, so put n1 in the proposal set directly.
+    conn.execute(
+        "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
+        "source_count, independent_source_count, status, computed_at) "
+        "VALUES ('n1', 'person', 'page-worthy', 2, 2, NULL, 'proposed', 'T')"
+    )
+    conn.commit()
+
     # No brief yet -> the entity is a pending (eager) synthesise job.
     q1 = scheduler.build_queue(
         conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
