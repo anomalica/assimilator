@@ -180,11 +180,18 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
     # keys on, so curation restarts fresh after the rebuild).
     domain_conn = _connect(db_path)
     if not no_replay:
-        from assimilator.merge import replay_ledger, replay_rejections
+        from assimilator.merge import (
+            replay_ledger,
+            replay_rejections,
+            replay_renames,
+        )
         from assimilator.propose_pages import replay_vetoes
 
         replay_ledger(domain_conn, on_progress=click.echo)
         replay_rejections(domain_conn, on_progress=click.echo)
+        # Renames run AFTER merges - a renamed node may be a merge survivor whose
+        # name the merge replay set first (ADR 0038).
+        replay_renames(domain_conn, on_progress=click.echo)
         replay_vetoes(domain_conn, on_progress=click.echo)
     s = get_stats(domain_conn)
     click.echo(

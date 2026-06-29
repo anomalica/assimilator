@@ -460,6 +460,107 @@ def rejected_sets(conn: sqlite3.Connection) -> set[frozenset]:
     return {frozenset(s) for s in by_rej.values()}
 
 
+# --- Renames: durable node-name corrections (e.g. acronym standardisation) ---
+
+
+def renames_ledger_path() -> Path:
+    root = Path(__file__).resolve().parents[3]  # …/anomalica
+    base = Path(os.environ.get("ANOMALICA_CURATION_DIR", str(root / "curation")))
+    return base / "renames.yaml"
+
+
+def _append_rename(entry: dict) -> None:
+    path = renames_ledger_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as f:
+        f.write("---\n")
+        f.write(yaml.safe_dump(entry, sort_keys=False, allow_unicode=True))
+
+
+def read_renames() -> list[dict]:
+    path = renames_ledger_path()
+    if not path.is_file():
+        return []
+    return [e for e in yaml.safe_load_all(path.read_text()) if e]
+
+
+def append_rename_entry(
+    old_natural: dict,
+    new_name: str,
+    rename_id: str,
+    created_at: str,
+    created_by: str | None,
+) -> None:
+    """Record a node-name correction in the durable ledger, keyed on the node's
+    PRE-rename natural identity (the name a fresh import carries) so replay can
+    resolve it. Used directly when the live rename has already been applied."""
+    _append_rename(
+        {
+            "op": "rename",
+            "rename_id": rename_id,
+            "at": created_at,
+            "by": created_by,
+            "new_name": new_name,
+            "node": old_natural,
+        }
+    )
+
+
+def rename_node(
+    conn: sqlite3.Connection,
+    node_id: str,
+    new_name: str,
+    rename_id: str,
+    created_at: str | None = None,
+    created_by: str | None = None,
+) -> None:
+    """Apply a node-name correction to the live graph (old name kept as an alias)
+    and record it in the durable ledger, keyed on the pre-rename natural identity.
+    Captured BEFORE the live change, so the entry resolves on a fresh import."""
+    created_at = created_at or _now()
+    cur = _node(conn, node_id)
+    if cur is None:
+        raise ValueError(f"node not found: {node_id}")
+    old_name = cur[0]
+    append_rename_entry(
+        _natural(conn, node_id), new_name, rename_id, created_at, created_by
+    )
+    conn.execute("UPDATE nodes SET name = ? WHERE id = ?", (new_name, node_id))
+    conn.execute(
+        "INSERT OR IGNORE INTO aliases (alias, node_id) VALUES (?, ?)",
+        (old_name, node_id),
+    )
+    conn.commit()
+
+
+def replay_renames(conn: sqlite3.Connection, on_progress=None) -> dict:
+    """Re-apply durable renames over the freshly-rebuilt graph, after merges and
+    rejections (a renamed node may be a merge survivor). Resolves each node by its
+    pre-rename natural identity, sets the new name, keeps the old name as an alias.
+    A node that no longer resolves is skipped (its source left the corpus)."""
+    log = on_progress or (lambda _: None)
+    entries = read_renames()
+    undone = {e["rename_id"] for e in entries if e.get("op") == "unrename"}
+    applied = skipped = 0
+    for e in entries:
+        if e.get("op") != "rename" or e["rename_id"] in undone:
+            continue
+        nid = _resolve_natural(conn, e["node"])
+        if nid is None:
+            skipped += 1
+            continue
+        old_name = _node(conn, nid)[0]
+        conn.execute("UPDATE nodes SET name = ? WHERE id = ?", (e["new_name"], nid))
+        conn.execute(
+            "INSERT OR IGNORE INTO aliases (alias, node_id) VALUES (?, ?)",
+            (old_name, nid),
+        )
+        applied += 1
+    conn.commit()
+    log(f"Replayed {applied} renames ({skipped} skipped)")
+    return {"applied": applied, "skipped": skipped}
+
+
 # --- Host CLI ---
 
 
