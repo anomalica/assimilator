@@ -1,0 +1,7 @@
+# container-magic:begin (generated, do not edit)
+*
+!workspace/
+!workspace/**
+!.cm-cache/
+!.cm-cache/**
+# container-magic:end
