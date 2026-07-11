@@ -1,8 +1,8 @@
 import sqlite3
 
 from assimilator.embeddings import (
-    CURRENT_EMBEDDER,
     EMBEDDING_DIMS,
+    EMBEDDING_MODEL_ID,
     init_vec,
     serialise_f32,
     stale_embedding_ids,
@@ -10,7 +10,7 @@ from assimilator.embeddings import (
     store_node_embedding,
 )
 
-OLD_EMBEDDER = "legacy-model:legacy.onnx:512"
+OLD_MODEL_ID = "legacy-model:legacy.onnx:512"
 
 
 def _vec_db() -> sqlite3.Connection:
@@ -23,43 +23,43 @@ def _vec() -> list[float]:
     return [0.1] * EMBEDDING_DIMS
 
 
-def _provenance(conn, kind, id_):
+def _model_id(conn, kind, id_):
     row = conn.execute(
-        "SELECT embedder FROM embedding_provenance WHERE kind = ? AND id = ?",
+        "SELECT model_id FROM embedding_model WHERE kind = ? AND id = ?",
         [kind, id_],
     ).fetchone()
     return row[0] if row else None
 
 
-def test_store_records_current_embedder():
+def test_store_records_current_model():
     conn = _vec_db()
     store_claim_embedding(conn, "c1", _vec())
     store_node_embedding(conn, "n1", _vec())
 
-    assert _provenance(conn, "claim", "c1") == CURRENT_EMBEDDER
-    assert _provenance(conn, "node", "n1") == CURRENT_EMBEDDER
+    assert _model_id(conn, "claim", "c1") == EMBEDDING_MODEL_ID
+    assert _model_id(conn, "node", "n1") == EMBEDDING_MODEL_ID
 
 
-def test_store_with_explicit_embedder():
+def test_store_with_explicit_model():
     conn = _vec_db()
-    store_claim_embedding(conn, "c1", _vec(), embedder=OLD_EMBEDDER)
-    assert _provenance(conn, "claim", "c1") == OLD_EMBEDDER
+    store_claim_embedding(conn, "c1", _vec(), embedder=OLD_MODEL_ID)
+    assert _model_id(conn, "claim", "c1") == OLD_MODEL_ID
 
 
 def test_stale_detection_both_directions():
     conn = _vec_db()
     store_claim_embedding(conn, "current", _vec())
-    store_claim_embedding(conn, "legacy", _vec(), embedder=OLD_EMBEDDER)
+    store_claim_embedding(conn, "legacy", _vec(), embedder=OLD_MODEL_ID)
 
-    # Against the current embedder, only the legacy row is stale.
+    # Against the current model, only the legacy row is stale.
     assert stale_embedding_ids(conn, "claim") == ["legacy"]
-    # Against the legacy embedder, only the current row is stale.
-    assert stale_embedding_ids(conn, "claim", embedder=OLD_EMBEDDER) == ["current"]
+    # Against the legacy model, only the current row is stale.
+    assert stale_embedding_ids(conn, "claim", embedder=OLD_MODEL_ID) == ["current"]
 
 
 def test_stale_detection_is_kind_scoped():
     conn = _vec_db()
-    store_claim_embedding(conn, "c_legacy", _vec(), embedder=OLD_EMBEDDER)
+    store_claim_embedding(conn, "c_legacy", _vec(), embedder=OLD_MODEL_ID)
     store_node_embedding(conn, "n_current", _vec())
 
     assert stale_embedding_ids(conn, "claim") == ["c_legacy"]
@@ -68,32 +68,32 @@ def test_stale_detection_is_kind_scoped():
 
 def test_backfill_stamps_legacy_rows():
     conn = _vec_db()
-    # A row written straight to the vector index with no provenance, as a
-    # pre-provenance embedding would appear.
+    # A row written straight to the vector index with no recorded model, as a
+    # pre-tracking embedding would appear.
     conn.execute(
         "INSERT INTO vec_claims(claim_id, embedding) VALUES (?, ?)",
         ["orphan", serialise_f32(_vec())],
     )
-    assert _provenance(conn, "claim", "orphan") is None
+    assert _model_id(conn, "claim", "orphan") is None
 
     init_vec(conn)  # runs the back-fill
 
-    assert _provenance(conn, "claim", "orphan") == CURRENT_EMBEDDER
+    assert _model_id(conn, "claim", "orphan") == EMBEDDING_MODEL_ID
 
 
-def test_backfill_preserves_existing_embedder():
+def test_backfill_preserves_existing_model():
     conn = _vec_db()
     conn.execute(
         "INSERT INTO vec_nodes(node_id, embedding) VALUES (?, ?)",
         ["n1", serialise_f32(_vec())],
     )
     conn.execute(
-        "INSERT INTO embedding_provenance(kind, id, embedder, embedded_at) "
+        "INSERT INTO embedding_model(kind, id, model_id, embedded_at) "
         "VALUES ('node', 'n1', ?, '2020-01-01T00:00:00+00:00')",
-        [OLD_EMBEDDER],
+        [OLD_MODEL_ID],
     )
 
-    init_vec(conn)  # must not clobber the recorded embedder
+    init_vec(conn)  # must not clobber the recorded model
 
-    assert _provenance(conn, "node", "n1") == OLD_EMBEDDER
+    assert _model_id(conn, "node", "n1") == OLD_MODEL_ID
     assert stale_embedding_ids(conn, "node") == ["n1"]
