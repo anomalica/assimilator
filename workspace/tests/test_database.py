@@ -3,6 +3,7 @@ import sqlite3
 from assimilator.database import (
     find_node_by_name,
     get_claims_for_node,
+    get_claims_for_record,
     get_corroborations,
     get_independent_source_count,
     get_stats,
@@ -12,6 +13,7 @@ from assimilator.database import (
     insert_corroboration,
     insert_node,
     insert_record,
+    provenance_root,
 )
 from anomalica_common.digest.models import (
     AttestationLevel,
@@ -20,6 +22,8 @@ from anomalica_common.digest.models import (
     ClaimType,
     Node,
     NodeType,
+    OriginKind,
+    ProvenanceChain,
     Record,
 )
 
@@ -75,6 +79,10 @@ def test_insert_record_and_claim():
     assert claims[0].node_references == [node.id]
 
 
+def _first_hand(origin: str = "") -> ProvenanceChain:
+    return ProvenanceChain(origin_kind=OriginKind.speaker, origin=origin)
+
+
 def test_corroboration_and_independent_sources():
     conn = _db()
     alice = insert_node(conn, Node(node_type=NodeType.person, name="Alice"))
@@ -82,7 +90,7 @@ def test_corroboration_and_independent_sources():
     rec1 = insert_record(conn, Record(title="Record 1"))
     rec2 = insert_record(conn, Record(title="Record 2"))
 
-    # Same claim from different speakers in different records
+    # Same claim from two speakers who each originated it - two real roots.
     c1 = insert_claim(
         conn,
         Claim(
@@ -91,6 +99,7 @@ def test_corroboration_and_independent_sources():
             attestation=AttestationLevel.first_hand,
             record_id=rec1.id,
             speaker_id=alice.id,
+            provenance_chain=_first_hand("Alice"),
         ),
     )
     c2 = insert_claim(
@@ -101,6 +110,7 @@ def test_corroboration_and_independent_sources():
             attestation=AttestationLevel.first_hand,
             record_id=rec2.id,
             speaker_id=bob.id,
+            provenance_chain=_first_hand("Bob"),
         ),
     )
     conn.commit()
@@ -111,7 +121,7 @@ def test_corroboration_and_independent_sources():
     corrs = get_corroborations(conn, c1.id)
     assert len(corrs) == 1
 
-    # Different speakers = 2 independent sources
+    # Two distinct chain roots = 2 independent sources
     assert get_independent_source_count(conn, c1.id) == 2
 
 
@@ -130,6 +140,7 @@ def test_same_speaker_not_independent():
             attestation=AttestationLevel.first_hand,
             record_id=rec1.id,
             speaker_id=alice.id,
+            provenance_chain=_first_hand("Alice"),
         ),
     )
     c2 = insert_claim(
@@ -140,6 +151,7 @@ def test_same_speaker_not_independent():
             attestation=AttestationLevel.first_hand,
             record_id=rec2.id,
             speaker_id=alice.id,
+            provenance_chain=_first_hand("Alice"),
         ),
     )
     conn.commit()
@@ -149,6 +161,140 @@ def test_same_speaker_not_independent():
 
     # Same speaker = 1 independent source despite 2 records
     assert get_independent_source_count(conn, c1.id) == 1
+
+
+def test_shared_anonymous_origin_is_one_source():
+    """ADR 0044's headline failure: three podcasts, three different hosts, all
+    relaying ONE anonymous email. Keying on the speaker calls that three
+    independent attestations; keying on the chain root calls it one."""
+    conn = _db()
+    rec_ids = []
+    claim_ids = []
+    for i in range(3):
+        host = insert_node(conn, Node(node_type=NodeType.person, name=f"Host {i}"))
+        rec = insert_record(conn, Record(title=f"Podcast {i}"))
+        rec_ids.append(rec.id)
+        claim = insert_claim(
+            conn,
+            Claim(
+                content="The entity came from Tau Ceti.",
+                claim_type=ClaimType.testimony,
+                record_id=rec.id,
+                speaker_id=host.id,
+                provenance_chain=ProvenanceChain(
+                    origin_kind=OriginKind.anonymous,
+                    origin="a person claiming to work inside the "
+                    "Defense Intelligence Agency",
+                    relay=["an email", "an intermediary known to the speaker"],
+                ),
+            ),
+        )
+        claim_ids.append(claim.id)
+    insert_corroboration(conn, claim_ids[0], claim_ids[1], 0.99)
+    insert_corroboration(conn, claim_ids[0], claim_ids[2], 0.99)
+    conn.commit()
+
+    assert len(set(rec_ids)) == 3  # three records, three speakers...
+    assert get_independent_source_count(conn, claim_ids[0]) == 1  # ...one source
+
+
+def test_chainless_legacy_claims_are_not_independent():
+    """A pre-0044 digest carries no chain. Absence means "not captured", never
+    "independent" - so repetitions collapse to one root rather than inflating the
+    count. A re-digest backfills the chain and the count rises to what the
+    evidence supports."""
+    conn = _db()
+    claim_ids = []
+    for i in range(3):
+        speaker = insert_node(conn, Node(node_type=NodeType.person, name=f"P{i}"))
+        rec = insert_record(conn, Record(title=f"Record {i}"))
+        claim = insert_claim(
+            conn,
+            Claim(
+                content="Something happened.",
+                claim_type=ClaimType.observation,
+                record_id=rec.id,
+                speaker_id=speaker.id,
+            ),  # no provenance_chain
+        )
+        claim_ids.append(claim.id)
+    insert_corroboration(conn, claim_ids[0], claim_ids[1], 0.99)
+    insert_corroboration(conn, claim_ids[0], claim_ids[2], 0.99)
+    conn.commit()
+
+    assert get_independent_source_count(conn, claim_ids[0]) == 1
+
+
+def test_named_origin_resolves_through_aliases():
+    """A named origin is a node, so an acronym and its full name are ONE root."""
+    conn = _db()
+    dia = insert_node(
+        conn,
+        Node(node_type=NodeType.organisation, name="Defense Intelligence Agency"),
+    )
+    insert_alias(conn, "DIA", dia.id)
+    rec1 = insert_record(conn, Record(title="Record 1"))
+    rec2 = insert_record(conn, Record(title="Record 2"))
+
+    c1 = insert_claim(
+        conn,
+        Claim(
+            content="The programme existed.",
+            claim_type=ClaimType.testimony,
+            record_id=rec1.id,
+            provenance_chain=ProvenanceChain(
+                origin_kind=OriginKind.named,
+                origin="Defense Intelligence Agency",
+                relay=["a briefing"],
+            ),
+        ),
+    )
+    c2 = insert_claim(
+        conn,
+        Claim(
+            content="The programme existed.",
+            claim_type=ClaimType.testimony,
+            record_id=rec2.id,
+            provenance_chain=ProvenanceChain(
+                origin_kind=OriginKind.named,
+                origin="DIA",
+                relay=["a briefing"],
+            ),
+        ),
+    )
+    conn.commit()
+    insert_corroboration(conn, c1.id, c2.id, 0.99)
+    conn.commit()
+
+    assert provenance_root(conn, c1.id) == provenance_root(conn, c2.id)
+    assert get_independent_source_count(conn, c1.id) == 1
+
+
+def test_chain_round_trips_through_the_claims_table():
+    conn = _db()
+    rec = insert_record(conn, Record(title="Record"))
+    insert_claim(
+        conn,
+        Claim(
+            content="X.",
+            claim_type=ClaimType.testimony,
+            record_id=rec.id,
+            provenance_chain=ProvenanceChain(
+                origin_kind=OriginKind.anonymous,
+                origin="an unnamed official",
+                relay=["an email", "an intermediary"],
+            ),
+        ),
+    )
+    conn.commit()
+
+    stored = get_claims_for_record(conn, rec.id)[0]
+    assert stored.provenance_chain is not None
+    assert stored.provenance_chain.origin_kind is OriginKind.anonymous
+    assert stored.provenance_chain.origin == "an unnamed official"
+    assert stored.provenance_chain.relay == ["an email", "an intermediary"]
+    # Attestation follows from chain depth: two removes = third_hand.
+    assert stored.provenance_chain.attestation() is AttestationLevel.third_hand
 
 
 def test_stats():

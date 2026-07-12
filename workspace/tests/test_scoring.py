@@ -13,6 +13,8 @@ from anomalica_common.digest.models import (
     ClaimType,
     Node,
     NodeType,
+    OriginKind,
+    ProvenanceChain,
     Record,
 )
 from assimilator.scoring import score_claim, tier_label
@@ -77,6 +79,7 @@ def test_corroboration_increases_score():
             attestation=AttestationLevel.first_hand,
             record_id=rec1.id,
             speaker_id=alice.id,
+            provenance_chain=ProvenanceChain(origin_kind=OriginKind.speaker),
         ),
     )
     c2 = insert_claim(
@@ -87,6 +90,7 @@ def test_corroboration_increases_score():
             attestation=AttestationLevel.first_hand,
             record_id=rec2.id,
             speaker_id=bob.id,
+            provenance_chain=ProvenanceChain(origin_kind=OriginKind.speaker),
         ),
     )
     conn.commit()
@@ -99,6 +103,47 @@ def test_corroboration_increases_score():
     corroborated = score_claim(conn, c1.id)
     assert corroborated.score > single.score
     assert corroborated.record_count == 2
+
+
+def test_repetition_of_one_root_does_not_increase_score():
+    """Two speakers relaying the SAME anonymous origin corroborate on the surface
+    but share a chain root, so the evidence has not grown - the score must not move.
+    This is the behaviour ADR 0044 exists to enforce: corroboration must reward
+    independence, never repetition."""
+    conn = _db()
+    alice = insert_node(conn, Node(node_type=NodeType.person, name="Alice"))
+    bob = insert_node(conn, Node(node_type=NodeType.person, name="Bob"))
+    rec1 = insert_record(conn, Record(title="R1"))
+    rec2 = insert_record(conn, Record(title="R2"))
+
+    def _relayed(record_id, speaker_id):
+        return insert_claim(
+            conn,
+            Claim(
+                content="The object was there.",
+                claim_type=ClaimType.observation,
+                attestation=AttestationLevel.first_hand,
+                record_id=record_id,
+                speaker_id=speaker_id,
+                provenance_chain=ProvenanceChain(
+                    origin_kind=OriginKind.anonymous,
+                    origin="an unnamed official",
+                    relay=["an email"],
+                ),
+            ),
+        )
+
+    c1 = _relayed(rec1.id, alice.id)
+    c2 = _relayed(rec2.id, bob.id)
+    conn.commit()
+
+    single = score_claim(conn, c1.id)
+
+    insert_corroboration(conn, c1.id, c2.id, 0.99)
+    conn.commit()
+
+    corroborated = score_claim(conn, c1.id)
+    assert corroborated.score == single.score
 
 
 def test_tier_labels():
