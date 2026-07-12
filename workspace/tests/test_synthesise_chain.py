@@ -5,10 +5,10 @@ The assembler reads ONLY the brief (ADR 0036) - it never touches the graph. So a
 field that stops at the synthesiser is a field the public site cannot see, and an
 anonymous assertion renders as bare fact.
 
-The rendering contract is a TRI-STATE and fails CLOSED. An earlier boolean keyed on
-the presence of a danger signal, so a claim with no chain and no attestation matched
-nothing and fell through to "safe to assert bare" - fail-open, on exactly the case
-0044 exists to close. A claim must EARN bare_ok; it is never granted it by default.
+The RULE itself lives in anomalica_common and is tested there. These tests pin the
+BRIEF's half of the contract: that the chain round-trips, and that the right
+arguments reach the shared function - a wiring bug would silently downgrade every
+claim to a mode it did not earn.
 """
 
 import sqlite3
@@ -24,7 +24,7 @@ from anomalica_common.digest.models import (
     Record,
 )
 from assimilator.database import init_db, insert_claim, insert_node, insert_record
-from assimilator.synthesise import attribution_mode, build_entity_brief
+from assimilator.synthesise import build_entity_brief
 
 ANONYMOUS_CHAIN = ProvenanceChain(
     origin_kind=OriginKind.anonymous,
@@ -62,7 +62,20 @@ def test_chain_reaches_the_brief_intact():
         "a person claiming to work inside the Defense Intelligence Agency"
     )
     assert chain["relay"] == ["an email", "an intermediary known to the speaker"]
-    assert claim["attribution_mode"] == "in_text"
+
+
+def test_anonymous_claim_is_never_bare():
+    """THE TAU CETI CASE. An anonymous origin's truth rests entirely on who asserted
+    it, so it must never be asserted plainly. Until extraction DECLARES that it put
+    the attribution in the text (attribution_in_text, not yet carried on the claim),
+    the safe answer is unknown - hedge or drop, never assert."""
+    claim = _brief_with_claim(
+        content="The being was a cloned entity from the Tau Ceti star system.",
+        claim_type=ClaimType.testimony,
+        provenance_chain=ANONYMOUS_CHAIN,
+    )
+    assert claim["attribution_mode"] == "unknown"
+    assert claim["attribution_mode"] != "bare_ok"
 
 
 def test_conduit_claim_is_bare_ok():
@@ -77,31 +90,7 @@ def test_conduit_claim_is_bare_ok():
     assert claim["attribution_mode"] == "bare_ok"
 
 
-def test_legacy_claim_is_unknown_not_bare():
-    """THE FAIL-OPEN CASE. A pre-0044 claim: no chain, no attestation, type
-    testimony. The old boolean called this "not load-bearing" and the assembler
-    would have rendered it as a bare fact. It is unknown - the text is bare and
-    unvouched, so it must be hedged or dropped, never asserted."""
-    claim = _brief_with_claim(
-        content="The craft was recovered.",
-        claim_type=ClaimType.testimony,
-    )
-    assert claim["provenance_chain"] is None
-    assert claim["attribution_mode"] == "unknown"
-
-
-def test_legacy_hearsay_is_unknown_not_in_text():
-    """A legacy hearsay claim's TEXT is bare - pre-0044 extraction stripped the
-    reporting verb - so it must not be rendered as-is on the strength of its type.
-    in_text requires a captured chain."""
-    claim = _brief_with_claim(
-        content="A colleague had seen the craft.",
-        claim_type=ClaimType.hearsay,
-    )
-    assert claim["attribution_mode"] == "unknown"
-
-
-def test_unattributed_is_bare_ok_not_unknown():
+def test_unattributed_is_bare_ok():
     """`unattributed` is a POSITIVE statement that the source offers no attribution
     (ordinary narration), not an absence of knowledge. Hedging it would turn "the
     Nimitz incident occurred in 2004" into absurdity."""
@@ -113,41 +102,36 @@ def test_unattributed_is_bare_ok_not_unknown():
     assert claim["attribution_mode"] == "bare_ok"
 
 
-def test_opinion_is_in_text():
-    """An opinion is not a fact about the world - the fact is that someone HOLDS it,
-    and extraction already names the holder in the text."""
+def test_second_hand_claim_is_not_bare():
     claim = _brief_with_claim(
-        content="Jon Stewart considers the account consistent with a PSYOP.",
-        claim_type=ClaimType.opinion,
-        provenance_chain=ProvenanceChain(origin_kind=OriginKind.speaker),
+        content="The programme held recovered material.",
+        claim_type=ClaimType.testimony,
+        attestation=AttestationLevel.second_hand,
+        provenance_chain=ProvenanceChain(
+            origin_kind=OriginKind.named, origin="An official", relay=["the speaker"]
+        ),
     )
-    assert claim["attribution_mode"] == "in_text"
+    assert claim["attribution_mode"] == "unknown"
 
 
-# The predicate itself, exhaustively - the brief tests above prove it reaches the
-# brief; these prove it is right.
+def test_legacy_claim_is_unknown_not_bare():
+    """THE FAIL-OPEN CASE that shipped and was caught. A pre-0044 claim: no chain,
+    no attestation, type testimony. The first version of this contract called it
+    "not load-bearing" and the assembler would have rendered it as bare fact. The
+    text is bare and unvouched: it must be hedged or dropped, never asserted."""
+    claim = _brief_with_claim(
+        content="The craft was recovered.",
+        claim_type=ClaimType.testimony,
+    )
+    assert claim["provenance_chain"] is None
+    assert claim["attribution_mode"] == "unknown"
 
 
-def test_second_and_third_hand_are_in_text():
-    for level in ("second_hand", "third_hand"):
-        assert attribution_mode("named", "testimony", level) == "in_text"
-
-
-def test_anonymous_is_in_text_even_without_attestation():
-    assert attribution_mode("anonymous", "testimony", None) == "in_text"
-
-
-def test_chain_present_but_attestation_missing_is_unknown():
-    """A captured chain does not on its own license a bare assertion. If the chain
-    is there but the attestation is missing, we cannot grade the removes - fail
-    closed."""
-    assert attribution_mode("named", "testimony", None) == "unknown"
-    assert attribution_mode("speaker", "observation", None) == "unknown"
-    assert attribution_mode("document", "testimony", None) == "unknown"
-
-
-def test_no_chain_is_always_unknown():
-    """Whatever else is true, an uncaptured chain can never earn bare_ok."""
-    assert attribution_mode(None, "observation", "first_hand") == "unknown"
-    assert attribution_mode(None, "testimony", None) == "unknown"
-    assert attribution_mode("", "observation", "first_hand") == "unknown"
+def test_legacy_hearsay_is_unknown():
+    """A legacy hearsay claim's TEXT is bare - pre-0044 extraction stripped the
+    reporting verb - so its type alone cannot license rendering it as-is."""
+    claim = _brief_with_claim(
+        content="A colleague had seen the craft.",
+        claim_type=ClaimType.hearsay,
+    )
+    assert claim["attribution_mode"] == "unknown"

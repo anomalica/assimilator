@@ -26,6 +26,7 @@ from pathlib import Path
 
 import yaml
 
+from anomalica_common.digest import attribution_mode as common_attribution_mode
 from anomalica_common.slug import node_slug
 from assimilator.database import get_independent_source_count
 from assimilator.propose_pages import proposed_node_ids
@@ -129,69 +130,35 @@ def build_slug_map(conn: sqlite3.Connection) -> tuple[dict[str, str], list[dict]
     return slug_map, collisions
 
 
-IN_TEXT_CLAIM_TYPES = ("hearsay", "opinion")
-IN_TEXT_ATTESTATIONS = ("second_hand", "third_hand")
-BARE_OK_ORIGINS = ("speaker", "named", "document")
-
-
-def attribution_mode(
-    origin_kind: str | None, claim_type: str | None, attestation: str | None
+def _attribution_mode(
+    origin_kind: str | None,
+    claim_type: str | None,
+    attestation: str | None,
+    attribution_in_text: bool | None = None,
 ) -> str:
-    """How a consumer must render this claim's attribution (ADR 0044 s.3).
+    """How a consumer must render this claim's attribution: in_text | bare_ok |
+    unknown (ADR 0044).
 
-    Three states, because two of them need OPPOSITE handling and a boolean
-    collapses them:
+    The RULE lives in anomalica_common, not here. This is a thin call into it. The
+    whole lesson of 0044 is that a rule stated in prose gets re-implemented once per
+    consumer and drifts - twice, in our case, both times to fail-open. The digester,
+    the assimilator and the assembler now share one function, so a disagreement is a
+    failing test rather than a silently divergent render.
 
-    - ``in_text``  - the claim's text ALREADY carries its attribution inline ("An
-      anonymous source claiming to work inside the Defense Intelligence Agency
-      said..."). Render as written: never wrap it in a second "according to", never
-      strip the hedge back to a bare assertion. For these claims the fact about the
-      world is *that someone asserted this*, not the assertion itself - stripping
-      the attribution turns a true statement about an assertion into a false
-      statement about reality.
-    - ``bare_ok``  - a conduit claim that stands on its own. Safe to assert plainly.
-    - ``unknown``  - the text is BARE but we cannot vouch for it, because the chain
-      was never captured. The consumer must NOT assert it as fact: hedge it using
-      the speaker, or drop it.
-
-    The default is ``unknown``, and that is the whole point. An earlier version of
-    this keyed on the PRESENCE of a danger signal (anonymous / hearsay /
-    second-hand), so a claim with no chain and no attestation matched nothing, fell
-    through to "conduit", and rendered as a bare fact - "we don't know where this
-    came from" silently became "safe to assert". That is fail-OPEN, and on the
-    current corpus it would have published 3674 unvouched claims as bare fact. This
-    version fails CLOSED: a claim earns bare_ok, it is never granted it by default.
-
-    ``in_text`` requires a captured chain. A legacy hearsay claim's text is bare -
-    pre-0044 extraction stripped the reporting verb - so treating it as in_text
-    would render bare hearsay as fact. It is ``unknown``, and must be hedged.
-
-    ``unattributed`` is bare_ok, not unknown: it is a POSITIVE statement that the
-    source asserts the fact with no attribution offered (ordinary narration), which
-    is nothing like us not knowing. Otherwise "the Nimitz incident occurred in 2004"
-    gets hedged into absurdity.
-
-    Derived once, here, rather than left to each consumer - the brief is the
-    contract, and a rule re-derived in three places drifts in three directions. The
-    raw ``provenance_chain`` travels alongside for consumers that want it.
+    ``attribution_in_text`` is DECLARED by the extraction model - the thing that
+    wrote the sentence is the only thing that can say what is in the sentence. It is
+    not yet carried on the claim (it lands with the post-0044 extraction schema), so
+    we pass None until the column exists. That is fail-closed, not a gap: with no
+    declared flag, a claim whose truth rests on its attribution (anonymous, hearsay,
+    opinion, second-/third-hand) resolves to `unknown` rather than being asserted.
     """
-    if not origin_kind:
-        return "unknown"  # chain not captured - never assume it is safe
-
-    if (
-        origin_kind == "anonymous"
-        or claim_type in IN_TEXT_CLAIM_TYPES
-        or attestation in IN_TEXT_ATTESTATIONS
-    ):
-        return "in_text"
-
-    if origin_kind == "unattributed":
-        return "bare_ok"
-
-    if origin_kind in BARE_OK_ORIGINS and attestation == "first_hand":
-        return "bare_ok"
-
-    return "unknown"
+    return common_attribution_mode(
+        claim_type=claim_type,
+        attestation=attestation,
+        origin_kind=origin_kind,
+        attribution_in_text=attribution_in_text,
+        has_chain=bool(origin_kind),
+    ).value
 
 
 def build_entity_brief(
@@ -282,7 +249,7 @@ def build_entity_brief(
                 }
                 if origin_kind
                 else None,
-                "attribution_mode": attribution_mode(
+                "attribution_mode": _attribution_mode(
                     origin_kind, claim_type, attestation
                 ),
                 "node_refs": _claim_node_refs(conn, cid, slug_map),
