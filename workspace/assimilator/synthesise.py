@@ -129,6 +129,37 @@ def build_slug_map(conn: sqlite3.Connection) -> tuple[dict[str, str], list[dict]
     return slug_map, collisions
 
 
+LOAD_BEARING_ATTESTATIONS = ("second_hand", "third_hand")
+
+
+def _attribution_is_load_bearing(
+    origin_kind: str | None, claim_type: str | None, attestation: str | None
+) -> bool:
+    """Whether the claim's TEXT already carries its own attribution inline, and so
+    must be rendered exactly as written - never re-wrapped in a second "According
+    to X", and never stripped back to a bare assertion (ADR 0044 s.3).
+
+    For such a claim the fact about the world is *that someone asserted this*, not
+    the assertion itself: strip "an anonymous source claiming to work inside the
+    Defense Intelligence Agency said" and a true statement about an assertion
+    becomes a false statement about reality.
+
+    Derived once, here, rather than left for each consumer to re-implement - the
+    brief is the contract, and a rule re-derived in three places drifts in three
+    directions. The raw ``provenance_chain`` travels alongside it, so a consumer
+    that wants to reason from the chain itself still can.
+
+    On a pre-0044 claim the chain is absent, so this can only fire on claim_type
+    and attestation. That is weaker, not wrong - it is exactly the blindness 0044
+    closes, and a re-digest lifts it.
+    """
+    return (
+        origin_kind == "anonymous"
+        or claim_type == "hearsay"
+        or attestation in LOAD_BEARING_ATTESTATIONS
+    )
+
+
 def build_entity_brief(
     conn: sqlite3.Connection, node_id: str, slug_map: dict[str, str] | None = None
 ) -> dict | None:
@@ -156,7 +187,8 @@ def build_entity_brief(
         SELECT DISTINCT c.id, c.content, c.original_excerpt, c.claim_type,
                c.attestation, c.location_in_record, c.date, c.date_end, c.claim_hash,
                c.speaker_id, sp.name,
-               c.record_id, r.title, r.date, r.reference, r.content_hash, r.friendly_name
+               c.record_id, r.title, r.date, r.reference, r.content_hash, r.friendly_name,
+               c.origin_kind, c.origin, c.relay
         FROM claims c
         LEFT JOIN records r ON r.id = c.record_id
         LEFT JOIN nodes sp ON sp.id = c.speaker_id
@@ -189,6 +221,9 @@ def build_entity_brief(
             rref,
             rhash,
             rfriendly,
+            origin_kind,
+            origin,
+            relay,
         ) = row
         claims.append(
             {
@@ -201,6 +236,23 @@ def build_entity_brief(
                 "speaker": {"node_id": speaker_id, "title": speaker_name}
                 if speaker_id
                 else None,
+                # The claim's own chain (ADR 0044) - who asserted it and through
+                # whom it reached the speaker. Distinct from `provenance` below,
+                # which is the RECORD's source metadata. A consumer reads
+                # origin_kind to know whether the claim's text already carries its
+                # attribution inline (anonymous / hearsay / second- or third-hand
+                # claims do) and so must be rendered as-is, never re-hedged and
+                # never stripped. Null when the digest predates 0044.
+                "provenance_chain": {
+                    "origin_kind": origin_kind,
+                    "origin": origin or "",
+                    "relay": json.loads(relay) if relay else [],
+                }
+                if origin_kind
+                else None,
+                "attribution_is_load_bearing": _attribution_is_load_bearing(
+                    origin_kind, claim_type, attestation
+                ),
                 "node_refs": _claim_node_refs(conn, cid, slug_map),
                 "date": date,
                 "date_end": date_end,
