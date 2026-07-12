@@ -4,7 +4,14 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 
-from anomalica_common.digest.models import Claim, ClaimRole, Node, Record
+from anomalica_common.digest.models import (
+    Claim,
+    ClaimRole,
+    Node,
+    OriginKind,
+    ProvenanceChain,
+    Record,
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS nodes (
@@ -53,7 +60,15 @@ CREATE TABLE IF NOT EXISTS claims (
     -- fresh and upgraded databases share one column order (claims are read
     -- positionally in _row_to_claim). claim_hash is not part of the Claim model;
     -- it is the page-staleness fingerprint, read directly when needed.
-    claim_hash TEXT
+    claim_hash TEXT,
+    -- The claim's provenance chain (ADR 0044): who originally asserted it and how
+    -- it reached the speaker. This is what corroboration independence keys on - two
+    -- claims sharing a chain root are ONE source, not two. NULL origin_kind means
+    -- the chain was NOT CAPTURED (a pre-0044 digest), never that there is no chain;
+    -- independence treats such claims conservatively rather than as independent.
+    origin_kind TEXT,
+    origin TEXT,
+    relay TEXT   -- JSON array, ordered origin -> speaker
 );
 
 CREATE TABLE IF NOT EXISTS claim_node_refs (
@@ -182,6 +197,12 @@ def init_db(conn: sqlite3.Connection) -> None:
         # `backfill-claim-hashes` command (pure compute, no AI).
         if "claim_hash" not in cols:
             conn.execute("ALTER TABLE claims ADD COLUMN claim_hash TEXT")
+        # ADR 0044 migration: the provenance chain. Existing rows keep a NULL
+        # origin_kind, which reads as "chain not captured" - a re-digest backfills
+        # it. They are never treated as independent on the strength of the absence.
+        for column in ("origin_kind", "origin", "relay"):
+            if column not in cols:
+                conn.execute(f"ALTER TABLE claims ADD COLUMN {column} TEXT")
     conn.executescript(SCHEMA)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claims_role ON claims(claim_role)")
 
@@ -298,10 +319,12 @@ def insert_claim(
     # timestamp across a re-import (the row is rewritten, not first-seen).
     now = created_at or _now()
     metadata_json = json.dumps(claim.metadata) if claim.metadata else None
+    chain = claim.provenance_chain
     conn.execute(
         "INSERT INTO claims (id, content, original_excerpt, claim_type, attestation, record_id, speaker_id, "
-        "location_in_record, date, date_end, claim_hash, confidence, metadata, created_at, claim_role) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "location_in_record, date, date_end, claim_hash, confidence, metadata, created_at, claim_role, "
+        "origin_kind, origin, relay) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             claim.id,
             claim.content,
@@ -318,6 +341,9 @@ def insert_claim(
             metadata_json,
             now,
             claim.claim_role.value if claim.claim_role else None,
+            chain.origin_kind.value if chain else None,
+            chain.origin if chain else None,
+            json.dumps(chain.relay) if chain else None,
         ),
     )
     for node_id in claim.node_references:
@@ -412,36 +438,67 @@ def get_corroborations(
     return [(row[0], row[1]) for row in rows]
 
 
-def get_independent_source_count(conn: sqlite3.Connection, claim_id: str) -> int:
-    """Count independent sources corroborating a claim.
+def provenance_root(conn: sqlite3.Connection, claim_id: str) -> tuple[str, str]:
+    """The root of a claim's provenance chain - the identity independence keys on
+    (ADR 0044). Two claims sharing a root are ONE source, however many records,
+    speakers or outlets repeated them.
 
-    Two claims genuinely corroborate each other only if their provenance
-    chains do not share a common root. If two claims have the same speaker,
-    they originate from the same person's testimony and count as one source
-    regardless of how many records they appear in.
+    The rule that matters is the direction of the error. Over-counting roots is the
+    unsafe failure: it lets ten podcasts relaying one anonymous email look like ten
+    independent attestations, so corroboration ends up rewarding repetition. Every
+    branch here therefore collapses toward FEWER roots when identity is uncertain.
 
-    Claims with no speaker are grouped by record (each record is a source).
+    - ``speaker`` / ``unattributed``: the speaker is the only thing standing behind
+      the assertion, so they are the root.
+    - ``named`` / ``document``: the origin is a node, so it resolves through the
+      alias graph - "DIA" and "Defense Intelligence Agency" are one root, not two.
+      Unresolvable origins fall back to their normalised prose.
+    - ``anonymous``: an unnamed origin can never be a node, so there is no id to join
+      on and the only comparable identity is the prose. Until the semantic matcher
+      pins distinct anonymous origins apart, they ALL collapse to a single root -
+      the conservative floor. Clustering can only ever split them back out, which
+      raises independence; it can never inflate it.
+    - chain not captured (pre-0044 digest): all such claims collapse to ONE
+      ``unknown`` root. Absence means the chain was never recorded, never that the
+      claim is independent - defaulting it to independent is exactly the failure
+      0044 exists to close. A re-digest backfills the chain and independence rises
+      to what the evidence actually supports.
     """
+    row = conn.execute(
+        "SELECT speaker_id, record_id, origin_kind, origin FROM claims WHERE id = ?",
+        (claim_id,),
+    ).fetchone()
+    if row is None:
+        return ("unknown", "")
+    speaker_id, record_id, origin_kind, origin = row
+
+    if not origin_kind:
+        return ("unknown", "")
+
+    if origin_kind in ("speaker", "unattributed"):
+        return ("speaker", speaker_id) if speaker_id else ("record", record_id)
+
+    if origin_kind == "anonymous":
+        return ("anonymous", "")
+
+    # named / document: resolve the origin to a node so aliases and acronyms
+    # collapse onto one identity.
+    name = (origin or "").strip()
+    if not name:
+        return ("unknown", "")
+    node = find_node_by_name(conn, name)
+    if node:
+        return ("node", node.id)
+    return (origin_kind, name.casefold())
+
+
+def get_independent_source_count(conn: sqlite3.Connection, claim_id: str) -> int:
+    """Count independent sources corroborating a claim - the number of DISTINCT
+    provenance-chain roots across the corroboration group (ADR 0044). Ten outlets
+    reporting one press release is one source, not ten."""
     corroborated = get_corroborations(conn, claim_id)
-
-    # Collect all claim IDs in the corroboration group (including self)
     all_claim_ids = [claim_id] + [cid for cid, _ in corroborated]
-
-    # Group by provenance root: speaker if known, otherwise record
-    provenance_roots = set()
-    for cid in all_claim_ids:
-        row = conn.execute(
-            "SELECT speaker_id, record_id FROM claims WHERE id = ?", (cid,)
-        ).fetchone()
-        if row is None:
-            continue
-        speaker_id, record_id = row
-        if speaker_id:
-            provenance_roots.add(("speaker", speaker_id))
-        else:
-            provenance_roots.add(("record", record_id))
-
-    return len(provenance_roots)
+    return len({provenance_root(conn, cid) for cid in all_claim_ids})
 
 
 def get_stats(conn: sqlite3.Connection) -> dict:
@@ -517,4 +574,18 @@ def _row_to_claim(row: tuple) -> Claim:
         metadata=json.loads(row[11]) if row[11] else None,
         created_at=datetime.fromisoformat(row[12]),
         claim_role=ClaimRole(row[13]) if len(row) > 13 and row[13] else None,
+        provenance_chain=_row_to_chain(row),
+    )
+
+
+def _row_to_chain(row: tuple) -> ProvenanceChain | None:
+    """Rebuild the chain from a claims row. A NULL origin_kind means the chain was
+    not captured (pre-ADR-0044 digest), which is NOT the same as having no chain -
+    see ``provenance_root``."""
+    if len(row) <= 15 or not row[15]:
+        return None
+    return ProvenanceChain(
+        origin_kind=OriginKind(row[15]),
+        origin=row[16] or "",
+        relay=json.loads(row[17]) if len(row) > 17 and row[17] else [],
     )
