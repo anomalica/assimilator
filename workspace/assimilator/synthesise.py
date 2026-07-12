@@ -129,35 +129,69 @@ def build_slug_map(conn: sqlite3.Connection) -> tuple[dict[str, str], list[dict]
     return slug_map, collisions
 
 
-LOAD_BEARING_ATTESTATIONS = ("second_hand", "third_hand")
+IN_TEXT_CLAIM_TYPES = ("hearsay", "opinion")
+IN_TEXT_ATTESTATIONS = ("second_hand", "third_hand")
+BARE_OK_ORIGINS = ("speaker", "named", "document")
 
 
-def _attribution_is_load_bearing(
+def attribution_mode(
     origin_kind: str | None, claim_type: str | None, attestation: str | None
-) -> bool:
-    """Whether the claim's TEXT already carries its own attribution inline, and so
-    must be rendered exactly as written - never re-wrapped in a second "According
-    to X", and never stripped back to a bare assertion (ADR 0044 s.3).
+) -> str:
+    """How a consumer must render this claim's attribution (ADR 0044 s.3).
 
-    For such a claim the fact about the world is *that someone asserted this*, not
-    the assertion itself: strip "an anonymous source claiming to work inside the
-    Defense Intelligence Agency said" and a true statement about an assertion
-    becomes a false statement about reality.
+    Three states, because two of them need OPPOSITE handling and a boolean
+    collapses them:
 
-    Derived once, here, rather than left for each consumer to re-implement - the
-    brief is the contract, and a rule re-derived in three places drifts in three
-    directions. The raw ``provenance_chain`` travels alongside it, so a consumer
-    that wants to reason from the chain itself still can.
+    - ``in_text``  - the claim's text ALREADY carries its attribution inline ("An
+      anonymous source claiming to work inside the Defense Intelligence Agency
+      said..."). Render as written: never wrap it in a second "according to", never
+      strip the hedge back to a bare assertion. For these claims the fact about the
+      world is *that someone asserted this*, not the assertion itself - stripping
+      the attribution turns a true statement about an assertion into a false
+      statement about reality.
+    - ``bare_ok``  - a conduit claim that stands on its own. Safe to assert plainly.
+    - ``unknown``  - the text is BARE but we cannot vouch for it, because the chain
+      was never captured. The consumer must NOT assert it as fact: hedge it using
+      the speaker, or drop it.
 
-    On a pre-0044 claim the chain is absent, so this can only fire on claim_type
-    and attestation. That is weaker, not wrong - it is exactly the blindness 0044
-    closes, and a re-digest lifts it.
+    The default is ``unknown``, and that is the whole point. An earlier version of
+    this keyed on the PRESENCE of a danger signal (anonymous / hearsay /
+    second-hand), so a claim with no chain and no attestation matched nothing, fell
+    through to "conduit", and rendered as a bare fact - "we don't know where this
+    came from" silently became "safe to assert". That is fail-OPEN, and on the
+    current corpus it would have published 3674 unvouched claims as bare fact. This
+    version fails CLOSED: a claim earns bare_ok, it is never granted it by default.
+
+    ``in_text`` requires a captured chain. A legacy hearsay claim's text is bare -
+    pre-0044 extraction stripped the reporting verb - so treating it as in_text
+    would render bare hearsay as fact. It is ``unknown``, and must be hedged.
+
+    ``unattributed`` is bare_ok, not unknown: it is a POSITIVE statement that the
+    source asserts the fact with no attribution offered (ordinary narration), which
+    is nothing like us not knowing. Otherwise "the Nimitz incident occurred in 2004"
+    gets hedged into absurdity.
+
+    Derived once, here, rather than left to each consumer - the brief is the
+    contract, and a rule re-derived in three places drifts in three directions. The
+    raw ``provenance_chain`` travels alongside for consumers that want it.
     """
-    return (
+    if not origin_kind:
+        return "unknown"  # chain not captured - never assume it is safe
+
+    if (
         origin_kind == "anonymous"
-        or claim_type == "hearsay"
-        or attestation in LOAD_BEARING_ATTESTATIONS
-    )
+        or claim_type in IN_TEXT_CLAIM_TYPES
+        or attestation in IN_TEXT_ATTESTATIONS
+    ):
+        return "in_text"
+
+    if origin_kind == "unattributed":
+        return "bare_ok"
+
+    if origin_kind in BARE_OK_ORIGINS and attestation == "first_hand":
+        return "bare_ok"
+
+    return "unknown"
 
 
 def build_entity_brief(
@@ -238,11 +272,9 @@ def build_entity_brief(
                 else None,
                 # The claim's own chain (ADR 0044) - who asserted it and through
                 # whom it reached the speaker. Distinct from `provenance` below,
-                # which is the RECORD's source metadata. A consumer reads
-                # origin_kind to know whether the claim's text already carries its
-                # attribution inline (anonymous / hearsay / second- or third-hand
-                # claims do) and so must be rendered as-is, never re-hedged and
-                # never stripped. Null when the digest predates 0044.
+                # which is the RECORD's source metadata. Null when the digest
+                # predates 0044. `attribution_mode` is the derived rendering
+                # contract: in_text | bare_ok | unknown - see attribution_mode().
                 "provenance_chain": {
                     "origin_kind": origin_kind,
                     "origin": origin or "",
@@ -250,7 +282,7 @@ def build_entity_brief(
                 }
                 if origin_kind
                 else None,
-                "attribution_is_load_bearing": _attribution_is_load_bearing(
+                "attribution_mode": attribution_mode(
                     origin_kind, claim_type, attestation
                 ),
                 "node_refs": _claim_node_refs(conn, cid, slug_map),
