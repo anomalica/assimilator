@@ -17,11 +17,37 @@ MODEL_NAME = "electroglyph/Qwen3-Embedding-0.6B-onnx-uint8"
 MODEL_FILE = "dynamic_uint8.onnx"
 EMBEDDING_DIMS = 1024
 
+# This ONNX export emits a uint8 tensor, not floats: the author asymmetrically
+# quantised the model's float32 output onto 0..255 over the calibration range
+# below (from the model card). Those two numbers are the decode key - without
+# them a uint8 vector cannot be returned to the space it was measured in.
+QUANT_MIN = -0.3009805381298065
+QUANT_MAX = 0.3952634334564209
+
+# The uint8 value meaning float 0.0 (~110). EVERY stored vector clusters around
+# it, so a raw uint8 vector is a small signal riding on a large constant, and
+# cosine between any two of them is ~0.99 regardless of meaning - the constant
+# dominates. Dequantising re-centres on zero and recovers the signal. See
+# ``_dequantise``.
+QUANT_ZERO_POINT = -QUANT_MIN / (QUANT_MAX - QUANT_MIN) * 255
+
+# The decode convention, not just the model, defines the vector space: the same
+# ONNX file read raw and read dequantised produce vectors that are NOT comparable.
+# It is part of the space's identity so a superseded convention is detectable
+# rather than silently mixed.
+DECODE_REVISION = "dequant-v1"
+
 # Identity of the vector space every stored embedding was produced in. Any change
-# to the model, its quantisation file, or the dimensionality yields a different
-# string, so embeddings made by a superseded model are detectable (see
-# ``stale_embedding_ids``) and never silently compared across incompatible spaces.
-EMBEDDING_MODEL_ID = f"{MODEL_NAME}:{MODEL_FILE}:{EMBEDDING_DIMS}"
+# to the model, its quantisation file, the dimensionality, or the decode
+# convention yields a different string, so embeddings made by a superseded space
+# are detectable (see ``stale_embedding_ids``) and never silently compared across
+# incompatible spaces.
+EMBEDDING_MODEL_ID = f"{MODEL_NAME}:{MODEL_FILE}:{EMBEDDING_DIMS}:{DECODE_REVISION}"
+
+# The space of an embedding that predates this tracking table - which is to say,
+# one that predates the decode fix, so a raw-uint8 vector from the degenerate
+# space. Never a space to embed INTO; only a marker meaning "re-embed this".
+PRE_TRACKING_MODEL_ID = "pre-tracking:raw-uint8:unusable"
 
 
 def _now() -> str:
@@ -41,10 +67,19 @@ def _get_embedder():
 
         model_path = os.environ.get("EMBEDDING_MODEL_PATH")
 
+        # POOLING MUST STAY DISABLED. This ONNX export pools internally and emits a
+        # finished vector, so the model card's instruction is "execute model
+        # without pooling and without normalization". Letting fastembed mean-pool
+        # on top averages an already-pooled output and destroys the space: with
+        # MEAN, EVERY pair of texts scored cosine ~0.992 - "the cat sat on the mat"
+        # against an empty string included - a 0.003 spread carrying no usable
+        # signal. It fails silently, returning plausible numbers, so nothing
+        # downstream can detect it. Normalisation is likewise the caller's job
+        # (``cosine_similarity`` here, ``_normalise`` in the shared client).
         TextEmbedding.add_custom_model(
             model=MODEL_NAME,
-            pooling=PoolingType.MEAN,
-            normalization=True,
+            pooling=PoolingType.DISABLED,
+            normalization=False,
             sources=ModelSource(hf=MODEL_NAME),
             dim=EMBEDDING_DIMS,
             model_file=MODEL_FILE,
@@ -58,17 +93,36 @@ def _get_embedder():
     return _embedder
 
 
+def _dequantise(raw: list[float]) -> list[float]:
+    """uint8 0..255 back to the float32 range the model was calibrated over.
+
+    Mandatory before any comparison. The raw tensor is asymmetrically quantised
+    around QUANT_ZERO_POINT (~110), so every raw vector is dominated by that
+    shared constant and cosine between any two is ~0.99 whatever they mean:
+    measured on this corpus, unrelated text scored 0.992 and paraphrases 0.996 -
+    a 0.004 spread. Dequantised, the same pairs score 0.22-0.30 and 0.67-0.79.
+    Nothing errors in the raw case; it just returns confident nonsense."""
+    scale = (QUANT_MAX - QUANT_MIN) / 255.0
+    return [v * scale + QUANT_MIN for v in raw]
+
+
 def embed_text(text: str) -> list[float]:
     embedder = _get_embedder()
     results = list(embedder.embed([text]))
-    return results[0].tolist()
+    return _dequantise(results[0].tolist())
 
 
 def embed_batch(texts: list[str]) -> list[list[float]]:
-    # Loop rather than passing a list to fastembed.embed - the custom Qwen3
-    # ONNX model registered via add_custom_model breaks fastembed's
-    # mean_pooling when batch_size > 1 (attention-mask shape mismatch). Per-
-    # item calls are slower but actually work.
+    """One text per inference, deliberately.
+
+    Not a fastembed limitation: with pooling correctly DISABLED, passing a list
+    works. It is rejected because it changes the answer. This ONNX pools
+    internally, so a batch's padding leaks into the result - the same text
+    embedded alongside others comes back at cosine ~0.95-0.97 to itself embedded
+    alone, roughly a tenth of the paraphrase-vs-unrelated separation the space
+    has to resolve. A vector would then depend on which other texts shared its
+    request, which no cache can key on and no comparison can trust. Batching buys
+    ~1.1x for that; not a trade worth making."""
     if not texts:
         return []
     return [embed_text(t) for t in texts]
@@ -154,10 +208,19 @@ def _record_embedding_model(
 
 
 def _backfill_embedding_model(conn: sqlite3.Connection) -> None:
-    """Stamp any pre-existing embedding that has no recorded model with the current
-    embedding model. Safe because every embedding in the database to date was produced
-    by the current model; it is idempotent (``INSERT OR IGNORE`` on rows with no
-    existing record), so a later model change is preserved rather than overwritten."""
+    """Stamp any embedding with no recorded model as PRE-TRACKING, so it reads as
+    stale and gets re-embedded.
+
+    This deliberately does NOT stamp them as current. An untracked embedding was
+    written before this table existed, which is before the decode convention was
+    fixed, so it is a raw-uint8 vector from the degenerate space where every pair
+    scored ~0.99 - unusable, and indistinguishable from a good vector by
+    inspection. Stamping those as current would bless them, and
+    ``stale_embedding_ids`` would then never return them: the corruption would be
+    permanent and silent.
+
+    Idempotent (``INSERT OR IGNORE`` on unstamped rows only), so an already
+    recorded model is preserved rather than overwritten."""
     now = _now()
     for kind, table, id_col in (
         ("claim", "vec_claims", "claim_id"),
@@ -172,7 +235,7 @@ def _backfill_embedding_model(conn: sqlite3.Connection) -> None:
                 SELECT id FROM embedding_model WHERE kind = ?
             )
             """,
-            [kind, EMBEDDING_MODEL_ID, now, kind],
+            [kind, PRE_TRACKING_MODEL_ID, now, kind],
         )
 
 
