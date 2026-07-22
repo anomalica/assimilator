@@ -1,0 +1,92 @@
+{
+  "confident": [
+    {
+      "node_ids": ["200409ad-6a43-46d3-84db-b15d1f77d8a2", "e57005b4-b10f-49a9-872f-61f00312b820"],
+      "suggested_canonical": "e57005b4-b10f-49a9-872f-61f00312b820",
+      "score": 0.9,
+      "node_type": "document",
+      "reason": "manual/referenced-source consolidation: two nodes for the one Gimbal video"
+    },
+    {
+      "node_ids": ["2658cc67-2b0a-4b7f-a324-f1fa16dc21b7", "ef0c0f36-c006-4924-a8fe-2f0f7757dcb8"],
+      "suggested_canonical": "2658cc67-2b0a-4b7f-a324-f1fa16dc21b7",
+      "score": 0.9,
+      "node_type": "document",
+      "reason": "manual: 'Unidentified (TV show)' is the short name of 'Unidentified: Inside America's UFO Investigation' (History Channel, 2019). Verified via claims. (anomalica flagged this in screening.)"
+    },
+    {
+      "node_ids": [
+        "3272f7a3-e93a-4ce1-8158-039af3b1408f",
+        "a4f4460d-d553-49a5-8a5e-6e8b5c928153",
+        "b55265b8-c698-458f-97ca-8895c60e1068"
+      ],
+      "suggested_canonical": "b55265b8-c698-458f-97ca-8895c60e1068",
+      "score": 0.9,
+      "node_type": "document",
+      "reason": "manual: three nodes for Elizondo's SECOND resignation letter to Mattis (2017-10-04); Jim==James Mattis, same date. Content is held-within FOIA 18-F-0324 (anomalica confirmed). Does NOT include the distinct FIRST letter."
+    },
+    {
+      "node_ids": [
+        "10db20bd-6632-4d61-85fd-35ad84e808c1",
+        "13566718-151d-4f6b-96c6-b36797f258d8",
+        "d576fa79-09b9-4992-9713-aea50b8e5fbe"
+      ],
+      "suggested_canonical": "13566718-151d-4f6b-96c6-b36797f258d8",
+      "score": 0.9,
+      "node_type": "document",
+      "reason": "manual: three nodes for the one ODNI Preliminary Assessment: UAP (June 2021, 180-day report). Distinct from the 2022 Annual Report."
+    }
+  ],
+  "flagged": [
+    {
+      "node_ids": ["2c3d3bb2-318e-4adf-a878-ac335d01b0ab", "f940df9d-abcb-4d23-9bb6-1569bf35858e"],
+      "suggested_canonical": "2c3d3bb2-318e-4adf-a878-ac335d01b0ab",
+      "score": 0.6,
+      "node_type": "document",
+      "reason": "VERIFY: FLIR1 is the 2004 Nimitz video showing the Tic Tac; 'Tic Tac Full Video' is likely the same clip but 'Full' may denote a longer cut. Human call."
+    }
+  ],
+  "keep_separate": [
+    {
+      "nodes": ["Gimbal video", "Go-Fast Video", "FLIR1 Video"],
+      "why": "THREE DISTINCT VIDEOS. Grouped as ONE ACQUISITION target on the source list, but they are separate artefacts and must stay separate graph nodes. Do not merge across them."
+    },
+    {
+      "nodes": ["Elizondo First Resignation Letter (2017-10-03) (e9fca8b0)"],
+      "why": "A genuinely distinct letter: to his chain of command, dated 10-03. The claims state Elizondo 'crafted two resignation letters'. Must NOT merge into the second/Mattis letter."
+    },
+    {
+      "nodes": [
+        "Predator Drone Nuclear Facility UAP Video (a44c9320)",
+        "Wedge UAP Cockpit Overflight Video (e15a4b6a)",
+        "To the Stars Academy YouTube Video ft. Elizondo (3206b808)"
+      ],
+      "why": "Distinct videos, not part of the three Pentagon clips. Keep separate."
+    }
+  ],
+  "needs_claim_review": [
+    {
+      "nodes": [
+        "Elizondo Resignation Letter (b869bdd4, 9c)",
+        "Lou Elizondo AATIP resignation letter (2017) (4cdd0188, 0c)"
+      ],
+      "why": "Conflated: claims on the generic node reference BOTH letters ('crafted two resignation letters') AND the Mattis letter. A node merge would mis-attribute chain-of-command claims to the Mattis letter. Needs claim-LEVEL splitting, not a node merge - beyond the merge tool."
+    }
+  ],
+  "modelling_question": [
+    {
+      "nodes": [
+        "Three unclassified US Navy UAP videos (2004,2015) (5590509e)",
+        "The three DoD UAP videos (0b4482cc)",
+        "Three declassified US Navy UAP videos (2017) (920652f6)",
+        "Pentagon-released F-18 cockpit UFO videos (63e84a73)"
+      ],
+      "why": "Four SET-reference nodes all denoting the three-video set. Merging them together is defensible; merging a set-node into an individual video is WRONG. Whether a collective 'set' node should exist alongside the three individuals is a taxonomy/modelling call (node-types.md), not a duplicate merge. Flagged for anomalica/taxonomy, not proposed."
+    }
+  ],
+  "already_done": [
+    {
+      "note": "Go-Fast is ALREADY consolidated: 'Go Fast (US military UAP video)' and 'Go Fast video' were retired into 'Go-Fast Video' on 2026-06-28. No Go-Fast merge needed."
+    }
+  ]
+}
