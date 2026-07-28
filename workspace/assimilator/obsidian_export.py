@@ -2,7 +2,7 @@
 
 Structure:
 
-    People/<Last, First>.md    one file per person
+    People/<First Last>.md     one file per person (sort_name gives surname sort)
     Organisations/<name>.md    one file per organisation
     Places/<Country, Region, City>.md  one file per place
     Events/<name>.md           one file per dated event
@@ -19,9 +19,12 @@ Obsidian is not required - the data is already on the page.
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from pathlib import Path
+
+from assimilator.person_names import display_surname_first
 
 _FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
 _WIKILINK_FORBIDDEN = re.compile(r"[\[\]|#^]")
@@ -62,10 +65,16 @@ def _link(name: str | None) -> str:
 def _load_db(conn: sqlite3.Connection) -> dict:
     """Pull everything we need from one database into a single in-memory dict."""
     nodes = {}
-    for nid, ntype, name in conn.execute(
-        "SELECT id, node_type, name FROM nodes WHERE retired_at IS NULL"
+    for nid, ntype, name, metadata in conn.execute(
+        "SELECT id, node_type, name, metadata FROM nodes WHERE retired_at IS NULL"
     ):
-        nodes[nid] = {"id": nid, "name": name, "node_type": ntype, "aliases": []}
+        nodes[nid] = {
+            "id": nid,
+            "name": name,
+            "node_type": ntype,
+            "metadata": json.loads(metadata) if metadata else {},
+            "aliases": [],
+        }
     for alias, nid in conn.execute("SELECT alias, node_id FROM aliases"):
         if nid in nodes and alias != nodes[nid]["name"]:
             nodes[nid]["aliases"].append(alias)
@@ -144,6 +153,7 @@ def _merge_by_name(*dbs: dict) -> dict:
                 nodes_by_key[key] = {
                     "name": name,
                     "node_type": ntype,
+                    "metadata": node.get("metadata") or {},
                     "aliases": set(node["aliases"]),
                     "ids": [],
                 }
@@ -229,6 +239,12 @@ def _format_node_file(node: dict, merged: dict) -> str:
     )
 
     fm = ["---", f"type: {node['node_type']}"]
+    # Names are stored natural-order, so a People/ folder sorted by filename
+    # sorts by forename. sort_name gives Obsidian the surname-first key to sort
+    # and group on without renaming the file out of step with its wikilinks.
+    sort_name = display_surname_first(node["name"], node.get("metadata"))
+    if sort_name != node["name"]:
+        fm.append(f"sort_name: {sort_name}")
     if node["aliases"]:
         fm.append("aliases:")
         for a in sorted(node["aliases"]):
@@ -327,7 +343,8 @@ by hand - run `just vault` from `assimilator/` to regenerate.
 Each folder collects one kind of entity extracted from the source documents:
 
 - **People/** - named individuals (witnesses, journalists, officials). Filenames
-  are "Last, First" so the folder sorts alphabetically by surname.
+  are the person's name in natural order ("David Fravor"); each note carries a
+  `sort_name` field ("Fravor, David") to sort or group the folder by surname.
 - **Organisations/** - government bodies, military units, companies, programmes,
   panels, agencies.
 - **Places/** - geographic locations. Filenames are "Country, Region, Specific"

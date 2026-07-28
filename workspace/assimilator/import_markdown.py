@@ -476,6 +476,15 @@ def import_extraction(
             log(f"  New node: {name} ({node_type}) [{node.id[:8]}]")
             counts["nodes_created"] += 1
 
+        # Aliases declared in the digest are graph aliases. Written here rather
+        # than left in metadata because a rebuild wipes the graph and only the
+        # digests survive: the surname-first person form (node-types.md, kept so
+        # last-first input still resolves) would be lost on the next rebuild if
+        # it lived only in a database row.
+        for alias in (node_def.get("metadata") or {}).get("aliases") or []:
+            if alias and alias != name:
+                insert_alias(conn, alias, node_name_to_id[name])
+
     # Link record producer
     producer_name = fm.get("record_producer")
     if producer_name and producer_name in node_name_to_id:

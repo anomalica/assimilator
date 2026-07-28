@@ -535,6 +535,32 @@ def normalise_names_cmd(extracts_dir: str) -> None:
     )
 
 
+@main.command(name="naturalise-person-names")
+@click.argument("digests_dir", type=click.Path(exists=True))
+@click.option(
+    "--dry-run", is_flag=True, help="Report what would change without writing."
+)
+def naturalise_person_names_cmd(digests_dir: str, dry_run: bool) -> None:
+    """Rewrite person names in digest YAML to natural order, surname as a field.
+
+    "Fravor, David" -> "David Fravor" across node names, claim refs and speaker
+    fields, adding `metadata.family_name` (the surname has nowhere else to live
+    once the comma goes) and keeping the surname-first form in
+    `metadata.aliases` so last-first input still resolves. Deterministic, no AI.
+
+    PLACES ARE NOT TOUCHED: "USA, Nevada, Area 51" is largest-unit-first and
+    that convention stands. Rebuild the graph afterwards to pick the names up.
+    """
+    from assimilator.person_names import naturalise_digests_in_dir
+
+    results = naturalise_digests_in_dir(Path(digests_dir), dry_run=dry_run)
+    total = sum(results.values())
+    verb = "Would rename" if dry_run else "Renamed"
+    click.echo(f"{verb} {total} person nodes across {len(results)} digests.")
+    for fname, count in sorted(results.items(), key=lambda x: -x[1]):
+        click.echo(f"  {count:4d}  {fname}")
+
+
 @main.command(name="migrate-refs-delimiter")
 @click.argument("extracts_dir", type=click.Path(exists=True))
 def migrate_refs_delimiter_cmd(extracts_dir: str) -> None:
