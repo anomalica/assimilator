@@ -641,3 +641,38 @@ def test_hard_token_date_prefix_does_not_conflict():
     assert conflict("woomera 1952 radar", "woomera 1954 radar")
     assert conflict("fy2024 ndaa", "fy2023 ndaa")
     assert conflict("executive order 12333", "executive order 13526")
+
+
+def test_accented_and_unaccented_spellings_are_one_node():
+    """ "André Almond" and "Andre Almond" are one person written two ways. The
+    fuzzy path cannot save this pair - the accent makes each forename an orphan
+    of the other, which reads as a substituted distinctive token - so the
+    equivalence key folds diacritics off ASCII-Latin bases."""
+    conn = _db()
+    node = insert_node(conn, Node(node_type=NodeType.person, name="André Almond"))
+    conn.commit()
+
+    result = match_node(conn, "Andre Almond", "person")
+    assert result is not None
+    assert result[0] == node.id
+
+
+def test_diacritic_fold_does_not_reach_non_latin_scripts():
+    """A blanket NFD-strip would turn ガ into カ and merge distinct names, so the
+    fold only applies where the base letter is ASCII."""
+    from assimilator.matching import fold_diacritics
+
+    assert fold_diacritics("ガガーリン") == "ガガーリン"
+    assert fold_diacritics("André Almond") == "Andre Almond"
+
+
+def test_surname_shared_forename_differs_stays_distinct():
+    """The natural-order form of the #23 precision case. Under the old
+    "Surname, First" storage these two scored exactly at the structured
+    threshold and merged - which is how 30 claims about the Pentagon's Garry
+    Reid were filed under Senator Harry Reid."""
+    conn = _db()
+    insert_node(conn, Node(node_type=NodeType.person, name="Harry Reid"))
+    conn.commit()
+
+    assert match_node(conn, "Garry Reid", "person") is None

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import unicodedata
 
 from Levenshtein import ratio as levenshtein_ratio
 
@@ -102,9 +103,31 @@ def strip_acronym_suffix(name: str) -> str:
     return _ACRONYM_SUFFIX_RE.sub("", name).rstrip()
 
 
+def fold_diacritics(text: str) -> str:
+    """Drop combining marks from ASCII-Latin base letters, leaving other scripts alone.
+
+    "André Almond" and "Andre Almond" are one person written two ways, and no
+    other rule catches them: the fuzzy path sees a substituted distinctive token
+    (the accent makes "andré" an orphan of "andre") and rejects the pair. Folding
+    only over ASCII bases is deliberate - blanket NFD-strip would turn Japanese
+    ガ into カ, merging distinct names.
+
+    >>> fold_diacritics('André Almond')
+    'Andre Almond'
+    >>> fold_diacritics('ガガーリン')
+    'ガガーリン'
+    """
+    folded: list[str] = []
+    for char in unicodedata.normalize("NFD", text):
+        if unicodedata.combining(char) and folded and folded[-1].isascii():
+            continue
+        folded.append(char)
+    return unicodedata.normalize("NFC", "".join(folded))
+
+
 def name_equivalence_key(name: str) -> str:
-    """Lowercase, acronym-suffix-stripped form used for matching equivalent names."""
-    return strip_acronym_suffix(name).lower().strip()
+    """Lowercase, diacritic-folded, acronym-suffix-stripped form used for matching."""
+    return fold_diacritics(strip_acronym_suffix(name)).lower().strip()
 
 
 # Minimum similarity (0-1) to consider a fuzzy match. 0.75 catches typos
