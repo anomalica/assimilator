@@ -12,6 +12,7 @@ import sqlite3
 
 from assimilator.database import init_db
 from assimilator.import_markdown import backfill_claim_hashes, import_extraction
+from assimilator.matching import match_node
 
 
 def _parsed(claims):
@@ -147,3 +148,32 @@ def test_backfill_reproduces_the_import_hash():
     backfill_claim_hashes(conn)
     after_backfill = conn.execute("SELECT claim_hash FROM claims").fetchone()[0]
     assert after_backfill == at_import
+
+
+def test_node_metadata_aliases_become_graph_aliases():
+    """A rebuild wipes the graph and only the digests survive, so an alias that
+    lives in a database row is lost on the next rebuild. The retained
+    surname-first person form (node-types.md) is carried in the digest's node
+    metadata and written to the aliases table on import."""
+    conn = _conn()
+    parsed = _parsed([_claim("c1", "First.")])
+    parsed["nodes"][0]["metadata"] = {
+        "family_name": "Fravor",
+        "aliases": ["Fravor, David"],
+    }
+    import_extraction(conn, parsed)
+
+    row = conn.execute(
+        "SELECT n.name FROM aliases a JOIN nodes n ON n.id = a.node_id "
+        "WHERE a.alias = ?",
+        ("Fravor, David",),
+    ).fetchone()
+    assert row is not None and row[0] == "David Fravor"
+
+    # Last-first input still resolves to the natural-order node afterwards.
+    assert (
+        match_node(conn, "Fravor, David", "person")[0]
+        == conn.execute("SELECT id FROM nodes WHERE name = 'David Fravor'").fetchone()[
+            0
+        ]
+    )
