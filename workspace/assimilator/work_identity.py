@@ -29,6 +29,7 @@ narrower, deterministic half: same TEXT, different bytes. No AI, no embeddings.
 from __future__ import annotations
 
 import re
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -63,7 +64,9 @@ class DuplicatePair:
 _SOURCE_KEY_RE = re.compile(r"^(source_url|source_id):\s*(.+)$", re.M)
 
 
-def find_same_origin_records(store_dir: Path) -> list[DuplicatePair]:
+def find_same_origin_records(
+    store_dir: Path, paths: list[Path] | None = None
+) -> list[DuplicatePair]:
     """Records sharing a source_url or source_id - the same thing fetched twice.
 
     Complementary to the text scan, not a subset of it, and both are needed: a
@@ -72,13 +75,15 @@ def find_same_origin_records(store_dir: Path) -> list[DuplicatePair]:
     of one book share no URL at all. Exact string match, so it is free.
     """
     seen: dict[tuple[str, str], list[str]] = {}
-    for path in sorted(store_dir.glob("*.md")):
-        record_hash = path.name.split(".", 1)[0]
+    for path in sorted(paths if paths is not None else store_dir.glob("*.md")):
+        record_hash = path.resolve().name.split(".", 1)[0]
         if len(record_hash) != 64:
             continue
         try:
             head = path.read_text(errors="replace")[:4000]
         except OSError:
+            continue
+        if is_superseded(head):
             continue
         for field, value in _SOURCE_KEY_RE.findall(head):
             key = (field, value.strip().strip('"'))
@@ -90,6 +95,38 @@ def find_same_origin_records(store_dir: Path) -> list[DuplicatePair]:
             for b in hashes[i + 1 :]:
                 pairs.append(DuplicatePair(a, b, 1.0, 0, 0, reason=field))
     return pairs
+
+
+_SUPERSEDED_RE = re.compile(r"^superseded_by:\s*(\S+)\s*$", re.M)
+
+
+def live_record_paths(ingests_dir: Path) -> list[Path]:
+    """The records currently in play, resolved through `ingests/records/`.
+
+    Globbing `store/*.md` is the wrong set twice over. It misses nothing today by
+    luck, but the store also holds archive tiers - `store/v1/` carries 211
+    schema-1 records, 133 of which share a source_url with a live record and are
+    therefore superseded re-ingests - and a recursive glob would report every one
+    of those as a duplicate. `records/` is the authoritative live set by
+    construction: one symlink per record, none pointing into an archive tier.
+    Falls back to the store root when there is no records/ directory.
+    """
+    records_dir = ingests_dir / "records"
+    if records_dir.is_dir():
+        return sorted(p for p in records_dir.glob("*.md") if p.resolve().is_file())
+    return sorted(ingests_dir.glob("store/*.md"))
+
+
+def is_superseded(text: str) -> bool:
+    """True if the record declares itself replaced by another.
+
+    A supersession is INDISTINGUISHABLE from a duplicate by text similarity -
+    both are near-identical bodies under two hashes - and every body-normalising
+    fix that ships mints one per affected record. The declaration is authoritative
+    where it exists, so a marked record is dropped before similarity runs: it is
+    one source that was re-extracted, not two sources.
+    """
+    return bool(_SUPERSEDED_RE.search(text))
 
 
 def record_body(text: str) -> str:
@@ -138,27 +175,35 @@ def find_duplicate_records(
     store_dir: Path,
     threshold: float = DEFAULT_JACCARD,
     containment_threshold: float = 0.90,
+    paths: list[Path] | None = None,
 ) -> list[DuplicatePair]:
-    """Near-duplicate record pairs in an ingests store, strongest first.
+    """Near-duplicate record pairs, strongest first.
 
-    Compares every pair of `{hash}.md` records under `store_dir`. Deterministic
-    and offline - shingle overlap only, no model and no embeddings.
+    Pass `paths` (from `live_record_paths`) to compare the live set; otherwise
+    every `{hash}.md` directly under `store_dir`. Records declaring
+    `superseded_by` are excluded before comparison. Deterministic and offline -
+    shingle overlap only, no model and no embeddings.
     """
     # A record is `{hash}.md` or `{hash}.v2.md` (record schema 2), and the store
     # holds far more of the latter - globbing only the bare form silently scans a
     # third of the store. Sidecars (.review.json, .verification.json) are not .md
     # and do not reach here; where both forms exist for one hash the newer wins.
     fingerprints: dict[str, set[int]] = {}
-    for path in sorted(store_dir.glob("*.md")):
-        record_hash = path.name.split(".", 1)[0]
+    for path in sorted(paths if paths is not None else store_dir.glob("*.md")):
+        record_hash = path.resolve().name.split(".", 1)[0]
         if len(record_hash) != 64:
             continue
         if record_hash in fingerprints and not path.name.endswith(".v2.md"):
             continue
         try:
-            fingerprints[record_hash] = shingles(record_body(path.read_text()))
+            text = path.read_text()
         except (OSError, UnicodeDecodeError):
             continue
+        # Declared supersessions are one source re-extracted, not two. Dropped
+        # before similarity so they never reach the report at all.
+        if is_superseded(text):
+            continue
+        fingerprints[record_hash] = shingles(record_body(text))
 
     names = sorted(fingerprints)
     pairs: list[DuplicatePair] = []
@@ -173,3 +218,71 @@ def find_duplicate_records(
                 pairs.append(DuplicatePair(a, b, round(score, 4), shared, union))
     pairs.sort(key=lambda p: -p.jaccard)
     return pairs
+
+
+def link_works(
+    conn: sqlite3.Connection,
+    ingests_dir: Path,
+    threshold: float = DEFAULT_JACCARD,
+) -> dict:
+    """Collapse duplicate records onto a shared work_id in the graph.
+
+    Union-find over both detectors' pairs, then every record in a group takes the
+    lexicographically smallest member's id as its work_id. Idempotent and
+    order-independent: the same store always yields the same grouping, so this is
+    DERIVED state that a rebuild can recompute rather than something to replay.
+
+    Only records the graph actually holds are touched - the store contains far
+    more than has been digested.
+    """
+    store = ingests_dir / "store"
+    live = live_record_paths(ingests_dir)
+    pairs = find_duplicate_records(store, threshold, paths=live)
+    pairs += find_same_origin_records(store, paths=live)
+
+    parent: dict[str, str] = {}
+
+    def find(x: str) -> str:
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for pair in pairs:
+        a, b = find(pair.a), find(pair.b)
+        if a != b:
+            parent[min(a, b)] = min(a, b)
+            parent[max(a, b)] = min(a, b)
+
+    by_hash = {
+        row[0].removeprefix("sha256:"): row[1]
+        for row in conn.execute(
+            "SELECT content_hash, id FROM records WHERE content_hash IS NOT NULL"
+        )
+    }
+    groups: dict[str, list[str]] = {}
+    for record_hash in parent:
+        groups.setdefault(find(record_hash), []).append(record_hash)
+
+    linked = 0
+    for members in groups.values():
+        present = sorted(by_hash[h] for h in members if h in by_hash)
+        if len(present) < 2:
+            continue  # the duplicate exists in the store but not in the graph
+        work_id = present[0]
+        for record_id in present:
+            conn.execute(
+                "UPDATE records SET work_id = ? WHERE id = ?", (work_id, record_id)
+            )
+            linked += 1
+    conn.execute("UPDATE records SET work_id = id WHERE work_id IS NULL")
+    conn.commit()
+    return {
+        "duplicate_pairs": len(pairs),
+        "records_linked": linked,
+        "works": conn.execute("SELECT COUNT(DISTINCT work_id) FROM records").fetchone()[
+            0
+        ],
+        "records": conn.execute("SELECT COUNT(*) FROM records").fetchone()[0],
+    }

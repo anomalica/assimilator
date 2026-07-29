@@ -193,6 +193,25 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
         # name the merge replay set first (ADR 0038).
         replay_renames(domain_conn, on_progress=click.echo)
         replay_vetoes(domain_conn, on_progress=click.echo)
+    # Work identity is DERIVED from the ingests store, so a rebuild has to
+    # recompute it or every rebuild silently drops the duplicate links and
+    # restores the inflated source counts they exist to prevent.
+    from assimilator.work_identity import link_works
+
+    ingests_root = Path(
+        os.environ.get(
+            "ANOMALICA_INGESTS_DIR",
+            str(Path(__file__).resolve().parents[3] / "ingests"),
+        )
+    )
+    if (ingests_root / "store").is_dir():
+        result = link_works(domain_conn, ingests_root)
+        click.echo(
+            f"Linked works: {result['records']} records resolve to "
+            f"{result['works']} works ({result['duplicate_pairs']} duplicate pairs)"
+        )
+    else:
+        click.echo(f"No ingests store at {ingests_root} - work identity not linked")
     s = get_stats(domain_conn)
     click.echo(
         f"\nRebuild complete. Domain: {s['active_nodes']} nodes, "
@@ -921,6 +940,7 @@ def duplicate_records_cmd(ingests: str | None, threshold: float | None) -> None:
         DEFAULT_JACCARD,
         find_duplicate_records,
         find_same_origin_records,
+        live_record_paths,
     )
 
     root = Path(ingests) if ingests else Path(__file__).resolve().parents[3] / "ingests"
@@ -928,8 +948,13 @@ def duplicate_records_cmd(ingests: str | None, threshold: float | None) -> None:
     if not store.is_dir():
         raise click.ClickException(f"no ingests store at {store}")
 
-    pairs = find_duplicate_records(store, threshold or DEFAULT_JACCARD)
-    origin = find_same_origin_records(store)
+    # The LIVE set, via records/ - not a store glob. store/ also holds archive
+    # tiers whose records are superseded re-ingests of live ones, and comparing
+    # against those reports every one of them as a duplicate.
+    live = live_record_paths(root)
+    click.echo(f"Scanning {len(live)} live records.")
+    pairs = find_duplicate_records(store, threshold or DEFAULT_JACCARD, paths=live)
+    origin = find_same_origin_records(store, paths=live)
     known = {frozenset((p.a, p.b)) for p in pairs}
     combined = pairs + [p for p in origin if frozenset((p.a, p.b)) not in known]
 
@@ -944,6 +969,38 @@ def duplicate_records_cmd(ingests: str | None, threshold: float | None) -> None:
             else f"same {p.reason}"
         )
         click.echo(f"  {detail}\n    {p.a}\n    {p.b}")
+
+
+@main.command(name="link-works")
+@click.option(
+    "--ingests",
+    type=click.Path(),
+    default=lambda: os.environ.get("ANOMALICA_INGESTS_DIR"),
+    help="Path to the ingests repo (default: ANOMALICA_INGESTS_DIR or ../ingests)",
+)
+@click.pass_context
+def link_works_cmd(ctx: click.Context, ingests: str | None) -> None:
+    """Collapse duplicate records onto a shared work id, so sources count once.
+
+    Everything that counts "sources" counts distinct works, not distinct records:
+    one work becomes several records on any re-ingest or edition change, and a
+    book present twice would otherwise clear a two-source floor on its own. Runs
+    the duplicate detectors over the live record set and links what they find.
+
+    Derived and idempotent - recompute it after a rebuild rather than replaying
+    it. Deterministic, no AI.
+    """
+    from assimilator.work_identity import link_works
+
+    root = Path(ingests) if ingests else Path(__file__).resolve().parents[3] / "ingests"
+    conn = _connect(ctx.obj["db_path"])
+    result = link_works(conn, root)
+    conn.close()
+    click.echo(
+        f"{result['duplicate_pairs']} duplicate pair(s) in the store; "
+        f"{result['records_linked']} graph record(s) linked. "
+        f"{result['records']} records resolve to {result['works']} works."
+    )
 
 
 @main.command(name="source-spread")

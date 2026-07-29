@@ -32,9 +32,17 @@ CREATE TABLE IF NOT EXISTS records (
     content_hash TEXT,
     friendly_name TEXT,
     metadata TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    -- The WORK this record is a manifestation of. Records are addressed by exact
+    -- bytes, so one work becomes several records on any re-download, re-export or
+    -- edition change - and counting distinct records then counts one work as
+    -- several independent sources. Defaults to the record's own id (one record,
+    -- one work); `link-works` collapses detected duplicates onto a shared id.
+    -- Everything that counts "sources" must count THIS, not record_id.
+    work_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_records_content_hash ON records(content_hash);
+CREATE INDEX IF NOT EXISTS idx_records_work ON records(work_id);
 
 CREATE TABLE IF NOT EXISTS claims (
     id TEXT PRIMARY KEY,
@@ -209,6 +217,18 @@ def init_db(conn: sqlite3.Connection) -> None:
         for column in ("origin_kind", "origin", "relay"):
             if column not in cols:
                 conn.execute(f"ALTER TABLE claims ADD COLUMN {column} TEXT")
+    # Work-identity migration: which WORK a record manifests. Backfilled to the
+    # record's own id (one record, one work) so a pre-existing database counts
+    # sources exactly as it did before the column existed - the guard lands as a
+    # no-op and only bites once `link-works` collapses a detected duplicate.
+    records_exist = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='records'"
+    ).fetchone()
+    if records_exist:
+        record_cols = {row[1] for row in conn.execute("PRAGMA table_info(records)")}
+        if "work_id" not in record_cols:
+            conn.execute("ALTER TABLE records ADD COLUMN work_id TEXT")
+            conn.execute("UPDATE records SET work_id = id WHERE work_id IS NULL")
     # Source-spread migration: how a node's claims are DISTRIBUTED across its
     # sources, which source_count cannot express. Existing rows stay NULL until
     # the next `propose-pages` recomputes the derived table.
@@ -297,8 +317,9 @@ def insert_record(conn: sqlite3.Connection, record: Record) -> Record:
     metadata_json = json.dumps(record.metadata) if record.metadata else None
     conn.execute(
         "INSERT INTO records "
-        "(id, title, reference, date, producer_id, content_hash, friendly_name, metadata, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "(id, title, reference, date, producer_id, content_hash, friendly_name, "
+        "metadata, created_at, work_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             record.id,
             record.title,
@@ -309,6 +330,11 @@ def insert_record(conn: sqlite3.Connection, record: Record) -> Record:
             record.friendly_name,
             metadata_json,
             now,
+            # One record, one work, until a duplicate scan says otherwise. Seeded
+            # rather than left NULL so every source count can group by work_id
+            # unconditionally and a record that was never scanned still counts
+            # once, instead of collapsing all unscanned records into one NULL work.
+            record.id,
         ),
     )
     return record.model_copy(update={"created_at": datetime.fromisoformat(now)})

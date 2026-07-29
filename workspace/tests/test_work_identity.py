@@ -99,3 +99,61 @@ def test_jaccard_is_symmetric_and_bounded():
     )
     assert jaccard(a, b)[0] == 1.0
     assert jaccard(a, set())[0] == 0.0
+
+
+def test_declared_supersession_is_not_a_duplicate(tmp_path):
+    """A supersession is indistinguishable from a duplicate by text similarity -
+    both are near-identical bodies under two hashes - and every body-normalising
+    fix mints one per affected record. The declaration is authoritative."""
+    _record(tmp_path, f"{'a' * 64}.md", BODY, title="Email", superseded_by="b" * 64)
+    _record(tmp_path, f"{'b' * 64}.md", BODY, title="Email")
+
+    assert find_duplicate_records(tmp_path) == []
+    assert find_same_origin_records(tmp_path) == []
+
+
+def test_link_works_collapses_a_duplicate_pair_in_the_graph(tmp_path):
+    import sqlite3
+
+    from anomalica_common.digest.models import Record
+    from assimilator.database import init_db, insert_record
+    from assimilator.work_identity import link_works
+
+    store = tmp_path / "store"
+    records = tmp_path / "records"
+    store.mkdir()
+    records.mkdir()
+    _record(store, f"{'a' * 64}.md", BODY, title="Communion")
+    _record(store, f"{'b' * 64}.md", "a foreword\n" + BODY, title="Communion")
+    for name in (f"{'a' * 64}.md", f"{'b' * 64}.md"):
+        (records / name).symlink_to(store / name)
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r-a", title="A", content_hash="sha256:" + "a" * 64))
+    insert_record(conn, Record(id="r-b", title="B", content_hash="sha256:" + "b" * 64))
+    conn.commit()
+
+    result = link_works(conn, tmp_path)
+    assert result["records_linked"] == 2
+    works = {r[0] for r in conn.execute("SELECT work_id FROM records")}
+    assert len(works) == 1, "two records of one book must resolve to one work"
+
+
+def test_link_works_is_a_no_op_without_duplicates(tmp_path):
+    import sqlite3
+
+    from anomalica_common.digest.models import Record
+    from assimilator.database import init_db, insert_record
+    from assimilator.work_identity import link_works
+
+    store = tmp_path / "store"
+    store.mkdir()
+    _record(store, f"{'a' * 64}.md", BODY, title="One")
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r-a", title="A", content_hash="sha256:" + "a" * 64))
+    conn.commit()
+
+    assert link_works(conn, tmp_path)["records_linked"] == 0
+    assert conn.execute("SELECT work_id FROM records").fetchone()[0] == "r-a"

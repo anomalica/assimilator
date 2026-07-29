@@ -65,13 +65,19 @@ def floors() -> dict[str, tuple[int, int]]:
 
 def _node_counts(conn: sqlite3.Connection) -> list[tuple[str, str, int, int]]:
     """(node_id, node_type, claim_count, source_count) for every active node a
-    claim references (as speaker or node-ref). Counts are distinct claims and
-    distinct source records (the independence proxy)."""
+    claim references (as speaker or node-ref).
+
+    Sources are distinct WORKS, not distinct records. One work becomes several
+    records on any re-ingest or edition change, and counting records would let a
+    book present twice clear a two-source floor on its own. work_id defaults to
+    the record's own id, so this is identical to a record count until a duplicate
+    is actually linked.
+    """
     return conn.execute(
         """
         SELECT n.id, n.node_type,
                COUNT(DISTINCT x.cid) AS claims,
-               COUNT(DISTINCT x.rid) AS sources
+               COUNT(DISTINCT COALESCE(r.work_id, x.rid)) AS sources
           FROM nodes n
           JOIN (
               SELECT speaker_id AS nid, id AS cid, record_id AS rid
@@ -80,6 +86,7 @@ def _node_counts(conn: sqlite3.Connection) -> list[tuple[str, str, int, int]]:
               SELECT cnr.node_id AS nid, c.id AS cid, c.record_id AS rid
                 FROM claim_node_refs cnr JOIN claims c ON c.id = cnr.claim_id
           ) x ON x.nid = n.id
+          LEFT JOIN records r ON r.id = x.rid
          WHERE n.retired_at IS NULL
          GROUP BY n.id
         """
@@ -95,20 +102,28 @@ def _source_spread(conn: sqlite3.Connection) -> dict[str, tuple[int, int]]:
     the spread that decides whether a page is genuinely corroborated or a summary
     of a single (often copyrighted) work with a second source attached. These two
     numbers make the difference visible; nothing gates on them yet.
+
+    Grouped by WORK, so two records of one book contribute one figure between
+    them rather than a flattering pair - without that this metric inverts under
+    duplication, blessing exactly the pages with the worst provenance.
     """
     rows = conn.execute(
         """
-        SELECT nid, rid, COUNT(DISTINCT cid) AS claims FROM (
+        SELECT x.nid, COALESCE(r.work_id, x.rid) AS work,
+               COUNT(DISTINCT x.cid) AS claims
+          FROM (
             SELECT speaker_id AS nid, id AS cid, record_id AS rid
               FROM claims WHERE speaker_id IS NOT NULL
             UNION
             SELECT cnr.node_id AS nid, c.id AS cid, c.record_id AS rid
               FROM claim_node_refs cnr JOIN claims c ON c.id = cnr.claim_id
-        ) GROUP BY nid, rid ORDER BY nid, claims DESC
+          ) x
+          LEFT JOIN records r ON r.id = x.rid
+         GROUP BY x.nid, work ORDER BY x.nid, claims DESC
         """
     ).fetchall()
     spread: dict[str, list[int]] = {}
-    for node_id, _record_id, claims in rows:
+    for node_id, _work_id, claims in rows:
         spread.setdefault(node_id, []).append(claims)
     return {
         node_id: (counts[0], counts[1] if len(counts) > 1 else 0)
