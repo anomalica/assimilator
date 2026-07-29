@@ -254,36 +254,178 @@ def show(ctx: click.Context, name: str) -> None:
 
 
 @main.command()
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Re-embed rows that already have a vector in the current space.",
+)
+@click.option("--chunk", default=50, help="Rows per endpoint call and per commit.")
 @click.pass_context
-def embed(ctx: click.Context) -> None:
-    """Embed all claims and nodes for similarity search."""
+def embed(ctx: click.Context, force: bool, chunk: int) -> None:
+    """Embed all claims and nodes for similarity search.
+
+    Prefers the embed_service endpoint, which caches every vector by text hash,
+    so an interrupted run resumes for free and the workbench audit view shares
+    the same computed vectors. Falls back to in-process fastembed when the
+    endpoint is down (the in-container path). Either way the space is checked:
+    a vector from a different model_id is never written alongside these.
+
+    Resumable by default - rows already embedded in the current space are
+    skipped, so re-running after a crash costs only what is left. This matters:
+    the model runs one text at a time (batching is broken for this ONNX export),
+    so a full corpus pass is hours, not minutes.
+    """
+    from anomalica_common.embedding_client import EmbeddingUnavailable, embed_texts
+    from assimilator.embeddings import EMBEDDING_MODEL_ID
+
     conn = _connect(ctx.obj["db_path"])
     init_vec(conn)
 
-    rows = conn.execute("SELECT id, content FROM claims").fetchall()
-    if rows:
-        click.echo(f"Embedding {len(rows)} claims...")
-        ids = [r[0] for r in rows]
-        texts = [r[1] for r in rows]
-        embeddings = embed_batch(texts)
-        for claim_id, emb in zip(ids, embeddings):
-            store_claim_embedding(conn, claim_id, emb)
-        click.echo(f"  Stored {len(rows)} claim embeddings.")
+    done: set[str] = set()
+    if not force:
+        done = {
+            r[0]
+            for r in conn.execute(
+                "SELECT id FROM embedding_model WHERE model_id = ?",
+                (EMBEDDING_MODEL_ID,),
+            )
+        }
 
-    node_rows = conn.execute(
-        "SELECT id, name FROM nodes WHERE retired_at IS NULL"
-    ).fetchall()
-    if node_rows:
-        click.echo(f"Embedding {len(node_rows)} nodes...")
-        ids = [r[0] for r in node_rows]
-        texts = [r[1] for r in node_rows]
-        embeddings = embed_batch(texts)
-        for node_id, emb in zip(ids, embeddings):
-            store_node_embedding(conn, node_id, emb)
-        click.echo(f"  Stored {len(node_rows)} node embeddings.")
+    use_endpoint = True
+    try:
+        model_id, _ = embed_texts(["probe"])
+        if model_id != EMBEDDING_MODEL_ID:
+            raise click.ClickException(
+                f"endpoint is serving {model_id!r} but this graph stores "
+                f"{EMBEDDING_MODEL_ID!r} - refusing to mix vector spaces"
+            )
+    except EmbeddingUnavailable:
+        use_endpoint = False
+        click.echo("Endpoint unavailable - falling back to in-process fastembed.")
 
-    conn.commit()
+    def _vectors(texts: list[str]) -> list[list[float]]:
+        return embed_texts(texts)[1] if use_endpoint else embed_batch(texts)
+
+    for label, query, store in (
+        ("claims", "SELECT id, content FROM claims", store_claim_embedding),
+        (
+            "nodes",
+            "SELECT id, name FROM nodes WHERE retired_at IS NULL",
+            store_node_embedding,
+        ),
+    ):
+        rows = [r for r in conn.execute(query).fetchall() if r[0] not in done]
+        if not rows:
+            click.echo(f"{label}: nothing to embed.")
+            continue
+        click.echo(f"Embedding {len(rows)} {label}...")
+        for start in range(0, len(rows), chunk):
+            batch = rows[start : start + chunk]
+            for (row_id, _), vector in zip(batch, _vectors([r[1] for r in batch])):
+                store(conn, row_id, vector)
+            conn.commit()
+            click.echo(f"  {label}: {min(start + chunk, len(rows))}/{len(rows)}")
+
     conn.close()
+
+
+@main.command(name="similarity-profile")
+@click.option("--neighbours", default=10, help="Nearest neighbours scanned per claim.")
+@click.option(
+    "--out", type=click.Path(), default=None, help="Write the profile as JSON here."
+)
+@click.option(
+    "--samples", default=25, help="Example pairs to print per threshold band."
+)
+@click.pass_context
+def similarity_profile(
+    ctx: click.Context, neighbours: int, out: str | None, samples: int
+) -> None:
+    """Measure what cosine similarity actually looks like in THIS corpus.
+
+    Every similarity threshold in this repo was set on a vector space that has
+    since been fixed, and none was calibrated against the corpus: consolidate
+    carries 0.83, corroborate carried 0.99. Both sit above the range the corpus
+    occupies, so they select nothing while looking like a working setting. This
+    prints the distribution and the candidate count at each cut, plus example
+    pairs at each band, so the cut is chosen from evidence.
+
+    Cross-record pairs only - a claim's neighbours within its own record are
+    near-duplicates by construction and would flatter every threshold.
+
+    Reads embeddings only. No AI, no plan draw.
+    """
+    import json as _json
+    import statistics
+
+    from assimilator.embeddings import deserialise_f32, search_similar_claims
+
+    conn = _connect(ctx.obj["db_path"])
+    init_vec(conn)
+    claims = conn.execute("SELECT id, record_id, content FROM claims").fetchall()
+    record_of = {cid: rid for cid, rid, _ in claims}
+    content_of = {cid: text for cid, _, text in claims}
+
+    pairs: dict[tuple[str, str], float] = {}
+    scanned = 0
+    for claim_id, record_id, _ in claims:
+        row = conn.execute(
+            "SELECT embedding FROM vec_claims WHERE claim_id = ?", (claim_id,)
+        ).fetchone()
+        if not row:
+            continue
+        scanned += 1
+        for match_id, distance in search_similar_claims(
+            conn, deserialise_f32(row[0]), limit=neighbours
+        ):
+            if match_id == claim_id or record_of.get(match_id) == record_id:
+                continue
+            pairs[tuple(sorted((claim_id, match_id)))] = 1.0 - distance
+    conn.close()
+
+    if not pairs:
+        raise click.ClickException(
+            f"no cross-record neighbour pairs from {scanned} embedded claims - "
+            "run `embed` first"
+        )
+
+    sims = sorted(pairs.values(), reverse=True)
+    cuts = [0.95, 0.90, 0.85, 0.83, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55]
+    profile = {
+        "claims_embedded": scanned,
+        "cross_record_pairs": len(sims),
+        "max": round(sims[0], 4),
+        "median": round(statistics.median(sims), 4),
+        "min": round(sims[-1], 4),
+        "cuts": {str(c): sum(1 for s in sims if s >= c) for c in cuts},
+    }
+    click.echo(
+        f"{scanned} embedded claims, {len(sims)} cross-record neighbour pairs\n"
+        f"  max {profile['max']}  median {profile['median']}  min {profile['min']}"
+    )
+    for cut in cuts:
+        click.echo(f"  >= {cut:.2f}: {profile['cuts'][str(cut)]:6d} pairs")
+
+    banked = []
+    for a, b in sorted(pairs, key=lambda p: -pairs[p])[:samples]:
+        banked.append(
+            {
+                "similarity": round(pairs[(a, b)], 4),
+                "a": {"id": a, "content": content_of[a]},
+                "b": {"id": b, "content": content_of[b]},
+            }
+        )
+    click.echo(f"\nTop {len(banked)} pairs:")
+    for p in banked:
+        click.echo(f"  {p['similarity']:.3f}  {p['a']['content'][:72]}")
+        click.echo(f"         {p['b']['content'][:72]}")
+
+    if out:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(
+            _json.dumps({**profile, "top_pairs": banked}, indent=2, ensure_ascii=False)
+        )
+        click.echo(f"\nWrote {out}")
 
 
 CORROBORATION_VERIFY_PROMPT = """Below are pairs of claims from different records. For each pair, decide whether they assert the SAME underlying fact or are genuinely DIFFERENT assertions.
@@ -309,8 +451,10 @@ OUTPUT FORMAT (respond with ONLY valid JSON, no markdown fencing):
 @main.command()
 @click.option(
     "--threshold",
-    default=0.99,
-    help="Minimum embedding similarity to consider as candidate",
+    type=float,
+    default=None,
+    help="Minimum embedding similarity to consider as candidate. REQUIRED - "
+    "measure the corpus first (`similarity-profile`); there is no safe default.",
 )
 @click.option("--model", default="sonnet", help="Claude model for verification")
 @click.option(
@@ -327,12 +471,22 @@ OUTPUT FORMAT (respond with ONLY valid JSON, no markdown fencing):
 @click.pass_context
 def corroborate(
     ctx: click.Context,
-    threshold: float,
+    threshold: float | None,
     model: str,
     rerank: bool,
     rerank_min: float,
 ) -> None:
     """Find cross-record corroborations: embedding similarity then AI verification.
+
+    --threshold is REQUIRED and deliberately has no default. It used to default
+    to 0.99, a number carried over from the degenerate raw-uint8 space. In the
+    corrected space a 120-claim sample put every one of 6190 cross-record pairs
+    below 0.75, so that default returned nothing - and a run that finds nothing
+    reads as "this corpus has no corroboration" rather than "the number is from
+    a space that no longer exists". Refusing to run beats answering wrongly.
+
+    Measure before choosing: `assimilator similarity-profile` prints the corpus's
+    actual distribution and where a given cut lands.
 
     With --rerank, a cross-encoder pre-filter scores each candidate pair before
     Claude is consulted. Pairs below --rerank-min are dropped, cutting the
@@ -341,6 +495,14 @@ def corroborate(
     from anomalica_common.llm import _call, _parse_json, resolve_use_api
     from assimilator.database import insert_corroboration
     from assimilator.embeddings import deserialise_f32, search_similar_claims
+
+    if threshold is None:
+        raise click.UsageError(
+            "--threshold is required. There is no defensible default: the old "
+            "0.99 came from the pre-decode-fix vector space and silently "
+            "returns zero in this one. Run `assimilator similarity-profile` to "
+            "see the corpus distribution, then pass a measured cut."
+        )
 
     use_api = resolve_use_api("ASSIMILATOR_USE_API")
 

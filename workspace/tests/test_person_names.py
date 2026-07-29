@@ -163,3 +163,21 @@ def test_record_producer_moves_with_the_rename():
     it to a node by exact name - left behind, the record loses its producer."""
     doc = yaml.safe_load(naturalise_digest_text(DIGEST)[0])
     assert doc["record"]["producer"] == "David Fravor"
+
+
+def test_variant_snapshots_are_never_rewritten(tmp_path):
+    """digests/variants/ holds what each model actually emitted; rewriting those
+    falsifies the model comparison. Guarded here, not left to the caller's glob,
+    because pointing the pass at the digests repo root is the obvious mistake."""
+    from assimilator.person_names import naturalise_digests_in_dir
+
+    (tmp_path / "records").mkdir()
+    (tmp_path / "variants" / "some-record").mkdir(parents=True)
+    (tmp_path / "records" / "r.yaml").write_text(DIGEST)
+    variant = tmp_path / "variants" / "some-record" / "opus.yaml"
+    variant.write_text(DIGEST)
+
+    results = naturalise_digests_in_dir(tmp_path)
+
+    assert list(results) == ["records/r.yaml"]
+    assert variant.read_text() == DIGEST

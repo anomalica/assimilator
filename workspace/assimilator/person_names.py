@@ -288,8 +288,17 @@ def naturalise_digest_file(path: Path, dry_run: bool = False) -> int:
 def naturalise_digests_in_dir(
     digests_dir: Path, dry_run: bool = False
 ) -> dict[str, int]:
+    """Rewrite every digest under ``digests_dir`` EXCEPT the variant snapshots.
+
+    `digests/variants/` holds what each model actually emitted for a record, and
+    the model comparison is only worth anything if those files are left as the
+    models wrote them. Skipped here rather than left to the caller's glob,
+    because pointing this at the digests repo root is the obvious mistake.
+    """
     results: dict[str, int] = {}
     for path in sorted(digests_dir.glob("**/*.yaml")):
+        if "variants" in path.relative_to(digests_dir).parts:
+            continue
         renamed = naturalise_digest_file(path, dry_run=dry_run)
         if renamed:
             results[str(path.relative_to(digests_dir))] = renamed
