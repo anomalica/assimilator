@@ -312,32 +312,82 @@ def _resolve_natural(conn: sqlite3.Connection, nat: dict) -> str | None:
     return None
 
 
+def _claim_ref_count(conn: sqlite3.Connection, node_id: str) -> int:
+    return conn.execute(
+        "SELECT COUNT(*) FROM claim_node_refs WHERE node_id = ?", (node_id,)
+    ).fetchone()[0]
+
+
 def replay_ledger(conn: sqlite3.Connection, on_progress=None) -> dict:
     """Re-apply the durable ledger over the freshly-imported graph. Merges whose
-    undo entry is present are skipped; a victim that no longer resolves is skipped
-    and logged (its source left the corpus). Keyed on natural identity."""
+    undo entry is present are skipped. Keyed on natural identity.
+
+    THE SURVIVOR MOVING DOES NOT VOID THE OP. Every curation merge in this corpus
+    is cross-type - the same name under two types, where the curator picked which
+    type to keep. A rebuild re-imports whatever type the digester emits now, so the
+    curator's chosen survivor is routinely absent while its victims are present.
+    Requiring the survivor to resolve therefore discarded the op and left the
+    duplicates standing (it dropped 15 of 46 ops, in silence). The merge now
+    follows the nodes that ARE present, taking the most-cited of them as survivor.
+
+    Three outcomes, all counted and all reported, because a rebuild that loses a
+    human decision must say so:
+
+    - applied  - two or more of the op's nodes are in the graph; they were merged.
+    - absorbed - only one is, so there is no duplicate left to collapse and the op
+      is already satisfied. Expected as reclassification lands, not a failure.
+    - lost     - none of them resolve. The decision is unrecoverable from this
+      graph and is logged as an ERROR.
+    """
     log = on_progress or (lambda _: None)
     entries = read_ledger()
     undone = {e["merge_id"] for e in entries if e.get("op") == "undo"}
-    applied = skipped = 0
+    applied = absorbed = lost = 0
     for e in entries:
         if e.get("op") != "merge" or e["merge_id"] in undone:
             continue
         survivor_id = _resolve_natural(conn, e["survivor"])
-        if survivor_id is None:
-            log(
-                f"  replay skip {e['merge_id']}: survivor '{e['survivor']['name']}' not in graph"
-            )
-            skipped += 1
-            continue
-        victim_ids = []
+        resolved = [survivor_id] if survivor_id else []
         for v in e["victims"]:
             vid = _resolve_natural(conn, v)
-            if vid and vid != survivor_id:
-                victim_ids.append(vid)
-        if not victim_ids:
-            skipped += 1
+            if vid and vid not in resolved:
+                resolved.append(vid)
+
+        if not resolved:
+            log(
+                f"  ERROR replay LOST {e['merge_id']}: no node of "
+                f"'{e['survivor']['name']}' is in the graph - this curation "
+                f"decision is dropped"
+            )
+            lost += 1
             continue
+
+        if len(resolved) == 1:
+            absorbed += 1
+            current_name = conn.execute(
+                "SELECT name FROM nodes WHERE id = ?", (resolved[0],)
+            ).fetchone()[0]
+            if current_name != e["canonical_name"]:
+                log(
+                    f"  replay {e['merge_id']}: single node remains as "
+                    f"{current_name!r}; the ledger's canonical "
+                    f"{e['canonical_name']!r} is NOT applied (naming is the "
+                    f"renames ledger's job, not a merge's)"
+                )
+            continue
+
+        if survivor_id is None:
+            survivor_id = max(resolved, key=lambda n: _claim_ref_count(conn, n))
+            kept = conn.execute(
+                "SELECT name, node_type FROM nodes WHERE id = ?", (survivor_id,)
+            ).fetchone()
+            log(
+                f"  replay {e['merge_id']}: chosen survivor "
+                f"'{e['survivor']['name']}' ({e['survivor'].get('node_type')}) "
+                f"is no longer in the graph - merging into the most-cited "
+                f"resolved node instead, {kept[0]!r} ({kept[1]})"
+            )
+        victim_ids = [n for n in resolved if n != survivor_id]
         merge_nodes(
             conn,
             survivor_id,
@@ -348,8 +398,10 @@ def replay_ledger(conn: sqlite3.Connection, on_progress=None) -> dict:
             created_by=e.get("by"),
         )
         applied += 1
-    log(f"Replayed {applied} merges ({skipped} skipped)")
-    return {"applied": applied, "skipped": skipped}
+    summary = f"Replayed {applied} merges ({absorbed} already single-node"
+    summary += f", {lost} LOST)" if lost else ")"
+    log(summary)
+    return {"applied": applied, "absorbed": absorbed, "lost": lost}
 
 
 # --- Rejections ("not a duplicate"): the negative-signal curation ledger ---
