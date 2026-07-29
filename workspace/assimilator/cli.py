@@ -894,6 +894,58 @@ def propose_pages_cmd(ctx: click.Context) -> None:
     conn.close()
 
 
+@main.command(name="duplicate-records")
+@click.option(
+    "--ingests",
+    type=click.Path(),
+    default=lambda: os.environ.get("ANOMALICA_INGESTS_DIR"),
+    help="Path to the ingests repo (default: ANOMALICA_INGESTS_DIR or ../ingests)",
+)
+@click.option("--threshold", default=None, type=float, help="Jaccard cut.")
+def duplicate_records_cmd(ingests: str | None, threshold: float | None) -> None:
+    """Find records that are the same WORK under different content hashes.
+
+    A record is addressed by its exact bytes, so one work enters the store again
+    on any re-download, re-export, edition change or OCR pass - and every consumer
+    counting distinct records then counts one work as several sources. That does
+    not merely evade the independence floor, it INVERTS the source-spread metric:
+    a node whose claims all come from one book is correctly flagged today, and
+    reads as excellently spread once the book is present twice.
+
+    Two complementary passes, both deterministic and offline: shingle overlap
+    (catches two files of one book, which share no URL) and exact source_url /
+    source_id match (catches one URL fetched twice, whose text may have drifted
+    past any similarity cut).
+    """
+    from assimilator.work_identity import (
+        DEFAULT_JACCARD,
+        find_duplicate_records,
+        find_same_origin_records,
+    )
+
+    root = Path(ingests) if ingests else Path(__file__).resolve().parents[3] / "ingests"
+    store = root / "store"
+    if not store.is_dir():
+        raise click.ClickException(f"no ingests store at {store}")
+
+    pairs = find_duplicate_records(store, threshold or DEFAULT_JACCARD)
+    origin = find_same_origin_records(store)
+    known = {frozenset((p.a, p.b)) for p in pairs}
+    combined = pairs + [p for p in origin if frozenset((p.a, p.b)) not in known]
+
+    if not combined:
+        click.echo("No duplicate records found.")
+        return
+    click.echo(f"{len(combined)} duplicate record pair(s):")
+    for p in combined:
+        detail = (
+            f"jaccard {p.jaccard:.4f} ({p.shared}/{p.union} shingles)"
+            if p.reason == "text"
+            else f"same {p.reason}"
+        )
+        click.echo(f"  {detail}\n    {p.a}\n    {p.b}")
+
+
 @main.command(name="source-spread")
 @click.option(
     "--min-second",
