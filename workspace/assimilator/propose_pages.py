@@ -159,14 +159,17 @@ def propose(conn: sqlite3.Connection, computed_at: str | None = None) -> list[di
     for r in rows:
         conn.execute(
             "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
-            "source_count, independent_source_count, status, computed_at) "
-            "VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
+            "source_count, independent_source_count, top_source_claims, "
+            "second_source_claims, status, computed_at) "
+            "VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)",
             (
                 r["node_id"],
                 r["node_type"],
                 r["tier"],
                 r["claim_count"],
                 r["source_count"],
+                r["top_source_claims"],
+                r["second_source_claims"],
                 STATUS_PROPOSED,
                 computed_at,
             ),

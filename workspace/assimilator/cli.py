@@ -885,6 +885,56 @@ def propose_pages_cmd(ctx: click.Context) -> None:
     for r in rows:
         by_tier[r["tier"]] = by_tier.get(r["tier"], 0) + 1
     click.echo(f"{len(rows)} page proposals ({by_tier})")
+    dominated = sum(1 for r in rows if r["second_source_claims"] < 3)
+    if dominated:
+        click.echo(
+            f"  {dominated} of them rest on a single source (second source "
+            f"contributes <3 claims) - see `source-spread`"
+        )
+    conn.close()
+
+
+@main.command(name="source-spread")
+@click.option(
+    "--min-second",
+    default=3,
+    help="Claims the SECOND source must contribute for a page to look corroborated.",
+)
+@click.option("--limit", default=25, help="Worst offenders to list.")
+@click.pass_context
+def source_spread_cmd(ctx: click.Context, min_second: int, limit: int) -> None:
+    """How concentrated each proposed page's evidence is in one source.
+
+    The gate counts DISTINCT sources, so a node with 17 claims - 16 from one
+    copyrighted book and 1 from a passing mention - reports source_count = 2 and
+    passes as corroborated. It is in substance a summary of that one book. This
+    reports the spread so the size of the problem is known before a floor is set
+    on it; NOTHING is gated on these numbers yet.
+
+    Deterministic, no AI. Run `propose-pages` first.
+    """
+    conn = _connect(ctx.obj["db_path"])
+    rows = conn.execute(
+        "SELECT p.node_id, n.name, p.node_type, p.claim_count, p.source_count, "
+        "p.top_source_claims, p.second_source_claims "
+        "FROM page_proposals p JOIN nodes n ON n.id = p.node_id "
+        "WHERE p.top_source_claims IS NOT NULL "
+        "ORDER BY p.claim_count DESC"
+    ).fetchall()
+    if not rows:
+        raise click.ClickException("no proposals with spread - run `propose-pages`")
+
+    failing = [r for r in rows if r[6] < min_second]
+    click.echo(
+        f"{len(rows)} proposals; {len(failing)} "
+        f"({100 * len(failing) / len(rows):.0f}%) rest on a single source "
+        f"(second source contributes <{min_second} claims)"
+    )
+    click.echo(f"\n{'claims':>6} {'srcs':>5} {'top':>5} {'2nd':>5}  node\n" + "-" * 72)
+    for _nid, name, node_type, claims, sources, top, second in failing[:limit]:
+        click.echo(
+            f"{claims:6d} {sources:5d} {top:5d} {second:5d}  {name[:44]} ({node_type})"
+        )
     conn.close()
 
 

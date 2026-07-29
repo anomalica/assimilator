@@ -86,15 +86,51 @@ def _node_counts(conn: sqlite3.Connection) -> list[tuple[str, str, int, int]]:
     ).fetchall()
 
 
+def _source_spread(conn: sqlite3.Connection) -> dict[str, tuple[int, int]]:
+    """(top_source_claims, second_source_claims) per node.
+
+    A distinct-source COUNT cannot tell "10 claims from two sources" from "10
+    claims from one book plus one passing mention" - both report 2. The count of
+    sources says nothing about how the claims are spread across them, and it is
+    the spread that decides whether a page is genuinely corroborated or a summary
+    of a single (often copyrighted) work with a second source attached. These two
+    numbers make the difference visible; nothing gates on them yet.
+    """
+    rows = conn.execute(
+        """
+        SELECT nid, rid, COUNT(DISTINCT cid) AS claims FROM (
+            SELECT speaker_id AS nid, id AS cid, record_id AS rid
+              FROM claims WHERE speaker_id IS NOT NULL
+            UNION
+            SELECT cnr.node_id AS nid, c.id AS cid, c.record_id AS rid
+              FROM claim_node_refs cnr JOIN claims c ON c.id = cnr.claim_id
+        ) GROUP BY nid, rid ORDER BY nid, claims DESC
+        """
+    ).fetchall()
+    spread: dict[str, list[int]] = {}
+    for node_id, _record_id, claims in rows:
+        spread.setdefault(node_id, []).append(claims)
+    return {
+        node_id: (counts[0], counts[1] if len(counts) > 1 else 0)
+        for node_id, counts in spread.items()
+    }
+
+
 def page_gate_rows(conn: sqlite3.Connection) -> list[dict]:
     """Nodes that pass the page-worthiness gate, with their tier and counts.
 
-    Each row: {node_id, node_type, tier, claim_count, source_count}. A node whose
-    type is not in TIER (deprecated / curator-only) never passes. Ordered by
-    claim_count descending then node_id - a stable, review-friendly ranking with
-    the strongest subjects first.
+    Each row: {node_id, node_type, tier, claim_count, source_count,
+    top_source_claims, second_source_claims}. A node whose type is not in TIER
+    (deprecated / curator-only) never passes. Ordered by claim_count descending
+    then node_id - a stable, review-friendly ranking with the strongest subjects
+    first.
+
+    The two source-spread fields are REPORTED, NOT ENFORCED. They exist because
+    the source COUNT hides single-source dominance (see _source_spread), and the
+    size of that problem has to be measurable before a floor is set on it.
     """
     tier_floors = floors()
+    spread = _source_spread(conn)
     out: list[dict] = []
     for node_id, node_type, claims, sources in _node_counts(conn):
         tier = TIER.get(node_type)
@@ -102,6 +138,7 @@ def page_gate_rows(conn: sqlite3.Connection) -> list[dict]:
             continue
         min_claims, min_sources = tier_floors[tier]
         if claims >= min_claims and sources >= min_sources:
+            top, second = spread.get(node_id, (claims, 0))
             out.append(
                 {
                     "node_id": node_id,
@@ -109,6 +146,8 @@ def page_gate_rows(conn: sqlite3.Connection) -> list[dict]:
                     "tier": tier,
                     "claim_count": claims,
                     "source_count": sources,
+                    "top_source_claims": top,
+                    "second_source_claims": second,
                 }
             )
     out.sort(key=lambda r: (-r["claim_count"], r["node_id"]))

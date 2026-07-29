@@ -137,6 +137,12 @@ CREATE TABLE IF NOT EXISTS page_proposals (
     claim_count INTEGER NOT NULL,
     source_count INTEGER NOT NULL,
     independent_source_count INTEGER,
+    -- How the claims are SPREAD across sources, not just how many sources there
+    -- are. source_count reports 2 for a node that is 98% one book, which is the
+    -- shape of a page that summarises a single copyrighted work with a second
+    -- source attached. Reported, not gated - see page_gate._source_spread.
+    top_source_claims INTEGER,
+    second_source_claims INTEGER,
     status TEXT NOT NULL,
     computed_at TEXT NOT NULL
 );
@@ -203,6 +209,19 @@ def init_db(conn: sqlite3.Connection) -> None:
         for column in ("origin_kind", "origin", "relay"):
             if column not in cols:
                 conn.execute(f"ALTER TABLE claims ADD COLUMN {column} TEXT")
+    # Source-spread migration: how a node's claims are DISTRIBUTED across its
+    # sources, which source_count cannot express. Existing rows stay NULL until
+    # the next `propose-pages` recomputes the derived table.
+    proposals_exist = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='page_proposals'"
+    ).fetchone()
+    if proposals_exist:
+        proposal_cols = {
+            row[1] for row in conn.execute("PRAGMA table_info(page_proposals)")
+        }
+        for column in ("top_source_claims", "second_source_claims"):
+            if column not in proposal_cols:
+                conn.execute(f"ALTER TABLE page_proposals ADD COLUMN {column} INTEGER")
     conn.executescript(SCHEMA)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claims_role ON claims(claim_role)")
 
