@@ -181,3 +181,47 @@ def test_variant_snapshots_are_never_rewritten(tmp_path):
 
     assert list(results) == ["records/r.yaml"]
     assert variant.read_text() == DIGEST
+
+
+COL0_DIGEST = textwrap.dedent(
+    """\
+    schema: anomalica/digest/1
+    record:
+      id: r1
+      title: A Record
+    nodes:
+    - id: 11111111-1111-1111-1111-111111111111
+      type: person
+      name: Fravor, David
+    - id: 33333333-3333-3333-3333-333333333333
+      type: place
+      name: USA, Nevada, Area 51
+    domain_claims:
+    - id: c1
+      type: testimony
+      refs:
+      - id: 11111111-1111-1111-1111-111111111111
+        name: Fravor, David
+      text: David Fravor flew the intercept.
+    """
+)
+
+
+def test_sequence_items_at_column_zero_are_migrated():
+    """YAML admits both sequence styles and the digester emits both: `  - id:`
+    with the item indented under its key, and `- id:` at column 0. Treating the
+    second as a top-level key cleared the in-nodes flag on the very first node
+    entry, so no metadata block was written and verification then refused the
+    whole file - leaving every column-0 digest silently unmigrated while the pass
+    reported success on the rest."""
+    rewritten, renamed = naturalise_digest_text(COL0_DIGEST)
+    doc = yaml.safe_load(rewritten)
+
+    assert renamed == 1
+    assert doc["nodes"][0]["name"] == "David Fravor"
+    assert doc["nodes"][0]["metadata"] == {
+        "family_name": "Fravor",
+        "aliases": ["Fravor, David"],
+    }
+    assert doc["domain_claims"][0]["refs"][0]["name"] == "David Fravor"
+    assert doc["nodes"][1]["name"] == "USA, Nevada, Area 51"
