@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import re
 import sqlite3
+from pathlib import Path
 
 from assimilator.database import (
     delete_claim,
@@ -204,6 +205,35 @@ _INGESTS_DIR = os.environ.get(
 )
 
 
+_STORE_HASH_RE = re.compile(r"^([0-9a-f]{64})(?:\.|$)")
+
+
+def _content_hash_of(target: Path, declared: str | None) -> str | None:
+    """The record's content hash, taking the STORE FILENAME over the frontmatter.
+
+    A store record is addressed BY its hash, so the filename is the hash by
+    construction and the frontmatter field is a copy that can be wrong. It is
+    wrong today: `records/2007-06-20-web-project-serpo.md` is a legacy loose file
+    declaring `content_hash: a480652e...`, which is a DIFFERENT record entirely
+    (an unrelated interview). Trusting the declaration there would stamp a claim's
+    source hash onto the wrong document and point every workbench deep link at it.
+
+    Falls back to the declaration for a file that is not in the store, since a
+    loose record has no filename hash to read.
+    """
+    match = _STORE_HASH_RE.match(target.name)
+    if not match:
+        return declared
+    from_name = "sha256:" + match.group(1)
+    if declared and declared != from_name:
+        log_line = (
+            f"  WARNING: {target.name} declares content_hash {declared} but is "
+            f"stored at {from_name} - using the stored hash"
+        )
+        print(log_line)
+    return from_name
+
+
 def _lookup_ingest_metadata(
     record_title: str, source_path: object
 ) -> tuple[str | None, str | None]:
@@ -248,7 +278,7 @@ def _lookup_ingest_metadata(
                 import yaml as _y
 
                 fm = _y.safe_load(frontmatter_text) or {}
-                ch = fm.get("content_hash")
+                ch = _content_hash_of(target, fm.get("content_hash"))
                 return ch, candidate_stem
             except (OSError, IndexError):
                 pass

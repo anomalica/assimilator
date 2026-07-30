@@ -177,3 +177,23 @@ def test_node_metadata_aliases_become_graph_aliases():
             0
         ]
     )
+
+
+def test_content_hash_comes_from_the_store_filename_not_the_frontmatter(tmp_path):
+    """A store record is addressed BY its hash, so the filename is authoritative
+    and the frontmatter copy can be wrong. It IS wrong in the live corpus: a
+    legacy loose record declares a content_hash belonging to a different record
+    entirely, and trusting it would stamp claims with the wrong source and point
+    every workbench deep link at the wrong document."""
+    from pathlib import Path
+
+    from assimilator.import_markdown import _content_hash_of
+
+    right, wrong = "a" * 64, "b" * 64
+    stored = Path(f"/store/{right}.v2.md")
+    assert _content_hash_of(stored, f"sha256:{wrong}") == f"sha256:{right}"
+    assert _content_hash_of(stored, None) == f"sha256:{right}"
+    # A loose record has no filename hash to read, so its declaration is all
+    # there is.
+    loose = Path("/records/2007-06-20-web-project-serpo.md")
+    assert _content_hash_of(loose, f"sha256:{wrong}") == f"sha256:{wrong}"
