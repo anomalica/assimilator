@@ -330,3 +330,23 @@ def test_output_shape_matches_workbench_contract(tmp_path):
         assert job["lane"] in {"claude", "gpu", "eager"}
         assert job["status"] in {"eligible", "blocked", "readiness_gated"}
         assert set(job["target"]) >= {"kind", "label"}
+
+
+def test_superseded_records_are_not_scheduled(tmp_path):
+    """A body-normalising fix rehashes a record and mints a successor while the
+    original is deliberately retained, so a lookup by the old content_hash still
+    resolves. Retained is not live: schedule work against it and the pipeline
+    re-digests text it has already replaced, with no error to show for it."""
+    from assimilator.scheduler import _store_records
+
+    store = tmp_path / "store"
+    store.mkdir()
+    old, new = "a" * 64, "b" * 64
+    (store / f"{old}.md").write_text(
+        f"---\ntitle: Email\ncontent_hash: sha256:{old}\nsuperseded_by: {new}\n---\nbody"
+    )
+    (store / f"{new}.md").write_text(
+        f"---\ntitle: Email\ncontent_hash: sha256:{new}\n---\nbody"
+    )
+
+    assert set(_store_records(tmp_path)) == {new}

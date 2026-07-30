@@ -181,24 +181,44 @@ def _bare_hash(h: str | None) -> str:
 
 # --- Corpus-state readers (filesystem, no AI) ---
 
+# A record that declares itself replaced. Retained in the store so a lookup by
+# the old content_hash still finds a body, but never live: excluded from the
+# record set so nothing schedules work against superseded text.
+_SUPERSEDED_BY_RE = re.compile(r"^superseded_by:\s*\S+", re.M)
+
 
 def _store_records(ingests_dir: Path) -> dict[str, Path]:
     """Map content_hash -> record markdown path for every record in the store.
 
     A record is a store/*.md that is not a sidecar (.review.json/.verification
     are not .md) and not a transient variant. The filename stem is the hash.
+
+    A record declaring `superseded_by` is EXCLUDED. A body-normalising fix
+    rehashes the record and mints a successor while the original is deliberately
+    retained (the digester's redigest resolver looks bodies up by content_hash,
+    so deleting one turns a stale read into a silently dropped record). Retained
+    is not live: without this it would still be enumerated for digestion and for
+    review, and would be re-digested against text the pipeline has replaced.
+    Non-recursive by design - store/ also holds archive tiers whose records are
+    superseded re-ingests of live ones.
     """
     store = ingests_dir / "store"
     out: dict[str, Path] = {}
     if not store.is_dir():
         return out
-    for md in store.glob("*.md"):
+    for md in sorted(store.glob("*.md")):
         stem = md.stem
         # Skip variant suffixes like ".v2" that would not be a bare hash.
         if "." in stem:
             stem = stem.split(".", 1)[0]
-        if len(stem) == 64 and all(ch in "0123456789abcdef" for ch in stem):
-            out.setdefault(stem, md)
+        if len(stem) != 64 or not all(ch in "0123456789abcdef" for ch in stem):
+            continue
+        try:
+            if _SUPERSEDED_BY_RE.search(md.read_text(errors="replace")[:4000]):
+                continue
+        except OSError:
+            continue
+        out.setdefault(stem, md)
     return out
 
 
