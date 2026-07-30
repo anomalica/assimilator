@@ -1,0 +1,153 @@
+{
+  "claims_embedded": 5218,
+  "cross_record_pairs": 14855,
+  "max": 0.9678,
+  "median": 0.6409,
+  "min": 0.3866,
+  "cuts": {
+    "0.95": 2,
+    "0.9": 22,
+    "0.85": 134,
+    "0.83": 276,
+    "0.8": 652,
+    "0.75": 1841,
+    "0.7": 3848,
+    "0.65": 6841,
+    "0.6": 10053,
+    "0.55": 12673
+  },
+  "top_pairs": [
+    {
+      "similarity": 0.9678,
+      "a": {
+        "id": "0f8bd934-2e13-4008-bc9a-20c875a82bb4",
+        "content": "Chuck Schumer stated publicly that the American public has a right to learn about technologies of unknown origins, non-human intelligence, and unexplainable phenomena."
+      },
+      "b": {
+        "id": "40f447e3-63b0-4239-a8a7-6b5806531a15",
+        "content": "Chuck Schumer stated that the American public has a right to learn about technologies of unknown origins, non-human intelligence, and unexplainable phenomena."
+      }
+    },
+    {
+      "similarity": 0.9524,
+      "a": {
+        "id": "22e10977-f274-49e5-9625-1c558a5d389c",
+        "content": "The Tic Tac object in the 2004 USS Nimitz encounter had no rotors, no rotor wash, and no visible control surfaces such as wings."
+      },
+      "b": {
+        "id": "a9ee2c0e-5dec-40ea-8119-298308cc85ac",
+        "content": "The Tic Tac object in the 2004 USS Nimitz UAP encounter had no rotors, no rotor wash, and no visible flight control surfaces such as wings."
+      }
+    },
+    {
+      "similarity": 0.9488,
+      "a": {
+        "id": "7a1c0720-d1dc-4afd-ad08-e1794fa32a19",
+        "content": "David Fravor considers the 2004 Tic Tac object far superior to anything the US had at the time, has today, or is looking to develop in the next 10 years."
+      },
+      "b": {
+        "id": "e0f1ba05-3c98-4731-a7cb-a6e7903d7eb5",
+        "content": "David Fravor considers the Tic Tac object engaged in November 2004 far superior to anything the United States had at the time, has today, or is looking to develop in the next ten or more years."
+      }
+    },
+    {
+      "similarity": 0.9305,
+      "a": {
+        "id": "ecc48343-7c69-4add-8cba-ff79193d1a64",
+        "content": "David Fravor is a graduate of the Navy Fighter Weapons School, better known as Top Gun."
+      },
+      "b": {
+        "id": "fa3b8c17-5b7a-4031-aac3-3c4e8df9bcba",
+        "content": "David Fravor graduated from the Navy Fighter Weapons School (Top Gun) with honours."
+      }
+    },
+    {
+      "similarity": 0.925,
+      "a": {
+        "id": "fa53d212-078b-40cc-9b0a-3f10f8fc8b7d",
+        "content": "Christopher Mellon served as Deputy Assistant Secretary of Defense for Intelligence."
+      },
+      "b": {
+        "id": "fc5639d5-a83e-4f40-a8d9-a0120a0175a4",
+        "content": "Christopher Mellon was a former Deputy Assistant Secretary of Defense for Intelligence."
+      }
+    },
+    {
+      "similarity": 0.9237,
+      "a": {
+        "id": "721ea858-728e-42e4-be31-22cd808a8eb4",
+        "content": "The Pew Research Center has monitored public trust in the US government since the 1950s. In 1958 about three-quarters of Americans trusted their government to do the right thing. Since about 2007, public trust in government has never been above approximately 30 per cent."
+      },
+      "b": {
+        "id": "e69b7d03-6dd0-4686-aeca-69f9236114bc",
+        "content": "According to the Pew Research Center, polling on public trust in the US Government began in 1958, when about 75 percent of Americans trusted the government to do the right thing almost always or most of the time, but since 2007 that figure has not risen above 30 percent."
+      }
+    },
+    {
+      "similarity": 0.9226,
+      "a": {
+        "id": "51ae49f8-7e5e-47ff-8590-c44517c2426b",
+        "content": "Under the cognizance of the Office of the Under Secretary of Defense for Intelligence and Security, the Department of the Navy was asked to lead the Unidentified Aerial Phenomena Task Force."
+      },
+      "b": {
+        "id": "8f9f924c-57e7-4e30-b858-8abb413898c1",
+        "content": "The Unidentified Aerial Phenomena Task Force was led by the Department of the Navy under the Office of the Under Secretary of Defense for Intelligence and Security."
+      }
+    },
+    {
+      "similarity": 0.9219,
+      "a": {
+        "id": "dffe2ea0-a965-433a-9f97-5849902cf9c3",
+        "content": "Luis Elizondo left the Pentagon in protest and joined with Tom DeLonge, Chris Mellon, Steve Justice and others to form To The Stars Academy."
+      },
+      "b": {
+        "id": "f3be3b51-1dfa-42f1-8c7e-7eb95c957c17",
+        "content": "Luis Elizondo left the Pentagon in protest and joined Tom DeLonge, Chris Mellon, Steve Justice and others to form To the Stars Academy, an organisation that pressed the UAP issue with industry experts and US Government officials."
+      }
+    },
+    {
+      "similarity": 0.9212,
+      "a": {
+        "id": "4713195c-e5f3-470d-a0f5-5032d3aa2d04",
+        "content": "David Grusch worked for the National Geospatial-Intelligence Agency (NGA)."
+      },
+      "b": {
+        "id": "d296f83e-a270-4efd-8d5d-3e43e47845be",
+        "content": "David Grusch worked as a senior intelligence officer at the National Geospatial-Intelligence Agency (NGA) and the National Reconnaissance Office (NRO)."
+      }
+    },
+    {
+      "similarity": 0.9209,
+      "a": {
+        "id": "b32ff15b-85cc-4302-aa7e-55ba403f529e",
+        "content": "During the 2004 USS Nimitz encounter, as David Fravor's aircraft descended toward the Tic Tac object, the object suddenly shifted its longitudinal axis to align with his aircraft and began to climb."
+      },
+      "b": {
+        "id": "f4e0b28f-d340-4cac-9010-b01008261f37",
+        "content": "During the 2004 USS Nimitz UAP encounter, as David Fravor descended towards it, the Tic Tac object shifted its longitudinal axis to align with his aircraft and began a clockwise climbing turn."
+      }
+    },
+    {
+      "similarity": 0.9183,
+      "a": {
+        "id": "5c3a045e-a28c-415e-a422-03a8eb858915",
+        "content": "Christopher Mellon formerly held the position of Deputy Assistant Secretary of Defense for Intelligence."
+      },
+      "b": {
+        "id": "fc5639d5-a83e-4f40-a8d9-a0120a0175a4",
+        "content": "Christopher Mellon was a former Deputy Assistant Secretary of Defense for Intelligence."
+      }
+    },
+    {
+      "similarity": 0.9149,
+      "a": {
+        "id": "a02b8189-e023-4fe2-aa5d-c810a084fc09",
+        "content": "Chris Mellon was a deputy assistant secretary of defense for intelligence in the Clinton and George W. Bush administrations."
+      },
+      "b": {
+        "id": "f55719d7-24a7-4729-9932-7e3edaaf8cd8",
+        "content": "Christopher Mellon was a deputy assistant secretary in the United States Department of Defense in the Clinton and Bush administrations."
+      }
+    }
+  ]
+}
