@@ -218,7 +218,13 @@ def _rewrite_lines(
             out.extend(_metadata_lines(indent, parsed, surname_first))
             pending_metadata = None
 
-        if line and not line[0].isspace():
+        # A TOP-LEVEL KEY, not merely an unindented line. YAML admits both
+        # sequence styles and the digester emits both: `  - id:` (item indented
+        # under the key) and `- id:` (item at column 0). Treating the second as a
+        # top-level key silently cleared in_nodes on the first node entry, so the
+        # metadata block was never inserted and verification then refused the
+        # whole file - which is how every column-0 digest went unmigrated.
+        if line and not line[0].isspace() and not line.startswith("- "):
             in_record = line.startswith("record:")
             in_nodes = line.startswith("nodes:")
 

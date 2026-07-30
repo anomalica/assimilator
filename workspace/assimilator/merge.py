@@ -280,8 +280,24 @@ def append_merge_entry(
     _append(entry)
 
 
-def append_undo_entry(merge_id: str, created_by: str | None) -> None:
-    _append({"op": "undo", "merge_id": merge_id, "at": _now(), "by": created_by})
+def append_undo_entry(
+    merge_id: str, created_by: str | None, reason: str | None = None
+) -> None:
+    """Withdraw a merge from the durable curation set.
+
+    This says "do not apply this merge going forward". It does NOT revert the
+    live graph - `undo_merge` does that, separately - because the graph is
+    derived: the next rebuild starts from the digests, so a merge withdrawn here
+    simply never re-applies. The two are deliberately separable, for the case
+    where a merge is correct today but must not outlive the corpus it was made
+    against (a re-digest that rewrites the names the ledger keys on).
+
+    `reason` is free text and is read by humans, not by replay.
+    """
+    entry = {"op": "undo", "merge_id": merge_id, "at": _now(), "by": created_by}
+    if reason:
+        entry["reason"] = reason
+    _append(entry)
 
 
 def _append(entry: dict) -> None:
