@@ -197,3 +197,53 @@ def test_content_hash_comes_from_the_store_filename_not_the_frontmatter(tmp_path
     # there is.
     loose = Path("/records/2007-06-20-web-project-serpo.md")
     assert _content_hash_of(loose, f"sha256:{wrong}") == f"sha256:{wrong}"
+
+
+def test_reimport_survives_a_claim_whose_hash_moved_under_it():
+    """A claim keeps its uuid across re-emission while its HASH moves whenever
+    node resolution changes underneath it - a rename, a merge, anything that
+    repoints a ref. It then matches no prior hash, is treated as new, and
+    inserting it before its stale row is deleted collides on the primary key.
+    This is what stopped the whole corpus importing after a person-name
+    migration moved 142 claim hashes."""
+    conn = _conn()
+    import_extraction(conn, _parsed([_claim("c1", "Held radar 12 min.")]))
+    # Same claim id, same record, but the stored hash no longer matches what the
+    # importer will now compute - exactly what a re-resolved node ref produces.
+    conn.execute("UPDATE claims SET claim_hash = 'stale-hash-from-a-prior-graph'")
+    conn.commit()
+
+    counts = import_extraction(conn, _parsed([_claim("c1", "Held radar 12 min.")]))
+
+    assert _claim_count(conn) == 1
+    assert counts["claims_created"] == 1 and counts["claims_deleted"] == 1
+
+
+def test_reimport_survives_a_node_id_retired_by_a_merge():
+    """A digest's node id is a suggestion, not a reservation. Import a digest,
+    merge its node away, re-import: the retired row still holds that id, so
+    match_node (live nodes only) cannot find it and the insert used to collide on
+    the primary key - which is what stopped the corpus importing after 13 merges
+    landed."""
+
+    conn = _conn()
+    import_extraction(conn, _parsed([_claim("c1", "First.")]))
+    fravor = conn.execute(
+        "SELECT id FROM nodes WHERE name = 'David Fravor'"
+    ).fetchone()[0]
+    assert fravor == "n-fravor"
+    # Retire it the way a merge does, and rename it out of the way so the
+    # re-import cannot match it by name either.
+    conn.execute(
+        "UPDATE nodes SET retired_at = '2026-07-31T00:00:00Z', name = 'Someone Else' "
+        "WHERE id = ?",
+        (fravor,),
+    )
+    conn.commit()
+
+    import_extraction(conn, _parsed([_claim("c2", "Second.")]))
+
+    live = conn.execute(
+        "SELECT id FROM nodes WHERE name = 'David Fravor' AND retired_at IS NULL"
+    ).fetchone()
+    assert live is not None and live[0] != fravor

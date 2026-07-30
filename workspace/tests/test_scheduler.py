@@ -350,3 +350,20 @@ def test_superseded_records_are_not_scheduled(tmp_path):
     )
 
     assert set(_store_records(tmp_path)) == {new}
+
+
+def test_digest_index_accepts_either_the_root_or_the_records_dir(tmp_path):
+    """The parameter is named for the digests ROOT and appends records/ itself,
+    so passing records/ - the obvious thing to pass - yielded an EMPTY index
+    rather than an error, and an empty index means zero import jobs and a graph
+    that silently never catches up with the digests on disk."""
+    from assimilator.scheduler import _digest_index
+
+    records = tmp_path / "records"
+    records.mkdir()
+    (records / "a.yaml").write_text(
+        "record:\n  content_hash: sha256:" + "a" * 64 + "\n  title: A\n"
+    )
+
+    assert len(_digest_index(tmp_path)) == 1
+    assert len(_digest_index(records)) == 1

@@ -6,9 +6,11 @@ markdown is the source of truth; the database is derived from it.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sqlite3
+import uuid
 from pathlib import Path
 
 from assimilator.database import (
@@ -232,6 +234,43 @@ def _content_hash_of(target: Path, declared: str | None) -> str | None:
         )
         print(log_line)
     return from_name
+
+
+def _materialise_locally(
+    conn: sqlite3.Connection, lookup_conn: sqlite3.Connection, node_id: str
+) -> str:
+    """Ensure a node matched in ANOTHER database exists in this one; return its
+    local id.
+
+    claim_node_refs carries a foreign key to nodes, so a ref resolved against the
+    other database is only usable once the node exists HERE. Sharing the id across
+    databases is preferred; a retired row may already hold it, in which case the
+    local node of that name wins, else a fresh id. Returning the other database's
+    id without materialising it is what fails the foreign key.
+    """
+    if lookup_conn is conn:
+        return node_id
+    row = lookup_conn.execute(
+        "SELECT name, node_type, metadata FROM nodes WHERE id = ?", (node_id,)
+    ).fetchone()
+    if row is None:
+        return node_id
+    name, node_type, metadata = row
+    local = find_node_by_name(conn, name, node_type)
+    if local:
+        return local.id
+    taken = conn.execute("SELECT 1 FROM nodes WHERE id = ?", (node_id,)).fetchone()
+    local_id = str(uuid.uuid4()) if taken else node_id
+    insert_node(
+        conn,
+        Node(
+            id=local_id,
+            node_type=node_type,
+            name=name,
+            metadata=json.loads(metadata) if metadata else None,
+        ),
+    )
+    return local_id
 
 
 def _lookup_ingest_metadata(
@@ -460,12 +499,24 @@ def import_extraction(
             m = match_node(lookup_conn, name, node_type)
             if m:
                 node_id = m[0]
-                node_name_to_id[name] = node_id
-                node_id_by_md_id[md_id] = node_id
+                lookup_id = node_id
 
-                # Ensure node exists in target database if found elsewhere
+                # The node must EXIST in the target database, because claim refs
+                # carry a foreign key to nodes. Matching it in the other database
+                # is not enough. Sharing the id across databases is preferred, but
+                # a retired row here may already hold it - so fall back to the
+                # local node of that name, then to a fresh id. Skipping the insert
+                # (the tempting guard) leaves refs pointing at a row that does not
+                # exist here and fails the foreign key instead of the primary one.
                 if lookup_conn is not conn:
-                    if not find_node_by_name(conn, name, node_type):
+                    local = find_node_by_name(conn, name, node_type)
+                    if local:
+                        node_id = local.id
+                    else:
+                        taken = conn.execute(
+                            "SELECT 1 FROM nodes WHERE id = ?", (node_id,)
+                        ).fetchone()
+                        node_id = str(uuid.uuid4()) if taken else node_id
                         insert_node(
                             conn,
                             Node(
@@ -476,8 +527,11 @@ def import_extraction(
                             ),
                         )
 
+                node_name_to_id[name] = node_id
+                node_id_by_md_id[md_id] = node_id
+
                 existing_name = lookup_conn.execute(
-                    "SELECT name FROM nodes WHERE id = ?", (node_id,)
+                    "SELECT name FROM nodes WHERE id = ?", (lookup_id,)
                 ).fetchone()[0]
                 if m[1] in ("fuzzy", "acronym") and name != existing_name:
                     insert_alias(conn, name, node_id)
@@ -492,10 +546,20 @@ def import_extraction(
                 break
 
         if not found:
+            # The digest-local id is a SUGGESTION, not a reservation. It is
+            # already taken whenever this digest was imported before and the node
+            # has since been RETIRED by a merge: the row still exists, so
+            # match_node (live nodes only) does not find it and the insert
+            # collides on the primary key. Mint a fresh id in that case - the
+            # graph's id is authoritative and the digest's is per-emission anyway.
+            taken = conn.execute(
+                "SELECT 1 FROM nodes WHERE id = ?", (md_id,)
+            ).fetchone()
+            new_id = str(uuid.uuid4()) if taken else md_id
             node = insert_node(
                 conn,
                 Node(
-                    id=md_id,
+                    id=new_id,
                     node_type=node_type,
                     name=name,
                     metadata=node_def.get("metadata"),
@@ -548,8 +612,9 @@ def import_extraction(
                 for lookup_conn in all_conns:
                     ref_match = match_node(lookup_conn, ref_name)
                     if ref_match:
-                        ref_ids.append(ref_match[0])
-                        node_name_to_id[ref_name] = ref_match[0]
+                        local_id = _materialise_locally(conn, lookup_conn, ref_match[0])
+                        ref_ids.append(local_id)
+                        node_name_to_id[ref_name] = local_id
                         break
 
         # Resolve speaker
@@ -562,8 +627,10 @@ def import_extraction(
                 for lookup_conn in all_conns:
                     speaker_match = match_node(lookup_conn, speaker_name, "person")
                     if speaker_match:
-                        speaker_id = speaker_match[0]
-                        node_name_to_id[speaker_name] = speaker_match[0]
+                        speaker_id = _materialise_locally(
+                            conn, lookup_conn, speaker_match[0]
+                        )
+                        node_name_to_id[speaker_name] = speaker_id
                         break
 
         claim = Claim(
@@ -595,21 +662,33 @@ def import_extraction(
 
     # Reconcile against the record's prior claims (empty for a first import).
     prior = get_record_claim_hashes(conn, record.id) if existing_record else {}
+    carried: list[tuple] = []
+    to_insert: list[tuple] = []
     for claim, chash in resolved_claims:
         pool = prior.get(chash)
         if pool:
             # Carry forward: an identical claim already exists for this record;
             # leave its row (uuid + created_at) untouched.
             pool.pop()
-            counts["claims_carried"] += 1
+            carried.append((claim, chash))
         else:
-            insert_claim(conn, claim, claim_hash=chash)
-            counts["claims_created"] += 1
-    # Prior claims left unmatched were removed in the new digest - delete them.
+            to_insert.append((claim, chash))
+
+    # DELETE BEFORE INSERT. A claim keeps its uuid across a re-emission while its
+    # HASH moves whenever node resolution changes underneath it - a rename, a
+    # merge, anything that repoints a ref. Such a claim matches no prior hash, so
+    # it is treated as new, and inserting it before its stale row is removed
+    # collides on the primary key: "UNIQUE constraint failed: claims.id". The old
+    # row is in `prior`'s leftovers by construction, so clearing those first makes
+    # the insert well-defined - and the net effect is the same reconciliation.
     for leftover in prior.values():
         for claim_id, _created in leftover:
             delete_claim(conn, claim_id)
             counts["claims_deleted"] += 1
+    for claim, chash in to_insert:
+        insert_claim(conn, claim, claim_hash=chash)
+        counts["claims_created"] += 1
+    counts["claims_carried"] += len(carried)
 
     conn.commit()
     return counts
