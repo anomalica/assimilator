@@ -117,6 +117,35 @@ def live_record_paths(ingests_dir: Path) -> list[Path]:
     return sorted(ingests_dir.glob("store/*.md"))
 
 
+def unreachable_live_records(ingests_dir: Path) -> list[str]:
+    """Live store records that `live_record_paths` does NOT reach.
+
+    records/ is maintained by hand-ish operations and drifts: a slug-changing
+    re-ingest can leave a stale symlink, a re-ingest can fail to create one, and
+    loose non-symlink files predating the store live there too. A scan that reads
+    records/ and reports "all records" while silently missing some is how a
+    coverage claim gets overstated - three times in one evening, in this module's
+    case. So the coverage is computed and reported rather than assumed.
+    """
+    reached = set()
+    for path in live_record_paths(ingests_dir):
+        name = path.resolve().name.split(".", 1)[0]
+        if len(name) == 64:
+            reached.add(name)
+    missing = []
+    for path in sorted((ingests_dir / "store").glob("*.md")):
+        record_hash = path.name.split(".", 1)[0]
+        if len(record_hash) != 64 or record_hash in reached:
+            continue
+        try:
+            if is_superseded(path.read_text(errors="replace")[:4000]):
+                continue
+        except OSError:
+            continue
+        missing.append(record_hash)
+    return missing
+
+
 def is_superseded(text: str) -> bool:
     """True if the record declares itself replaced by another.
 

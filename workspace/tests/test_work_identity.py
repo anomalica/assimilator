@@ -157,3 +157,23 @@ def test_link_works_is_a_no_op_without_duplicates(tmp_path):
 
     assert link_works(conn, tmp_path)["records_linked"] == 0
     assert conn.execute("SELECT work_id FROM records").fetchone()[0] == "r-a"
+
+
+def test_a_live_record_missing_from_records_is_reported_not_silently_skipped(tmp_path):
+    """records/ drifts - a re-ingest can fail to create a symlink, a slug change
+    can strand one. A scan that reads records/ and reports a coverage number
+    without its gap is how "all records" gets claimed for a partial pass."""
+    from assimilator.work_identity import unreachable_live_records
+
+    store = tmp_path / "store"
+    records = tmp_path / "records"
+    store.mkdir()
+    records.mkdir()
+    linked, stranded, retired = "a" * 64, "b" * 64, "c" * 64
+    _record(store, f"{linked}.md", BODY, title="Linked")
+    _record(store, f"{stranded}.md", BODY, title="No symlink")
+    _record(store, f"{retired}.md", BODY, title="Retired", superseded_by=linked)
+    (records / f"{linked}.md").symlink_to(store / f"{linked}.md")
+
+    # The stranded record is reported; the superseded one is not a gap.
+    assert unreachable_live_records(tmp_path) == [stranded]

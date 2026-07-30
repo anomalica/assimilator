@@ -941,6 +941,7 @@ def duplicate_records_cmd(ingests: str | None, threshold: float | None) -> None:
         find_duplicate_records,
         find_same_origin_records,
         live_record_paths,
+        unreachable_live_records,
     )
 
     root = Path(ingests) if ingests else Path(__file__).resolve().parents[3] / "ingests"
@@ -952,7 +953,18 @@ def duplicate_records_cmd(ingests: str | None, threshold: float | None) -> None:
     # tiers whose records are superseded re-ingests of live ones, and comparing
     # against those reports every one of them as a duplicate.
     live = live_record_paths(root)
-    click.echo(f"Scanning {len(live)} live records.")
+    unreachable = unreachable_live_records(root)
+    click.echo(f"Scanning {len(live)} records via records/.")
+    if unreachable:
+        # Never report a coverage number without its gap: a scan that says "all
+        # records" while records/ has drifted is exactly how a coverage claim
+        # gets overstated.
+        click.echo(
+            f"  WARNING: {len(unreachable)} live store record(s) are NOT reachable "
+            f"via records/ and were NOT scanned:"
+        )
+        for record_hash in unreachable:
+            click.echo(f"    {record_hash}")
     pairs = find_duplicate_records(store, threshold or DEFAULT_JACCARD, paths=live)
     origin = find_same_origin_records(store, paths=live)
     known = {frozenset((p.a, p.b)) for p in pairs}
