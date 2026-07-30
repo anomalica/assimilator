@@ -983,6 +983,32 @@ def duplicate_records_cmd(ingests: str | None, threshold: float | None) -> None:
         click.echo(f"  {detail}\n    {p.a}\n    {p.b}")
 
 
+@main.command(name="replay-curation")
+@click.pass_context
+def replay_curation_cmd(ctx: click.Context) -> None:
+    """Re-apply the durable curation ledger to the CURRENT graph, without wiping it.
+
+    Until now the ledger could only be replayed as part of `rebuild`, which
+    deletes and re-imports everything. That is wrong for the incremental path: a
+    new digest can reintroduce a node an earlier merge retired (it matches by
+    name against live nodes only, so the merged-away name looks new), and without
+    a replay the duplicate simply stands. Same operations, same order as rebuild
+    - merges, rejections, renames, then vetoes - and idempotent, so it is safe on
+    a timer.
+
+    Deterministic, no AI.
+    """
+    from assimilator.merge import replay_ledger, replay_rejections, replay_renames
+    from assimilator.propose_pages import replay_vetoes
+
+    conn = _connect(ctx.obj["db_path"])
+    replay_ledger(conn, on_progress=click.echo)
+    replay_rejections(conn, on_progress=click.echo)
+    replay_renames(conn, on_progress=click.echo)
+    replay_vetoes(conn, on_progress=click.echo)
+    conn.close()
+
+
 @main.command(name="link-works")
 @click.option(
     "--ingests",
