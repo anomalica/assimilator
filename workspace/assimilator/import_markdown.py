@@ -283,6 +283,12 @@ def _record_metadata(fm: dict) -> dict | None:
     provenance chain never reading as independent. So an absent field is simply
     not stored, and a consumer asking "was this reviewed" must test for
     state == "human", never for state != "none".
+
+    That READ rule is pinned in tests/test_absent_is_not_a_value.py, not left to
+    this docstring, because a docstring cannot go red - and because SQL and
+    Python disagree about absence in opposite directions: `NULL != 'variant'` is
+    NULL so the row vanishes, while `None != "variant"` is True so the row is
+    promoted. One wrong predicate, two different silent wrong answers.
     """
     block = fm.get("record") or {}
     out = {k: block[k] for k in _RECORD_METADATA_FIELDS if block.get(k) is not None}
