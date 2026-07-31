@@ -135,3 +135,57 @@ def test_legacy_hearsay_is_unknown():
         claim_type=ClaimType.hearsay,
     )
     assert claim["attribution_mode"] == "unknown"
+
+
+def _spread_rows(counts):
+    """rows shaped like the brief query: only the last column (work) matters here."""
+    rows = []
+    for work, n in counts.items():
+        rows += [(f"{work}-{i}", work) for i in range(n)]
+    return rows
+
+
+def test_cap_is_filled_across_sources_not_chronologically():
+    """The live case: Jacques Vallee held 293 claims from one book and 232 from
+    another, date-ordered, so the first 200 took the whole budget from the earlier
+    book and the second was absent from the brief entirely - while the proposal's
+    source-spread figures, computed on the full set, still read well-corroborated."""
+    from assimilator.synthesise import _spread_across_sources
+
+    rows = _spread_rows({"messengers": 293, "invisible-college": 232})
+    kept = _spread_across_sources(rows, 200)
+
+    by_work = {}
+    for _cid, work in kept:
+        by_work[work] = by_work.get(work, 0) + 1
+    assert len(kept) == 200
+    assert by_work == {"messengers": 100, "invisible-college": 100}
+
+
+def test_a_small_source_is_exhausted_and_the_rest_distribute():
+    from assimilator.synthesise import _spread_across_sources
+
+    rows = _spread_rows({"big": 500, "small": 3})
+    kept = _spread_across_sources(rows, 100)
+    counts = {}
+    for _cid, work in kept:
+        counts[work] = counts.get(work, 0) + 1
+    assert counts == {"big": 97, "small": 3}
+
+
+def test_selection_keeps_document_order_and_is_deterministic():
+    """brief_hash is computed over this sequence, so the order must be stable and
+    must still read as the document does."""
+    from assimilator.synthesise import _spread_across_sources
+
+    rows = _spread_rows({"a": 5, "b": 5})
+    kept = _spread_across_sources(rows, 6)
+    assert kept == _spread_across_sources(rows, 6)
+    assert [rows.index(r) for r in kept] == sorted(rows.index(r) for r in kept)
+
+
+def test_under_the_cap_nothing_is_reordered_or_dropped():
+    from assimilator.synthesise import _spread_across_sources
+
+    rows = _spread_rows({"a": 4, "b": 2})
+    assert _spread_across_sources(rows, 200) == rows

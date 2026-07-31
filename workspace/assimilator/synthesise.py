@@ -35,11 +35,52 @@ SCHEMA = "anomalica/brief/1"
 
 # Per-brief claim cap. A hub entity can be referenced by thousands of claims,
 # which would make one brief too large for the assembler to render in a single
-# pass. Until evidence-scoring is pinned (which will RANK claims so the cap keeps
-# the strongest), claims are ordered chronologically and the first MAX are kept;
+# pass. The cap is filled ROUND-ROBIN ACROSS SOURCES (_spread_across_sources), so
+# every record contributing to a node is represented before any record gets a
+# second helping - taking the first MAX of a date-ordered set handed the whole
+# budget to the earliest source and silently dropped the rest. Ranking WITHIN a
+# source is still chronological, pending evidence-scoring;
 # claim_count vs claim_count_total on the page makes any truncation explicit, not
 # silent. Tunable via ANOMALICA_BRIEF_MAX_CLAIMS.
 MAX_CLAIMS = int(os.environ.get("ANOMALICA_BRIEF_MAX_CLAIMS", "200"))
+
+
+def _spread_across_sources(rows: list, cap: int) -> list:
+    """Fill the cap ROUND-ROBIN across sources, not chronologically.
+
+    Taking the first `cap` rows of a date-ordered set gives the whole budget to
+    whichever source happens to be earliest. On the strongest multi-source node in
+    the graph that discarded an entire book: Jacques Vallee held 293 claims from
+    Messengers of Deception and 232 from The Invisible College, and the brief was
+    200 claims from the first and nothing from the second - so the article read as
+    a summary of one book while the proposal's source-spread figures, computed on
+    the full set, still said "well corroborated".
+
+    One claim from each source in turn, until the cap. A source with few claims is
+    exhausted early and the remainder distributes over the rest, so the result is
+    proportional once every source has been represented. Grouped by WORK, not by
+    record, so two records of one book do not get two helpings.
+
+    Deterministic: sources are cycled in order of first appearance, and the
+    selection is returned in the caller's original order so the brief still reads
+    in document order. Both matter - brief_hash is computed over this sequence.
+    """
+    if len(rows) <= cap:
+        return rows
+    by_work: dict[object, list[int]] = {}
+    for index, row in enumerate(rows):
+        by_work.setdefault(row[-1], []).append(index)
+
+    chosen: list[int] = []
+    queues = list(by_work.values())
+    while len(chosen) < cap and any(queues):
+        for queue in queues:
+            if not queue:
+                continue
+            chosen.append(queue.pop(0))
+            if len(chosen) == cap:
+                break
+    return [rows[i] for i in sorted(chosen)]
 
 
 def _graph_version(conn: sqlite3.Connection) -> str | None:
@@ -189,7 +230,7 @@ def build_entity_brief(
                c.attestation, c.location_in_record, c.date, c.date_end, c.claim_hash,
                c.speaker_id, sp.name,
                c.record_id, r.title, r.date, r.reference, r.content_hash, r.friendly_name,
-               c.origin_kind, c.origin, c.relay
+               c.origin_kind, c.origin, c.relay, COALESCE(r.work_id, c.record_id)
         FROM claims c
         LEFT JOIN records r ON r.id = c.record_id
         LEFT JOIN nodes sp ON sp.id = c.speaker_id
@@ -203,7 +244,7 @@ def build_entity_brief(
     claim_count_total = len(rows)
     claims: list[dict] = []
     ordered_pairs: list[tuple[str, str]] = []
-    for row in rows[:MAX_CLAIMS]:
+    for row in _spread_across_sources(rows, MAX_CLAIMS):
         (
             cid,
             content,
@@ -225,6 +266,7 @@ def build_entity_brief(
             origin_kind,
             origin,
             relay,
+            _work_id,  # selection key for _spread_across_sources; not emitted
         ) = row
         claims.append(
             {
