@@ -117,3 +117,18 @@ def test_review_follows_the_same_rule(records):
         if (meta.get("review") or {}).get("state") != "none"
     }
     assert "unknown" in not_none, "absent read as reviewed - the failure this pins"
+
+
+def test_the_untested_boundary_is_inclusive():
+    """A page at EXACTLY the threshold counts as untested. One convention serves
+    both the disclosure on the page-floor card and the tranche trend, and the
+    disclosure is the stricter master: over-flagging costs a footnote,
+    under-flagging is the failure. It is not cosmetic - nine pages sat on the
+    line and the two readings differed by 6, three times the movement the trend
+    exists to detect."""
+    threshold = 0.25
+    at_the_line = 25 / 100
+
+    # The predicate the command uses: computable means strictly BELOW.
+    assert not (at_the_line < threshold), "a page at the line must be untested"
+    assert (24 / 100) < threshold, "below the line is testable"

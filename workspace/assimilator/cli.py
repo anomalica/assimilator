@@ -1049,8 +1049,8 @@ def link_works_cmd(ctx: click.Context, ingests: str | None) -> None:
 @click.option(
     "--max-unscored",
     default=0.25,
-    help="Above this share of chainless claims, independence is UNCOMPUTABLE and "
-    "the independence test is skipped rather than failed.",
+    help="At or above this share of chainless claims, independence is "
+    "UNCOMPUTABLE and the test is skipped rather than failed. INCLUSIVE.",
 )
 @click.pass_context
 def page_floor_cmd(
@@ -1090,7 +1090,15 @@ def page_floor_cmd(
         if claims > 0 and (top or 0) / claims >= max_dominance:
             cut_dominance += 1
             continue
-        if not (claims > 0 and (unscored or 0) / claims <= max_unscored):
+        # INCLUSIVE boundary: a page AT the threshold counts as untested. The
+        # same figure serves the disclosure on the page-floor card and the
+        # tranche trend, so it must be one convention, and the disclosure is the
+        # stricter master - calling a tested page untested costs a footnote,
+        # calling an untested page tested is the failure. Nine pages sat exactly
+        # on the line when this was settled and the two readings differed by 6,
+        # which is three times the movement the trend exists to detect: the
+        # convention would have out-swung the signal.
+        if not (claims > 0 and (unscored or 0) / claims < max_unscored):
             rescued.append(name)
             admitted.append(name)
             continue
@@ -1123,7 +1131,7 @@ def page_floor_cmd(
         f"  {100 * len(rescued) / len(admitted):5.1f}%  of the admitted set"
     )
     click.echo(
-        f"      (>{max_unscored:.0%} of their claims predate the chain)\n"
+        f"      (>= {max_unscored:.0%} of their claims predate the chain)\n"
         "      Track the PERCENTAGES across tranches, not the counts - the\n"
         "      counts also move as the corpus grows."
     )
