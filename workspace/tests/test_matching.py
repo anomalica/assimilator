@@ -351,10 +351,13 @@ def _assert_merges(node_type, existing, incoming):
 
 def test_trailing_period_first_name_variant_still_merges():
     # "Eisenhower, Dwight D" vs "Eisenhower, Dwight D." - same person.
+    # Matched by the equivalence key (punctuation-folded) rather than by the
+    # fuzzy threshold: same outcome by a stronger route, since equivalence is
+    # exact-after-normalisation and needs no similarity cut to be trusted.
     res = _assert_merges(
         NodeType.person, "Eisenhower, Dwight D", "Eisenhower, Dwight D."
     )
-    assert res[1] == "fuzzy"
+    assert res[1] in ("acronym", "fuzzy")
 
 
 def test_initial_vs_full_first_name_still_merges():
@@ -676,3 +679,22 @@ def test_surname_shared_forename_differs_stays_distinct():
     conn.commit()
 
     assert match_node(conn, "Garry Reid", "person") is None
+
+
+def test_word_punctuation_does_not_split_an_entity():
+    """ "KLAS-TV" and "KLAS TV" are one broadcaster; both were live nodes with a
+    shared slug, so the site would have had two pages competing for one URL."""
+    conn = _db()
+    node = insert_node(conn, Node(node_type=NodeType.organisation, name="KLAS-TV"))
+    conn.commit()
+
+    assert match_node(conn, "KLAS TV", "organisation")[0] == node.id
+
+
+def test_the_fold_does_not_join_distinct_designators():
+    """Folding to a SPACE rather than deleting keeps strings that differ by more
+    than punctuation apart."""
+    from assimilator.matching import name_equivalence_key
+
+    assert name_equivalence_key("E-2 Hawkeye") == name_equivalence_key("E 2 Hawkeye")
+    assert name_equivalence_key("E2 Hawkeye") != name_equivalence_key("E-2 Hawkeye")

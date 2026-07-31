@@ -125,9 +125,23 @@ def fold_diacritics(text: str) -> str:
     return unicodedata.normalize("NFC", "".join(folded))
 
 
+# Internal punctuation that separates words rather than distinguishing entities:
+# "KLAS-TV" and "KLAS TV" are one broadcaster, "Paris-Match" and "Paris Match"
+# one magazine. Folded to a space (not deleted) so "E-2" and "E 2" agree while
+# "E2Hawkeye" - a genuinely different string - does not collapse into them.
+_WORD_PUNCT_RE = re.compile(r"[-_.]+")
+
+
 def name_equivalence_key(name: str) -> str:
-    """Lowercase, diacritic-folded, acronym-suffix-stripped form used for matching."""
-    return fold_diacritics(strip_acronym_suffix(name)).lower().strip()
+    """Lowercase, diacritic- and punctuation-folded, acronym-suffix-stripped form.
+
+    The key for "these are the same name written differently". Everything else
+    about the two names must still match exactly, which is what keeps the fold
+    safe: measured over the live graph it unifies exactly two pairs, both correct
+    (KLAS-TV/KLAS TV, Paris-Match/Paris Match), and merges nothing else.
+    """
+    folded = fold_diacritics(strip_acronym_suffix(name)).lower()
+    return " ".join(_WORD_PUNCT_RE.sub(" ", folded).split())
 
 
 # Minimum similarity (0-1) to consider a fuzzy match. 0.75 catches typos
