@@ -151,6 +151,11 @@ CREATE TABLE IF NOT EXISTS page_proposals (
     -- source attached. Reported, not gated - see page_gate._source_spread.
     top_source_claims INTEGER,
     second_source_claims INTEGER,
+    -- Claims whose provenance chain predates ADR 0044, so their root is
+    -- unknowable. independent_source_count is computed WITHOUT them, and this is
+    -- the confidence in that number: 5% unscored and 60% unscored both yield a
+    -- count, and only the first should be trusted.
+    unscored_claims INTEGER,
     status TEXT NOT NULL,
     computed_at TEXT NOT NULL
 );
@@ -239,7 +244,11 @@ def init_db(conn: sqlite3.Connection) -> None:
         proposal_cols = {
             row[1] for row in conn.execute("PRAGMA table_info(page_proposals)")
         }
-        for column in ("top_source_claims", "second_source_claims"):
+        for column in (
+            "top_source_claims",
+            "second_source_claims",
+            "unscored_claims",
+        ):
             if column not in proposal_cols:
                 conn.execute(f"ALTER TABLE page_proposals ADD COLUMN {column} INTEGER")
     conn.executescript(SCHEMA)

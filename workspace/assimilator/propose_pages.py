@@ -34,6 +34,7 @@ import yaml
 
 from assimilator.database import init_db
 from assimilator.merge import _natural, _node, _resolve_natural
+from assimilator.independence import independence_for_nodes
 from assimilator.page_gate import page_gate_rows
 
 STATUS_PROPOSED = "proposed"
@@ -155,21 +156,31 @@ def propose(conn: sqlite3.Connection, computed_at: str | None = None) -> list[di
     computed_at = computed_at or _now()
     vetoed = vetoed_node_ids(conn)
     rows = [r for r in page_gate_rows(conn) if r["node_id"] not in vetoed]
+    # Independence: distinct provenance roots, not distinct records. Computed in
+    # one pass over the proposed nodes only, and reported alongside the count of
+    # claims whose chain predates ADR 0044 and so cannot be scored at all.
+    scores = independence_for_nodes(conn, [r["node_id"] for r in rows])
+    for r in rows:
+        score = scores.get(r["node_id"])
+        r["independent_source_count"] = score.sources if score else None
+        r["unscored_claims"] = score.unscored_claims if score else None
     conn.execute("DELETE FROM page_proposals")
     for r in rows:
         conn.execute(
             "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
             "source_count, independent_source_count, top_source_claims, "
-            "second_source_claims, status, computed_at) "
-            "VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)",
+            "second_source_claims, unscored_claims, status, computed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 r["node_id"],
                 r["node_type"],
                 r["tier"],
                 r["claim_count"],
                 r["source_count"],
+                r.get("independent_source_count"),
                 r["top_source_claims"],
                 r["second_source_claims"],
+                r.get("unscored_claims"),
                 STATUS_PROPOSED,
                 computed_at,
             ),
