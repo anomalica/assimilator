@@ -428,6 +428,26 @@ def delete_claim(conn: sqlite3.Connection, claim_id: str) -> None:
     conn.execute("DELETE FROM claims WHERE id = ?", (claim_id,))
 
 
+def update_claim_chain(
+    conn: sqlite3.Connection, claim_id: str, chain: ProvenanceChain | None
+) -> None:
+    """Refresh a claim's provenance chain in place (ADR 0044).
+
+    Needed on the carry-forward path: claim_hash fingerprints MEANING and does not
+    cover the chain, so an unchanged claim whose chain was absent (or has since
+    changed) matches by hash and keeps the stale value indefinitely.
+    """
+    conn.execute(
+        "UPDATE claims SET origin_kind = ?, origin = ?, relay = ? WHERE id = ?",
+        (
+            chain.origin_kind.value if chain else None,
+            chain.origin if chain else None,
+            json.dumps(chain.relay) if chain and chain.relay else None,
+            claim_id,
+        ),
+    )
+
+
 def update_claim_hash(conn: sqlite3.Connection, claim_id: str, claim_hash: str) -> None:
     """Set the claim_hash for an existing row (used by the backfill command)."""
     conn.execute(

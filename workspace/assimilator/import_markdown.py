@@ -22,11 +22,12 @@ from assimilator.database import (
     insert_claim,
     insert_node,
     insert_record,
+    update_claim_chain,
     update_claim_hash,
 )
 from assimilator.matching import match_node, normalise_node_name
 from anomalica_common.digest import claim_hash
-from anomalica_common.digest.models import Claim, Node, Record
+from anomalica_common.digest.models import Claim, Node, ProvenanceChain, Record
 
 
 # Patterns that mark a node name as unusable:
@@ -633,9 +634,24 @@ def import_extraction(
                         node_name_to_id[speaker_name] = speaker_id
                         break
 
+        # ADR 0044: carry the chain onto the row. The columns and the model field
+        # have existed all along; nothing built the object, so every claim in the
+        # graph read origin_kind NULL while the digests carried a chain on 97% of
+        # them. The absence was then misread as "the corpus predates 0044" and a
+        # full re-digest was expected to fix it, which it never could.
+        chain_def = claim_def.get("provenance_chain")
+        chain = None
+        if isinstance(chain_def, dict) and chain_def.get("origin_kind"):
+            chain = ProvenanceChain(
+                origin_kind=chain_def["origin_kind"],
+                origin=chain_def.get("origin") or "",
+                origin_ref=chain_def.get("origin_ref") or "",
+                relay=list(chain_def.get("relay") or []),
+            )
         claim = Claim(
             id=claim_def["id"],
             content=claim_def["content"],
+            provenance_chain=chain,
             original_excerpt=claim_def.get("original_excerpt"),
             claim_type=claim_def["claim_type"],
             attestation=claim_def.get("attestation"),
@@ -668,8 +684,14 @@ def import_extraction(
         pool = prior.get(chash)
         if pool:
             # Carry forward: an identical claim already exists for this record;
-            # leave its row (uuid + created_at) untouched.
-            pool.pop()
+            # leave its IDENTITY (uuid + created_at) untouched. The provenance
+            # chain is REFRESHED, not preserved: claim_hash fingerprints meaning
+            # and does not cover the chain, so a claim whose chain was absent - or
+            # has since changed - matches by hash and would keep the stale value
+            # forever. That is how 19,006 claims sat at origin_kind NULL while
+            # their digests carried a chain on 87% of them.
+            claim_id, _created = pool.pop()
+            update_claim_chain(conn, claim_id, claim.provenance_chain)
             carried.append((claim, chash))
         else:
             to_insert.append((claim, chash))
