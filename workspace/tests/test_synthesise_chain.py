@@ -231,3 +231,41 @@ def test_same_type_same_name_is_still_disambiguated():
     # Both kinds of collision are still REPORTED - a cross-type pair is usually a
     # taxonomy split worth seeing, even though it needs no suffix.
     assert {c["slug"] for c in collisions} == {"aaro", "klas-tv"}
+
+
+def test_event_keeps_the_sources_that_are_about_it_not_the_biggest():
+    """Ranking capped sources by claim count picks long books over short primary
+    accounts: on the Nimitz encounter it selected five books and dropped the
+    CSG-11 incident report, the document the event happened in. Focus - the share
+    of a record that concerns the node - inverts that correctly."""
+    from assimilator.synthesise import _spread_across_sources
+
+    rows = []
+    for work, n in {"book": 120, "report": 30, "statement": 25, "podcast": 100}.items():
+        rows += [(f"{work}-{i}", work) for i in range(n)]
+    focus = {"book": 0.02, "report": 0.25, "statement": 0.63, "podcast": 0.24}
+
+    kept = _spread_across_sources(rows, 200, max_sources=3, focus=focus)
+    works = {w for _cid, w in kept}
+    assert works == {"statement", "report", "podcast"}
+    assert "book" not in works
+
+
+def test_a_tiny_record_cannot_win_on_focus_alone():
+    """Two claims in a two-claim record is 100% focus and no use as an account."""
+    from assimilator.synthesise import _spread_across_sources
+
+    rows = [("t-0", "tiny"), ("t-1", "tiny")]
+    rows += [(f"real-{i}", "real") for i in range(40)]
+    focus = {"tiny": 1.0, "real": 0.3}
+
+    kept = _spread_across_sources(rows, 200, max_sources=1, focus=focus)
+    assert {w for _cid, w in kept} == {"real"}
+
+
+def test_a_person_is_not_source_capped():
+    """Breadth across sources is the point for a person - Vallee is the case."""
+    from assimilator.synthesise import MAX_SOURCES
+
+    assert MAX_SOURCES.get("person") is None
+    assert MAX_SOURCES.get("event") == 5

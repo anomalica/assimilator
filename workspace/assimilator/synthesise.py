@@ -44,8 +44,31 @@ SCHEMA = "anomalica/brief/1"
 # silent. Tunable via ANOMALICA_BRIEF_MAX_CLAIMS.
 MAX_CLAIMS = int(os.environ.get("ANOMALICA_BRIEF_MAX_CLAIMS", "200"))
 
+# Per-node-type ceiling on how many SOURCES contribute to a brief. Absent means
+# unlimited: spread across everything, which is right for a person, where breadth
+# is the point. An event is the opposite - it has to narrate one sequence, and
+# continuity comes from the account that carries it rather than from twelve
+# passing mentions. Cost points the same way: the assembler measured one node at
+# 5 sources (~4 min) and 12 sources (over 21 min) from a SMALLER prompt, so
+# generation time tracks source count, not length. Evidence is n=1 each side with
+# fleet contention unruled-out - strong, not proven - hence a named constant that
+# is cheap to revisit rather than a rule buried in the selector.
+MAX_SOURCES: dict[str, int] = {
+    "event": int(os.environ.get("ANOMALICA_EVENT_MAX_SOURCES", "5"))
+}
 
-def _spread_across_sources(rows: list, cap: int) -> list:
+# A record contributing fewer than this many claims to a node is a mention, not
+# an account of it, and is never chosen as one of a capped node's sources however
+# focused it looks - two claims in a two-claim record is 100% focus and no use.
+MIN_SOURCE_CLAIMS = 5
+
+
+def _spread_across_sources(
+    rows: list,
+    cap: int,
+    max_sources: int | None = None,
+    focus: dict | None = None,
+) -> list:
     """Fill the cap ROUND-ROBIN across sources, not chronologically.
 
     Taking the first `cap` rows of a date-ordered set gives the whole budget to
@@ -61,18 +84,48 @@ def _spread_across_sources(rows: list, cap: int) -> list:
     proportional once every source has been represented. Grouped by WORK, not by
     record, so two records of one book do not get two helpings.
 
+    `max_sources` caps how many sources contribute at all, keeping the ones with
+    the most claims. Spread is right for a PERSON, where breadth across sources is
+    the point; it is wrong for an EVENT, which has to narrate one sequence and
+    needs continuity from the account that carries it. It is also what generation
+    time tracks: the assembler measured the same Nimitz node, same day, at 5
+    sources (132k-char prompt, ~4 minutes) and at 12 sources (125k-char prompt,
+    over 21 minutes) - a smaller prompt and a 5x slowdown. Reconciling twelve
+    accounts of one event is the expensive operation; summarising one 884k-char
+    book is not.
+
     Deterministic: sources are cycled in order of first appearance, and the
     selection is returned in the caller's original order so the brief still reads
     in document order. Both matter - brief_hash is computed over this sequence.
     """
-    if len(rows) <= cap:
+    if len(rows) <= cap and not max_sources:
         return rows
     by_work: dict[object, list[int]] = {}
     for index, row in enumerate(rows):
         by_work.setdefault(row[-1], []).append(index)
 
-    chosen: list[int] = []
     queues = list(by_work.values())
+    if max_sources and len(queues) > max_sources:
+        # Keep the sources that are ABOUT this node, not the ones that merely say
+        # the most about it. Ranking by claim count picks long books over short
+        # primary accounts: on the Nimitz encounter it selected five books and
+        # DROPPED the CSG-11 incident report, which is the document the event
+        # actually happened in. Focus - what share of that record concerns this
+        # node - inverts that correctly (Fravor's House statement 63%, the
+        # incident report 25%, against Imminent at 2.7%). A minimum absolute
+        # count stops a two-claim record scoring 100% and outranking them.
+        by_first_index = {q[0]: q for q in queues}
+        ranked = sorted(
+            queues,
+            key=lambda q: (-(focus or {}).get(rows[q[0]][-1], 0.0), -len(q), q[0]),
+        )
+        substantial = [q for q in ranked if len(q) >= MIN_SOURCE_CLAIMS]
+        keep = (substantial or ranked)[:max_sources]
+        queues = [by_first_index[q[0]] for q in sorted(keep, key=lambda q: q[0])]
+    if sum(len(q) for q in queues) <= cap:
+        return [rows[i] for i in sorted(i for q in queues for i in q)]
+
+    chosen: list[int] = []
     while len(chosen) < cap and any(queues):
         for queue in queues:
             if not queue:
@@ -81,6 +134,33 @@ def _spread_across_sources(rows: list, cap: int) -> list:
             if len(chosen) == cap:
                 break
     return [rows[i] for i in sorted(chosen)]
+
+
+def _source_focus(conn: sqlite3.Connection, node_id: str) -> dict:
+    """work_id -> share of that source's claims that concern this node.
+
+    "How much of this record is about the node", not "how many claims it has".
+    A 41-claim congressional statement 63% about an encounter is a primary
+    account of it; a 1,457-claim book mentioning it in 2.7% of its claims is not,
+    however many claims that amounts to.
+    """
+    rows = conn.execute(
+        """
+        SELECT COALESCE(r.work_id, r.id) AS work,
+               COUNT(DISTINCT c.id) AS here,
+               (SELECT COUNT(*) FROM claims c2
+                 WHERE COALESCE(
+                   (SELECT r2.work_id FROM records r2 WHERE r2.id = c2.record_id),
+                   c2.record_id) = COALESCE(r.work_id, r.id)) AS total
+          FROM claims c
+          JOIN records r ON r.id = c.record_id
+         WHERE c.speaker_id = ?
+            OR c.id IN (SELECT claim_id FROM claim_node_refs WHERE node_id = ?)
+         GROUP BY work
+        """,
+        (node_id, node_id),
+    ).fetchall()
+    return {work: (here / total if total else 0.0) for work, here, total in rows}
 
 
 def _graph_version(conn: sqlite3.Connection) -> str | None:
@@ -257,7 +337,9 @@ def build_entity_brief(
     claim_count_total = len(rows)
     claims: list[dict] = []
     ordered_pairs: list[tuple[str, str]] = []
-    for row in _spread_across_sources(rows, MAX_CLAIMS):
+    max_sources = MAX_SOURCES.get(node_type)
+    focus = _source_focus(conn, node_id) if max_sources else None
+    for row in _spread_across_sources(rows, MAX_CLAIMS, max_sources, focus):
         (
             cid,
             content,
