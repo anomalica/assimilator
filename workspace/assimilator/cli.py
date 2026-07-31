@@ -1099,18 +1099,33 @@ def page_floor_cmd(
             continue
         admitted.append(name)
 
+    # Every figure carries its denominator. The untested COUNT moves for two
+    # independent reasons - records gaining provenance, and new proposals
+    # appearing - so across a re-digestion tranche that was demonstrably working
+    # it ROSE from 99 to 101 while the FRACTION fell from 32.4% to 28.2%. A
+    # tracking metric that moves for two reasons cannot be read as progress on
+    # either, and this is the follow-up measure on the page-floor card.
+    pass_dominance = len(worthy) - cut_dominance
+    tested = pass_dominance - len(rescued)
     click.echo(f"{len(worthy)} page-worthy proposals")
     click.echo(
-        f"  admitted                           {len(admitted):4d}"
-        f"  ({100 * len(admitted) / len(worthy):.0f}%)"
+        f"  admitted             {len(admitted):4d} / {len(worthy):4d}"
+        f"  {100 * len(admitted) / len(worthy):5.1f}%"
+    )
+    click.echo(f"  cut: one source >= {max_dominance:.0%}  {cut_dominance:4d}")
+    click.echo(f"  cut: fewer than {min_origins} origins {cut_origins:4d}")
+    click.echo(
+        f"  independence TESTED  {tested:4d} / {pass_dominance:4d}"
+        f"  {100 * tested / pass_dominance:5.1f}%  of those passing dominance"
     )
     click.echo(
-        f"  cut: one source >= {max_dominance:.0%}             {cut_dominance:4d}"
+        f"  admitted UNTESTED    {len(rescued):4d} / {len(admitted):4d}"
+        f"  {100 * len(rescued) / len(admitted):5.1f}%  of the admitted set"
     )
-    click.echo(f"  cut: fewer than {min_origins} origins          {cut_origins:4d}")
     click.echo(
-        f"  admitted UNTESTED for independence {len(rescued):4d}"
-        f"  (>{max_unscored:.0%} of claims predate the chain)"
+        f"      (>{max_unscored:.0%} of their claims predate the chain)\n"
+        "      Track the PERCENTAGES across tranches, not the counts - the\n"
+        "      counts also move as the corpus grows."
     )
     for name in rescued[:8]:
         click.echo(f"      {name[:62]}")
