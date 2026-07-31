@@ -189,3 +189,45 @@ def test_under_the_cap_nothing_is_reordered_or_dropped():
 
     rows = _spread_rows({"a": 4, "b": 2})
     assert _spread_across_sources(rows, 200) == rows
+
+
+def _slug_graph():
+    import sqlite3
+
+    from anomalica_common.digest.models import Node
+    from assimilator.database import init_db, insert_node
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    # Same name, different types: /organisations/x and /projects/x are distinct
+    # URLs, so neither needs a suffix.
+    insert_node(conn, Node(id="aaa-org", node_type="organisation", name="AARO"))
+    insert_node(conn, Node(id="bbb-proj", node_type="project", name="AARO"))
+    # Same name, SAME type: a genuine collision in one section.
+    insert_node(conn, Node(id="aaa-klas", node_type="organisation", name="KLAS TV"))
+    insert_node(conn, Node(id="bbb-klas", node_type="organisation", name="KLAS TV"))
+    conn.commit()
+    return conn
+
+
+def test_cross_type_same_name_keeps_a_clean_slug():
+    """A published URL is /<section>/<slug> and the section follows the type, so
+    an organisation and a project of one name never clash. Suffixing them put an
+    arbitrary hex fragment into a real path to separate pages that could not
+    collide."""
+    from assimilator.synthesise import build_slug_map
+
+    slug_map, _ = build_slug_map(_slug_graph())
+    assert slug_map["aaa-org"] == "aaro"
+    assert slug_map["bbb-proj"] == "aaro"
+
+
+def test_same_type_same_name_is_still_disambiguated():
+    from assimilator.synthesise import build_slug_map
+
+    slug_map, collisions = build_slug_map(_slug_graph())
+    klas = {slug_map["aaa-klas"], slug_map["bbb-klas"]}
+    assert len(klas) == 2 and "klas-tv" in klas
+    # Both kinds of collision are still REPORTED - a cross-type pair is usually a
+    # taxonomy split worth seeing, even though it needs no suffix.
+    assert {c["slug"] for c in collisions} == {"aaro", "klas-tv"}

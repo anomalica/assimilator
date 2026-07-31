@@ -146,28 +146,41 @@ def build_slug_map(conn: sqlite3.Connection) -> tuple[dict[str, str], list[dict]
     entity wrongly split (the entity-matcher merge bug) is surfaced, not masked.
     """
     rows = conn.execute(
-        "SELECT id, name, metadata FROM nodes WHERE retired_at IS NULL"
+        "SELECT id, name, metadata, node_type FROM nodes WHERE retired_at IS NULL"
     ).fetchall()
-    by_base: dict[str, list[tuple[str, str]]] = {}
-    for node_id, name, metadata in rows:
-        by_base.setdefault(node_slug(name, metadata), []).append((node_id, name))
+    by_base: dict[str, list[tuple[str, str, str]]] = {}
+    for node_id, name, metadata, node_type in rows:
+        by_base.setdefault(node_slug(name, metadata), []).append(
+            (node_id, name, node_type)
+        )
 
     slug_map: dict[str, str] = {}
     collisions: list[dict] = []
     for base, members in by_base.items():
-        if len(members) == 1:
-            slug_map[members[0][0]] = base
-            continue
-        members.sort(key=lambda m: m[0])  # deterministic winner
-        collisions.append(
-            {
-                "slug": base,
-                "nodes": [m[0] for m in members],
-                "names": [m[1] for m in members],
-            }
-        )
-        for i, (node_id, _name) in enumerate(members):
-            slug_map[node_id] = base if i == 0 else f"{base}-{node_id[:8]}"
+        if len(members) > 1:
+            collisions.append(
+                {
+                    "slug": base,
+                    "nodes": [m[0] for m in members],
+                    "names": [m[1] for m in members],
+                    "types": [m[2] for m in members],
+                }
+            )
+        # Disambiguate only WITHIN a node type. A published URL is
+        # /<section>/<slug> and the section follows the type, so an organisation
+        # and a project of the same name do not collide in URL space - suffixing
+        # them put an arbitrary hex fragment in a real path
+        # (/projects/all-domain-anomaly-resolution-office-aaro-fca513ac) to
+        # separate pages that were never going to clash. Two types that share a
+        # section are the case this cannot see; the assembler's output-path guard
+        # is the backstop, and it reports a claimed path rather than overwriting.
+        by_type: dict[str, list[tuple[str, str, str]]] = {}
+        for member in members:
+            by_type.setdefault(member[2], []).append(member)
+        for same_type in by_type.values():
+            same_type.sort(key=lambda m: m[0])  # deterministic winner
+            for i, (node_id, _name, _type) in enumerate(same_type):
+                slug_map[node_id] = base if i == 0 else f"{base}-{node_id[:8]}"
     return slug_map, collisions
 
 
