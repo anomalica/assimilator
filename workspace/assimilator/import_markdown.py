@@ -237,6 +237,35 @@ def _content_hash_of(target: Path, declared: str | None) -> str | None:
     return from_name
 
 
+# Record-block fields that are not columns but are worth holding: they answer
+# questions about the record's PROVENANCE and handling rather than its content.
+# `review` above all - it is what lets a consumer tell material Mark reviewed
+# from material nobody has, which is the whole basis on which unreviewed records
+# are allowed into the graph at all.
+_RECORD_METADATA_FIELDS = (
+    "review",
+    "publisher",
+    "medium",
+    "duration",
+    "processing_version",
+)
+
+
+def _record_metadata(fm: dict) -> dict | None:
+    """The record-block fields worth storing, or None if the digest carries none.
+
+    THREE STATES, NEVER TWO. `review.state` is human | machine | none, and the
+    field being ABSENT is a fourth thing: the digest predates the stamp. Absent
+    must read as UNKNOWN, not as unreviewed - the same rule as a missing
+    provenance chain never reading as independent. So an absent field is simply
+    not stored, and a consumer asking "was this reviewed" must test for
+    state == "human", never for state != "none".
+    """
+    block = fm.get("record") or {}
+    out = {k: block[k] for k in _RECORD_METADATA_FIELDS if block.get(k) is not None}
+    return out or None
+
+
 def _materialise_locally(
     conn: sqlite3.Connection, lookup_conn: sqlite3.Connection, node_id: str
 ) -> str:
@@ -446,6 +475,15 @@ def import_extraction(
     existing_record = get_record_by_title(conn, record_title)
     if existing_record:
         record = existing_record
+        # Refresh the record metadata on re-import. Insert-only would leave every
+        # record already in the graph without a review state forever, which is
+        # exactly how the provenance chain stayed NULL through a full re-digest.
+        refreshed = _record_metadata(fm)
+        if refreshed:
+            conn.execute(
+                "UPDATE records SET metadata = ? WHERE id = ?",
+                (json.dumps(refreshed), record.id),
+            )
         log(f"  Existing record: {record.title} [{record.id[:8]}]")
     else:
         # Resolve the ingest content_hash and friendly_name for this record
@@ -479,6 +517,7 @@ def import_extraction(
                 date=str(fm["record_date"]) if fm.get("record_date") else None,
                 content_hash=content_hash,
                 friendly_name=friendly_name,
+                metadata=_record_metadata(fm),
             ),
         )
         log(f"  Record: {record.title} [{record.id[:8]}]")

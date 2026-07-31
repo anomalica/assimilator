@@ -247,3 +247,45 @@ def test_reimport_survives_a_node_id_retired_by_a_merge():
         "SELECT id FROM nodes WHERE name = 'David Fravor' AND retired_at IS NULL"
     ).fetchone()
     assert live is not None and live[0] != fravor
+
+
+def _parsed_with_review(review):
+    p = _parsed([_claim("c1", "First.")])
+    p["frontmatter"]["record"] = {"id": "rec-nimitz-0001", "title": "T"}
+    if review is not None:
+        p["frontmatter"]["record"]["review"] = review
+    return p
+
+
+def test_review_state_reaches_the_record_row():
+    """The basis on which unreviewed records may enter the graph at all is that
+    they arrive MARKED, so a consumer can tell them from material a human read."""
+    import json as _json
+
+    conn = _conn()
+    import_extraction(conn, _parsed_with_review({"state": "human"}))
+    meta = conn.execute("SELECT metadata FROM records").fetchone()[0]
+    assert _json.loads(meta)["review"]["state"] == "human"
+
+
+def test_an_absent_review_field_is_unknown_not_unreviewed():
+    """Three states, never two. `state: none` is a positive finding of no review;
+    the field being absent means the digest predates the stamp. Storing absent as
+    "none" would mark records unreviewed when we simply do not know - the same
+    rule as a missing provenance chain never reading as independent."""
+    conn = _conn()
+    import_extraction(conn, _parsed_with_review(None))
+    meta = conn.execute("SELECT metadata FROM records").fetchone()[0]
+    assert meta is None or "review" not in meta
+
+
+def test_review_state_is_refreshed_on_reimport():
+    """Insert-only would leave every record already in the graph unmarked
+    forever, which is how the provenance chain survived a full re-digest."""
+    import json as _json
+
+    conn = _conn()
+    import_extraction(conn, _parsed_with_review(None))
+    import_extraction(conn, _parsed_with_review({"state": "human"}))
+    meta = conn.execute("SELECT metadata FROM records").fetchone()[0]
+    assert _json.loads(meta)["review"]["state"] == "human"
