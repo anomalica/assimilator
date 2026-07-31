@@ -289,3 +289,31 @@ def test_review_state_is_refreshed_on_reimport():
     import_extraction(conn, _parsed_with_review({"state": "human"}))
     meta = conn.execute("SELECT metadata FROM records").fetchone()[0]
     assert _json.loads(meta)["review"]["state"] == "human"
+
+
+def test_ai_usage_never_reaches_the_graph():
+    """Per-record usage is kept in the digest and the operations ledger and is
+    never reader-facing. The graph feeds the assembler, which writes content,
+    which becomes the public site - storing it here creates a leak path to
+    satisfy a requirement two other stores already meet."""
+    import json as _json
+
+    conn = _conn()
+    p = _parsed([_claim("c1", "First.")])
+    p["frontmatter"]["ai_usage"] = [{"stage": "digest", "tokens": {"input": 999}}]
+    p["frontmatter"]["pre_digest"] = {"sha256": "abc", "prep_version": 6}
+    import_extraction(conn, p)
+
+    meta = conn.execute("SELECT metadata FROM records").fetchone()[0] or "{}"
+    assert "ai_usage" not in meta and "999" not in meta
+    assert _json.loads(meta)["pre_digest"]["sha256"] == "abc"
+
+
+def test_absent_run_kind_is_unknown_not_production():
+    """23 of 53 digests carry it. Defaulting absence to "production" would
+    silently promote comparison artefacts into the canonical set - the third
+    instance this week of absence read as a value."""
+    conn = _conn()
+    import_extraction(conn, _parsed([_claim("c1", "First.")]))
+    meta = conn.execute("SELECT metadata FROM records").fetchone()[0] or "{}"
+    assert "run_kind" not in meta

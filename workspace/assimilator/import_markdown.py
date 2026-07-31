@@ -250,6 +250,29 @@ _RECORD_METADATA_FIELDS = (
     "processing_version",
 )
 
+# Doc-level fields worth keeping beside the record. Both answer "what would I
+# have to hold constant to reproduce this claim":
+#   pre_digest  names the exact text a span indexes into. Without it a span
+#               cannot be resolved with confidence - a corpus-wide "directional
+#               drift" across 1,589 claims turned out to be quotes resolved in
+#               body space against offsets in pre-digest space, and the frame was
+#               recoverable ONLY because the digest carried this. It is also the
+#               staleness detector: re-materialise the record, compare the sha.
+#   prompts     identifies what produced a claim, which is the precondition for
+#               any comparison across prompt versions.
+#   run_kind    production vs comparison run. ABSENT means the digest predates
+#               the field and must read UNKNOWN - defaulting it to "production"
+#               would silently promote comparison artefacts into the canonical
+#               set. Same three-state rule as review.
+#
+# ai_usage is DELIBERATELY EXCLUDED and must stay excluded. Per-record usage is
+# kept in the digest front matter and the operations ledger and is explicitly not
+# surfaced publicly (operating rules, amended 2026-06-29). The graph feeds the
+# public site, so storing it here puts billing data one join from a renderer and
+# the failure mode is a template that helpfully shows it. It already lives in two
+# non-public places; that is the right number.
+_DOC_METADATA_FIELDS = ("pre_digest", "prompts", "run_kind")
+
 
 def _record_metadata(fm: dict) -> dict | None:
     """The record-block fields worth storing, or None if the digest carries none.
@@ -263,6 +286,7 @@ def _record_metadata(fm: dict) -> dict | None:
     """
     block = fm.get("record") or {}
     out = {k: block[k] for k in _RECORD_METADATA_FIELDS if block.get(k) is not None}
+    out.update({k: fm[k] for k in _DOC_METADATA_FIELDS if fm.get(k) is not None})
     return out or None
 
 
