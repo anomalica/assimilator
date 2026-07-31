@@ -1041,6 +1041,81 @@ def link_works_cmd(ctx: click.Context, ingests: str | None) -> None:
     )
 
 
+@main.command(name="page-floor")
+@click.option(
+    "--max-dominance", default=0.80, help="Reject if one source exceeds this share."
+)
+@click.option("--min-origins", default=2, help="Independent provenance roots required.")
+@click.option(
+    "--max-unscored",
+    default=0.25,
+    help="Above this share of chainless claims, independence is UNCOMPUTABLE and "
+    "the independence test is skipped rather than failed.",
+)
+@click.pass_context
+def page_floor_cmd(
+    ctx: click.Context, max_dominance: float, min_origins: int, max_unscored: float
+) -> None:
+    """What a proposed page floor would admit. REPORTS, never enforces.
+
+    Two conditions, because they catch different objectionable pages and neither
+    subsumes the other. DOMINANCE - no single source above 80% of a page's claims
+    - catches the single-book summary, which independence cannot see: a book
+    quoting twenty witnesses has twenty provenance roots and is still one
+    author's selection and paraphrase. INDEPENDENCE - at least two distinct
+    provenance roots - catches several records relaying one origin, which
+    dominance cannot see.
+
+    AN UNCOMPUTABLE CONDITION MUST NOT REJECT. Where too many of a node's claims
+    predate ADR 0044, independence cannot be computed, and failing the page for
+    that is absence read as a failing score - invisibly, since the page simply
+    would not be proposed. Those pages skip the independence test. The clause is
+    self-correcting rather than a loophole: as pre-0044 records are re-digested
+    the unscored share falls, the score becomes trustworthy, and some of them are
+    then rejected on evidence.
+    """
+    conn = _connect(ctx.obj["db_path"])
+    rows = conn.execute(
+        "SELECT n.name, p.tier, p.claim_count, p.top_source_claims, "
+        "p.independent_source_count, p.unscored_claims "
+        "FROM page_proposals p JOIN nodes n ON n.id = p.node_id"
+    ).fetchall()
+    conn.close()
+    if not rows:
+        raise click.ClickException("no proposals - run `propose-pages` first")
+
+    worthy = [r for r in rows if r[1] == "page-worthy"]
+    admitted, rescued, cut_dominance, cut_origins = [], [], 0, 0
+    for name, _tier, claims, top, origins, unscored in worthy:
+        if claims > 0 and (top or 0) / claims >= max_dominance:
+            cut_dominance += 1
+            continue
+        if not (claims > 0 and (unscored or 0) / claims <= max_unscored):
+            rescued.append(name)
+            admitted.append(name)
+            continue
+        if (origins or 0) < min_origins:
+            cut_origins += 1
+            continue
+        admitted.append(name)
+
+    click.echo(f"{len(worthy)} page-worthy proposals")
+    click.echo(
+        f"  admitted                           {len(admitted):4d}"
+        f"  ({100 * len(admitted) / len(worthy):.0f}%)"
+    )
+    click.echo(
+        f"  cut: one source >= {max_dominance:.0%}             {cut_dominance:4d}"
+    )
+    click.echo(f"  cut: fewer than {min_origins} origins          {cut_origins:4d}")
+    click.echo(
+        f"  admitted UNTESTED for independence {len(rescued):4d}"
+        f"  (>{max_unscored:.0%} of claims predate the chain)"
+    )
+    for name in rescued[:8]:
+        click.echo(f"      {name[:62]}")
+
+
 @main.command(name="source-spread")
 @click.option(
     "--min-second",
