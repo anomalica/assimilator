@@ -26,9 +26,19 @@ from assimilator.scoring import score_claim, tier_label
 DEFAULT_DB = Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"
 
 
+# A full assimilate takes minutes and an hourly timer now runs one, so any manual
+# command overlaps it sooner or later. SQLite's default is to fail immediately on
+# a locked database, which aborts the import midway and leaves that record stale -
+# silently, because the NEXT scheduled run looks normal and nobody re-checks the
+# record it dropped. Waiting is always better than failing here: every writer is
+# doing the same idempotent fold, so the loser of a race just runs late.
+_LOCK_WAIT_MS = 300_000  # 5 minutes - longer than a full corpus pass
+
+
 def _connect(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), timeout=_LOCK_WAIT_MS / 1000)
+    conn.execute(f"PRAGMA busy_timeout = {_LOCK_WAIT_MS}")
     init_db(conn)
     return conn
 
