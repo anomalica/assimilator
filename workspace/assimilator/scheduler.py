@@ -316,7 +316,7 @@ def _record_processing_version(md_path: Path) -> str | None:
 
 def _ingested_source_ids(ingests_dir: Path) -> set[str]:
     """Every source-byte identity already ingested, across the per-type hash
-    inconsistency (record-format.md).
+    inconsistency (ingest-format.md).
 
     A source file in sources/ is named by the hash of its own bytes. Whether that
     matches a record depends on the record type:
