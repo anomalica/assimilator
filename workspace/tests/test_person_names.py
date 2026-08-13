@@ -171,15 +171,14 @@ def test_variant_snapshots_are_never_rewritten(tmp_path):
     because pointing the pass at the digests repo root is the obvious mistake."""
     from assimilator.person_names import naturalise_digests_in_dir
 
-    (tmp_path / "records").mkdir()
     (tmp_path / "variants" / "some-record").mkdir(parents=True)
-    (tmp_path / "records" / "r.yaml").write_text(DIGEST)
+    (tmp_path / "r.yaml").write_text(DIGEST)
     variant = tmp_path / "variants" / "some-record" / "opus.yaml"
     variant.write_text(DIGEST)
 
     results = naturalise_digests_in_dir(tmp_path)
 
-    assert list(results) == ["records/r.yaml"]
+    assert list(results) == ["r.yaml"]
     assert variant.read_text() == DIGEST
 
 

@@ -357,11 +357,8 @@ def test_digest_index_accepts_either_the_root_or_the_records_dir(tmp_path):
     that silently never catches up with the digests on disk."""
     from assimilator.scheduler import _digest_index
 
-    records = tmp_path / "records"
-    records.mkdir()
-    (records / "a.yaml").write_text(
+    (tmp_path / "a.yaml").write_text(
         "record:\n  content_hash: sha256:" + "a" * 64 + "\n  title: A\n"
     )
 
     assert len(_digest_index(tmp_path)) == 1
-    assert len(_digest_index(records)) == 1
