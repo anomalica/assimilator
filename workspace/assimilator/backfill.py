@@ -40,15 +40,15 @@ _RECORD_ORDER = [
 
 
 def _resolve_ingests_dir(digests_dir: Path, ingests_dir: Path | None) -> Path | None:
-    """Find the ingests/records dir: explicit arg, env override, then derived
-    from the digests location (<root>/digests/... -> <root>/ingests/records)."""
+    """Find the ingests/by-name dir: explicit arg, env override, then derived
+    from the digests location (<root>/digests/... -> <root>/ingests/by-name)."""
     candidates = []
     if ingests_dir:
-        candidates.append(Path(ingests_dir) / "records")
+        candidates.append(Path(ingests_dir) / "by-name")
     env = os.environ.get("ANOMALICA_INGESTS_DIR")
     if env:
-        candidates.append(Path(env) / "records")
-    candidates.append(digests_dir.resolve().parent.parent / "ingests" / "records")
+        candidates.append(Path(env) / "by-name")
+    candidates.append(digests_dir.resolve().parent.parent / "ingests" / "by-name")
     return next((c for c in candidates if c.exists()), None)
 
 
@@ -129,7 +129,7 @@ def backfill_record_fields_in_dir(
     records_dir = _resolve_ingests_dir(digests_dir, ingests_dir)
     if records_dir is None:
         raise FileNotFoundError(
-            "Could not locate the ingests/records directory. Set "
+            "Could not locate the ingests/by-name directory. Set "
             "ANOMALICA_INGESTS_DIR or pass --ingests-dir."
         )
     results: dict[str, list[str]] = {}

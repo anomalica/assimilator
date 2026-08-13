@@ -101,7 +101,7 @@ _SUPERSEDED_RE = re.compile(r"^superseded_by:\s*(\S+)\s*$", re.M)
 
 
 def live_record_paths(ingests_dir: Path) -> list[Path]:
-    """The records currently in play, resolved through `ingests/records/`.
+    """The records currently in play, resolved through `ingests/by-name/`.
 
     Globbing `store/*.md` is the wrong set twice over. It misses nothing today by
     luck, but the store also holds archive tiers - `store/v1/` carries 211
@@ -111,7 +111,7 @@ def live_record_paths(ingests_dir: Path) -> list[Path]:
     construction: one symlink per record, none pointing into an archive tier.
     Falls back to the store root when there is no records/ directory.
     """
-    records_dir = ingests_dir / "records"
+    records_dir = ingests_dir / "by-name"
     if records_dir.is_dir():
         return sorted(p for p in records_dir.glob("*.md") if p.resolve().is_file())
     return sorted(ingests_dir.glob("store/*.md"))

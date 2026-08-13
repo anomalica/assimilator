@@ -123,7 +123,7 @@ last-first input still resolves. That is what takes alias rows from 146 to 715.
 
 ## The diff, one digest
 
-`digests/records/2023-07-26-pdf-david-fravor-statement-for-the-house-oversight-committee.yaml`
+`digests/2023-07-26-pdf-david-fravor-statement-for-the-house-oversight-committee.yaml`
 - 11 person nodes, 626 diff lines, of which every removed line is a `name:` line.
 Claim `quote:` and `text:` are untouched; the organisation and place refs beside
 the renamed person refs are untouched.

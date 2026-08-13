@@ -120,7 +120,7 @@ def test_link_works_collapses_a_duplicate_pair_in_the_graph(tmp_path):
     from assimilator.work_identity import link_works
 
     store = tmp_path / "store"
-    records = tmp_path / "records"
+    records = tmp_path / "by-name"
     store.mkdir()
     records.mkdir()
     _record(store, f"{'a' * 64}.md", BODY, title="Communion")
@@ -166,7 +166,7 @@ def test_a_live_record_missing_from_records_is_reported_not_silently_skipped(tmp
     from assimilator.work_identity import unreachable_live_records
 
     store = tmp_path / "store"
-    records = tmp_path / "records"
+    records = tmp_path / "by-name"
     store.mkdir()
     records.mkdir()
     linked, stranded, retired = "a" * 64, "b" * 64, "c" * 64

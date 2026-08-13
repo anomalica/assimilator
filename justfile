@@ -70,7 +70,7 @@ assimilate:
     export ANOMALICA_INGESTS_DIR="${ANOMALICA_INGESTS_DIR:-$HOME/repos/anomalica/ingests}"
     digests="${ANOMALICA_DIGESTS_DIR:-$HOME/repos/anomalica/digests}"
     cd workspace
-    python3 -m assimilator.cli assimilate "$digests/records"
+    python3 -m assimilator.cli assimilate "$digests"
     python3 -m assimilator.cli replay-curation
     python3 -m assimilator.cli link-works
     python3 -m assimilator.cli propose-pages

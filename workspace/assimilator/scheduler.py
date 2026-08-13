@@ -257,12 +257,11 @@ def _digest_index(digests_dir: Path) -> dict[str, dict]:
     is the digest-freshness key (a digest is current only while it equals the
     record's current body version); title labels the import/digest jobs.
     """
-    # Accept either the digests ROOT or the records/ directory itself. The
-    # parameter is named for the root and appends records/, so passing the
-    # records dir - the obvious thing to pass, and the mistake that produces an
-    # EMPTY index rather than an error - silently yields zero import jobs and a
-    # graph that never catches up with the digests on disk.
-    records = digests_dir if digests_dir.name == "records" else digests_dir / "records"
+    # Canonical digests sit at the root of digests/; the variants/ subtree is
+    # deliberately not scanned. The previous records/ subdirectory is gone, and
+    # with it the trap of passing either level and getting an empty index rather
+    # than an error.
+    records = digests_dir
     out: dict[str, dict] = {}
     if not records.is_dir():
         return out

@@ -32,8 +32,8 @@ def _corpus(tmp_path):
     (store / f"{H1}.review.json").write_text(
         json.dumps({"schema": "anomalica/review-coverage/1", "digestible": True})
     )
-    (tmp_path / "ingests" / "records").mkdir()
-    (tmp_path / "digests" / "records").mkdir(parents=True)
+    (tmp_path / "ingests" / "by-name").mkdir()
+    (tmp_path / "digests").mkdir(parents=True)
     sources = tmp_path / "sources"
     sources.mkdir()
     (sources / f"{H1}.html").write_text("already ingested")  # H1 is in the store
@@ -135,9 +135,7 @@ def _write_digest(digests, content_hash, version=None):
     rec = {"content_hash": "sha256:" + content_hash}
     if version is not None:
         rec["processing_version"] = version
-    (digests / "records" / f"{content_hash[:20]}.yaml").write_text(
-        yaml.safe_dump({"record": rec})
-    )
+    (digests / f"{content_hash[:20]}.yaml").write_text(yaml.safe_dump({"record": rec}))
 
 
 def test_digest_job_for_digestible_not_yet_digested(tmp_path):
@@ -187,7 +185,7 @@ def test_import_job_for_digest_not_in_graph(tmp_path):
     # content_hash) is not.
     ingests, digests, sources = _corpus(tmp_path)
     conn = _graph_with_shared_node()  # graph record ids: r1, r2
-    recs = digests / "records"
+    recs = digests
     (recs / "new.yaml").write_text(
         yaml.safe_dump(
             {"record": {"content_hash": "sha256:" + "e" * 64, "id": "r-new"}}
@@ -269,7 +267,7 @@ def test_nested_digest_still_detected_complete(tmp_path):
     # A slash in a record title nests the digest in a subdirectory; rglob must
     # still recognise it as complete, else the job re-dispatches forever.
     ingests, digests, sources = _corpus(tmp_path)
-    sub = digests / "records" / "nested"
+    sub = digests / "nested"
     sub.mkdir()
     (sub / "x.yaml").write_text(
         yaml.safe_dump({"record": {"content_hash": "sha256:" + H1}})

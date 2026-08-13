@@ -340,7 +340,7 @@ def _lookup_ingest_metadata(
     content_hash and friendly filename stem.
 
     The digest YAML filename equals the ingest's friendly name (mounted via
-    ingests/records/<friendly>.md as a symlink into store/{hash}.md).
+    ingests/by-name/<friendly>.md as a symlink into store/{hash}.md).
     We resolve by exact filename match first, then by record_title scan as a
     fallback.
     """
@@ -349,11 +349,11 @@ def _lookup_ingest_metadata(
     # The records directory: the configured/container path first, then - so a
     # host-side rebuild does not silently lose content_hash when the container
     # path is absent - the ingests dir derived from the digest's own location
-    # (<root>/digests/records/<stem>.yaml -> <root>/ingests/records).
-    candidate_dirs = [_P(_INGESTS_DIR) / "records"]
+    # (<root>/digests/<stem>.yaml -> <root>/ingests/by-name).
+    candidate_dirs = [_P(_INGESTS_DIR) / "by-name"]
     if source_path:
         derived = (
-            _P(str(source_path)).resolve().parent.parent.parent / "ingests" / "records"
+            _P(str(source_path)).resolve().parent.parent.parent / "ingests" / "by-name"
         )
         candidate_dirs.append(derived)
     records_dir = next((d for d in candidate_dirs if d.exists()), None)
@@ -520,7 +520,7 @@ def import_extraction(
         # so downstream consumers (assembler, workbench) can link claim ->
         # source-record verifiably. The digest YAML may carry content_hash
         # directly (newer emissions) or we look it up via the friendly
-        # filename match against ingests/records/ (the deterministic
+        # filename match against ingests/by-name/ (the deterministic
         # backfill for older YAMLs).
         content_hash = fm.get("content_hash")
         friendly_name = fm.get("friendly_name")
