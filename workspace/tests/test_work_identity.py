@@ -161,7 +161,7 @@ def test_link_works_is_a_no_op_without_duplicates(tmp_path):
 
 def test_a_live_record_missing_from_records_is_reported_not_silently_skipped(tmp_path):
     """records/ drifts - a re-ingest can fail to create a symlink, a slug change
-    can strand one. A scan that reads records/ and reports a coverage number
+    can strand one. A scan that reads by-name/ and reports a coverage number
     without its gap is how "all records" gets claimed for a partial pass."""
     from assimilator.work_identity import unreachable_live_records
 

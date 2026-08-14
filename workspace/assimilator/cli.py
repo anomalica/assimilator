@@ -959,19 +959,19 @@ def duplicate_records_cmd(ingests: str | None, threshold: float | None) -> None:
     if not store.is_dir():
         raise click.ClickException(f"no ingests store at {store}")
 
-    # The LIVE set, via records/ - not a store glob. store/ also holds archive
+    # The LIVE set, via by-name/ - not a store glob. store/ also holds archive
     # tiers whose records are superseded re-ingests of live ones, and comparing
     # against those reports every one of them as a duplicate.
     live = live_record_paths(root)
     unreachable = unreachable_live_records(root)
-    click.echo(f"Scanning {len(live)} records via records/.")
+    click.echo(f"Scanning {len(live)} records via by-name/.")
     if unreachable:
         # Never report a coverage number without its gap: a scan that says "all
         # records" while records/ has drifted is exactly how a coverage claim
         # gets overstated.
         click.echo(
             f"  WARNING: {len(unreachable)} live store record(s) are NOT reachable "
-            f"via records/ and were NOT scanned:"
+            f"via by-name/ and were NOT scanned:"
         )
         for record_hash in unreachable:
             click.echo(f"    {record_hash}")
