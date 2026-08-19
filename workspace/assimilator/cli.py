@@ -22,6 +22,7 @@ from assimilator.embeddings import (
 )
 from assimilator.import_markdown import import_extraction
 from assimilator.scoring import score_claim, tier_label
+from assimilator.digest_files import canonical_digests
 
 DEFAULT_DB = Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"
 
@@ -128,7 +129,7 @@ def assimilate(ctx: click.Context, directory: str) -> None:
     the everyday verb - point it at the digests directory and it folds each one
     into the accumulating knowledge graph. Use `rebuild` for a clean slate.
     """
-    files = sorted(Path(directory).glob("**/*.yaml"))
+    files = canonical_digests(directory)
     if not files:
         click.echo(f"No .yaml digest files found in {directory}")
         return
@@ -172,7 +173,7 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
             click.echo(f"Deleted {p}")
 
     directory_path = Path(directory)
-    files = sorted(directory_path.glob("**/*.yaml"))
+    files = canonical_digests(directory_path)
     if not files:
         click.echo(f"No .yaml digest files found in {directory}")
         return

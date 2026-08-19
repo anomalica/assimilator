@@ -15,6 +15,7 @@ from pathlib import Path
 import yaml
 
 from anomalica_common.digest.yaml_format import _yaml_dump
+from assimilator.digest_files import canonical_digests
 
 # Fields we backfill, mapped to the ingest-frontmatter key they come from.
 # medium is the ingest's source_type.
@@ -133,7 +134,7 @@ def backfill_record_fields_in_dir(
             "ANOMALICA_INGESTS_DIR or pass --ingests-dir."
         )
     results: dict[str, list[str]] = {}
-    for path in sorted(digests_dir.glob("**/*.yaml")):
+    for path in canonical_digests(digests_dir):
         added = backfill_record_fields_in_file(path, records_dir)
         if added:
             results[path.name] = added

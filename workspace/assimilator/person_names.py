@@ -29,6 +29,7 @@ import re
 from pathlib import Path
 
 import yaml
+from assimilator.digest_files import canonical_digests
 
 _SUFFIX_RE = re.compile(r"^(?:Jr|Sr|II|III|IV|V)\.?$", re.IGNORECASE)
 _PARENTHETICAL_RE = re.compile(r"\s*(\([^()]*\))$")
@@ -302,9 +303,7 @@ def naturalise_digests_in_dir(
     because pointing this at the digests repo root is the obvious mistake.
     """
     results: dict[str, int] = {}
-    for path in sorted(digests_dir.glob("**/*.yaml")):
-        if "variants" in path.relative_to(digests_dir).parts:
-            continue
+    for path in canonical_digests(digests_dir):
         renamed = naturalise_digest_file(path, dry_run=dry_run)
         if renamed:
             results[str(path.relative_to(digests_dir))] = renamed
