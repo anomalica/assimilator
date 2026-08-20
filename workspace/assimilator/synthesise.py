@@ -476,6 +476,53 @@ def default_briefs_dir() -> Path:
     )
 
 
+def prune_retired_briefs(
+    conn: sqlite3.Connection, out_dir: Path, slug_map: dict | None = None
+) -> list[str]:
+    """Delete briefs whose node no longer exists or has been retired.
+
+    Emission only ever WRITES, so a brief outlives the node it describes. A merge
+    retires its victims and their briefs stay on disk pointing at a node that is
+    gone - after the Luis/Lue/Lou Elizondo merge, lou-elizondo.yaml and
+    luis-lou-elizondo.yaml both remained, alongside four older ones from earlier
+    merges.
+
+    That is not clutter, it is a live hazard: the assembler takes a brief by slug
+    and will happily build a page from a dead one. Assembling the "Lue Elizondo"
+    node had already published a second Elizondo page beside the existing one; a
+    stale brief lets exactly that happen again after the merge meant to fix it.
+
+    A RENAME strands a brief the same way. The Elizondo merge kept node 87788ebc
+    and renamed it "Lue Elizondo" -> "Luis Elizondo", so lue-elizondo.yaml and
+    luis-elizondo.yaml both described the SAME LIVE NODE. The node is not
+    retired, so the check above cannot see it; a node must have exactly one
+    brief, and the one at its current slug is that brief.
+
+    Only RETIRED, ABSENT, or STALE-SLUG briefs are pruned. A brief for a live
+    node at its correct slug that is merely unproposed today is left alone - the
+    proposal set moves with thresholds, and deleting on that basis would churn.
+    """
+    live = {r[0] for r in conn.execute("SELECT id FROM nodes WHERE retired_at IS NULL")}
+    removed: list[str] = []
+    for path in sorted(out_dir.glob("*.yaml")):
+        try:
+            doc = yaml.safe_load(path.read_text()) or {}
+        except yaml.YAMLError:
+            continue  # unreadable: leave it for a human, never delete blind
+        node_id = (doc.get("page") or {}).get("node_id")
+        if not node_id:
+            continue
+        if node_id not in live:
+            path.unlink()
+            removed.append(path.name)
+            continue
+        current = (slug_map or {}).get(node_id)
+        if current and path.stem != current:
+            path.unlink()  # stranded by a rename; the node's brief is at `current`
+            removed.append(path.name)
+    return removed
+
+
 def emit_all(conn: sqlite3.Connection, out_dir: Path, on_progress=None) -> dict:
     log = on_progress or (lambda _: None)
     slug_map, collisions = build_slug_map(conn)
@@ -487,6 +534,11 @@ def emit_all(conn: sqlite3.Connection, out_dir: Path, on_progress=None) -> dict:
         write_brief(brief, out_dir)
         written += 1
     log(f"Emitted {written} briefs to {out_dir}")
+    removed = prune_retired_briefs(conn, out_dir, slug_map)
+    if removed:
+        log(f"Pruned {len(removed)} stale brief(s) - node retired, gone, or renamed:")
+        for name in removed:
+            log(f"  {name}")
     if collisions:
         log(
             f"NOTE: {len(collisions)} slug collisions disambiguated by node-id "
@@ -494,7 +546,7 @@ def emit_all(conn: sqlite3.Connection, out_dir: Path, on_progress=None) -> dict:
         )
         for c in collisions:
             log(f"  {c['slug']}: {c['names']}")
-    return {"written": written, "collisions": collisions}
+    return {"written": written, "collisions": collisions, "pruned": removed}
 
 
 def main(argv: list[str] | None = None) -> int:
