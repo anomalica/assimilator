@@ -567,7 +567,19 @@ def _load_briefs(briefs_dir: Path | None) -> list[dict]:
 def enumerate_synthesise_jobs(
     conn: sqlite3.Connection, briefs: list[dict]
 ) -> list[Job]:
-    """An entity page with no brief yet is a pending synthesise job.
+    """An entity page whose brief is missing OR out of date is a pending job.
+
+    A brief is only worth having if it reflects the graph it claims to summarise.
+    This used to skip any node that had one, so a brief was written once and never
+    again: on 2026-08-20 all 225 on disk were built from a graph state of
+    2026-06-28, and the Whitley Strieber brief carried 4 claims where the node held
+    2071. The assembler reads briefs, so every page built from one was summarising
+    a corpus a fraction of the real size, and nothing anywhere reported it.
+
+    Staleness is the brief's recorded graph_version against the graph's current one
+    (the latest claim mutation). Coarse on purpose: any new claim can change a
+    brief's selection, its related nodes or its counts, so anything short of an
+    exact match is stale. Regenerating is free and takes seconds.
 
     Synthesise is deterministic (graph slice -> brief, no Claude), so it is eager.
     Matched by node_id (the brief carries page.node_id) rather than by slug, so
@@ -578,15 +590,27 @@ def enumerate_synthesise_jobs(
     """
     from assimilator.propose_pages import proposed_node_ids
 
-    have = {(b.get("page") or {}).get("node_id") for b in briefs}
+    from assimilator.synthesise import _graph_version
+
+    current = _graph_version(conn)
+    # node_id -> the graph state its brief was built from.
+    have = {
+        (b.get("page") or {}).get("node_id"): (b.get("generated") or {}).get(
+            "graph_version"
+        )
+        for b in briefs
+    }
     page_ids = set(proposed_node_ids(conn))  # only proposed entities deserve a page
     rows = conn.execute(
         "SELECT id, name, node_type FROM nodes WHERE retired_at IS NULL ORDER BY name"
     ).fetchall()
     jobs: list[Job] = []
     for node_id, name, node_type in rows:
-        if node_id not in page_ids or node_id in have:
-            continue  # not proposed, or brief already emitted
+        if node_id not in page_ids:
+            continue  # not proposed
+        fresh = node_id in have and have[node_id] == current and current is not None
+        if fresh:
+            continue  # brief already reflects this graph
         jobs.append(
             Job(
                 id=f"synthesise:{node_id}",
@@ -594,7 +618,7 @@ def enumerate_synthesise_jobs(
                 lane=LANE_EAGER,
                 target=Target(kind="page", label=name),
                 status=STATUS_ELIGIBLE,
-                trigger="never_done",
+                trigger="never_done" if node_id not in have else "stale_brief",
                 effort="~local graph slice",
                 drivers=[Driver("node type", node_type)],
             )
