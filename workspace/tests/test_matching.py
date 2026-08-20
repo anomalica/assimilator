@@ -1,7 +1,7 @@
 import sqlite3
 
 from assimilator.database import init_db, insert_alias, insert_node
-from assimilator.matching import match_node
+from assimilator.matching import match_node, normalise_node_name
 from anomalica_common.digest.models import Node, NodeType
 
 
@@ -698,3 +698,23 @@ def test_the_fold_does_not_join_distinct_designators():
 
     assert name_equivalence_key("E-2 Hawkeye") == name_equivalence_key("E 2 Hawkeye")
     assert name_equivalence_key("E2 Hawkeye") != name_equivalence_key("E-2 Hawkeye")
+
+
+def test_a_wording_variant_does_not_get_expanded_again():
+    """The guard cannot be an exact match against OUR wording.
+
+    The model writes a programme's name as its source wrote it. "Advanced
+    Aerospace Weapons Systems Applications Program (AAWSAP)" is the same
+    programme as the singular form in _PROGRAMME_EXPANSIONS, but an exact
+    substring test misses it and expands the bare acronym inside the
+    parenthetical that is already there. Two expanders run in sequence, so the
+    corpus holds a node named "...Program (...Program (...Program (AAWSAP)))".
+    """
+    plural = "Advanced Aerospace Weapons Systems Applications Program (AAWSAP)"
+    assert normalise_node_name(plural) == plural
+
+    singular = "Advanced Aerospace Weapon System Applications Program (AAWSAP)"
+    assert normalise_node_name(singular) == singular
+
+    # A bare acronym still expands - the guard must not disable the feature.
+    assert normalise_node_name("AAWSAP") == singular

@@ -190,7 +190,11 @@ def _apply_doc_terminology(
     out = name
     for acro in sorted(expansions, key=len, reverse=True):
         full_form = expansions[acro]
-        if full_form in out:
+        # Same test as the global expander, and for the same reason: an exact
+        # match against one wording misses the source's own variant, so the bare
+        # acronym gets expanded INSIDE the parenthetical that is already there.
+        # A trailing "(ACRO)" is the evidence of expansion whatever precedes it.
+        if full_form in out or f"({acro})" in out:
             continue  # already expanded
         out = re.sub(rf"\b{re.escape(acro)}\b(?!-\d)", full_form, out, count=1)
 

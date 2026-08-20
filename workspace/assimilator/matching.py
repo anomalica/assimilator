@@ -76,12 +76,24 @@ def normalise_node_name(name: str) -> str:
     """
     # Skip names that already contain the expanded form - the existing parens
     # acronym tail means the model did the work.
+    #
+    # "Already expanded" cannot be an exact match against OUR wording. The model
+    # writes the programme's name as its source wrote it, and the variants differ:
+    # "Advanced Aerospace Weapons Systems Applications Program (AAWSAP)" is the
+    # same programme as the singular form in _PROGRAMME_EXPANSIONS, but an exact
+    # substring test misses it, expands the bare acronym inside the parenthetical
+    # the model already wrote, and a second expander downstream then does it again.
+    # The corpus holds the result: one node named "...Program (...Program
+    # (...Program (AAWSAP)))" plus two alias rows of the same nesting.
+    #
+    # A trailing "(ACRO)" IS the evidence of expansion, whatever wording precedes
+    # it, so that is what to test.
     out = name
     for prefix, full in _SQUADRON_PREFIXES.items():
         if full in out:
             return out
     for acro, full in _PROGRAMME_EXPANSIONS.items():
-        if full in out:
+        if full in out or f"({acro})" in out:
             return out
     # Rewrite each prefix-N occurrence with the expanded form. The lookup
     # uses _SQUADRON_RE to match the bare designator.
