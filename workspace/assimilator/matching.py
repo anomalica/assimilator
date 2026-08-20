@@ -491,6 +491,45 @@ def is_nickname_of(name: str, other: str) -> bool:
     return _first_names_are_the_same_person(a[0], b[0])
 
 
+_TRAILING_ACRONYM = re.compile(r"\(([A-Za-z0-9./-]{2,10})\)\s*$")
+
+
+def acronym_of(full_name: str) -> str | None:
+    """The acronym a name declares in a trailing parenthetical, if any."""
+    m = _TRAILING_ACRONYM.search(full_name)
+    return m.group(1).upper() if m else None
+
+
+def looks_like_a_bare_acronym(name: str) -> bool:
+    """Whether a name is nothing but an acronym: "NASA", "MJ-12", "AAV"."""
+    bare = name.strip()
+    return bool(bare) and len(bare) <= 10 and " " not in bare and bare == bare.upper()
+
+
+def is_bare_acronym_for(name: str, full_name: str) -> bool:
+    """Whether `name` is the bare acronym that `full_name` spells out.
+
+    name_equivalence_key already collapses "X" against "X (ACRO)" - the same words
+    with and without the parenthetical. It cannot collapse "NASA" against "National
+    Aeronautics and Space Administration (NASA)", because it strips the
+    parenthetical from one side and compares "nasa" to the spelled-out words. So
+    the bare form becomes its own node.
+
+    26 acronyms in the corpus had both forms when this was written. Most bare ones
+    were empty and merely cluttered the graph, but several carried references that
+    should have been on the expansion: MJ-12 held 3 against Majestic 12 (MJ-12)'s
+    52, SAP 1 against 34, CNN 2 against 15.
+
+    The declared acronym is the evidence, not a guess assembled from initials.
+    Deriving one would match far too much - "Advanced Aerospace Threat
+    Identification Program" and "Airborne Anomaly Tracking Initiative Programme"
+    both reduce to AATIP.
+    """
+    if not looks_like_a_bare_acronym(name):
+        return False
+    return acronym_of(full_name) == name.strip().upper()
+
+
 def match_node(
     conn: sqlite3.Connection,
     name: str,
@@ -515,7 +554,22 @@ def match_node(
         if name_equivalence_key(candidate.name) == key and candidate.name != name:
             return candidate.id, "acronym"
 
-    # 3. Nickname: "Dave Fravor" is "David Fravor". Ahead of the fuzzy pass
+    # 3. A bare acronym belongs to the node that spells it out. Prefers the
+    # most-referenced expansion, since a body that changed name over time has
+    # several ("North American Aerospace Defense Command (NORAD)" and "North
+    # American Air Defense Command (NORAD)") and the busiest is the live one.
+    if looks_like_a_bare_acronym(name):
+        spelled = [c for c in candidates_all if is_bare_acronym_for(name, c.name)]
+        if spelled:
+            counts = {
+                c.id: conn.execute(
+                    "SELECT count(*) FROM claim_node_refs WHERE node_id = ?", (c.id,)
+                ).fetchone()[0]
+                for c in spelled
+            }
+            return max(spelled, key=lambda c: counts[c.id]).id, "acronym"
+
+    # 4. Nickname: "Dave Fravor" is "David Fravor". Ahead of the fuzzy pass
     # because these score BELOW the Levenshtein threshold and would otherwise be
     # missed entirely; restricted to people, since the rule is a given-name rule.
     if (node_type or "") == "person":
@@ -523,7 +577,7 @@ def match_node(
             if is_nickname_of(name, candidate.name):
                 return candidate.id, "nickname"
 
-    # 4. Fuzzy name match via Levenshtein
+    # 5. Fuzzy name match via Levenshtein
     candidates = candidates_all
     best_match = None
     best_score = 0.0

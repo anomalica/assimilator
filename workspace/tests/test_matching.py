@@ -1,7 +1,13 @@
 import sqlite3
 
 from assimilator.database import init_db, insert_alias, insert_node
-from assimilator.matching import is_nickname_of, match_node, normalise_node_name
+from assimilator.matching import (
+    is_bare_acronym_for,
+    is_nickname_of,
+    looks_like_a_bare_acronym,
+    match_node,
+    normalise_node_name,
+)
 from anomalica_common.digest.models import Node, NodeType
 
 
@@ -755,3 +761,41 @@ def test_a_different_person_is_not_a_nickname():
     assert not is_nickname_of(
         "Fravor", "David Fravor"
     )  # single token, no surname to compare
+
+
+def test_a_bare_acronym_belongs_to_the_node_that_spells_it_out():
+    """name_equivalence_key collapses "X" against "X (ACRO)" - the same words with
+    and without the parenthetical. It cannot collapse "NASA" against "National
+    Aeronautics and Space Administration (NASA)", because it strips the
+    parenthetical from one side and compares "nasa" to the spelled-out words, so
+    the bare form became its own node. 26 acronyms in the corpus had both forms.
+    """
+    assert is_bare_acronym_for(
+        "NASA", "National Aeronautics and Space Administration (NASA)"
+    )
+    assert is_bare_acronym_for("MJ-12", "Majestic 12 (MJ-12)")
+    assert is_bare_acronym_for("AAV", "Anomalous Aerial Vehicle (AAV)")
+
+
+def test_the_declared_acronym_is_the_evidence_not_the_initials():
+    """Deriving an acronym from initials would match far too much - "Advanced
+    Aerospace Threat Identification Program" and "Airborne Anomaly Tracking
+    Initiative Programme" both reduce to AATIP. Only a trailing parenthetical
+    counts."""
+    assert not is_bare_acronym_for(
+        "NASA", "National Oceanic and Atmospheric Administration (NOAA)"
+    )
+    assert not is_bare_acronym_for(
+        "NASA", "National Aeronautics and Space Administration"
+    )
+    assert not is_bare_acronym_for("NASA", "NASA")
+    assert not is_bare_acronym_for("Bob", "Robert Smith (RS)")
+
+
+def test_only_an_all_caps_single_token_is_a_bare_acronym():
+    assert looks_like_a_bare_acronym("NASA")
+    assert looks_like_a_bare_acronym("MJ-12")
+    assert not looks_like_a_bare_acronym(
+        "National Aeronautics and Space Administration (NASA)"
+    )
+    assert not looks_like_a_bare_acronym("Bob")
