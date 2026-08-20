@@ -626,11 +626,17 @@ def enumerate_synthesise_jobs(
     return jobs
 
 
-def _article_brief_hashes(content_dir: Path | None) -> set[str]:
-    """The brief_hash each assembled article was frozen from (its built_from)."""
+def _article_brief_hashes(content_dir: Path | None) -> tuple[set[str], set[str]]:
+    """(brief_hashes, slugs) for every assembled article.
+
+    The hashes are each article's built_from freeze. The slugs say which pages
+    EXIST at all, which is what separates "never written" from "out of date" -
+    without them a rebuild is indistinguishable from a first build.
+    """
     out: set[str] = set()
+    slugs: set[str] = set()
     if not content_dir or not content_dir.is_dir():
-        return out
+        return out, slugs
     for md in content_dir.rglob("*.md"):
         try:
             text = md.read_text(errors="ignore")
@@ -643,18 +649,25 @@ def _article_brief_hashes(content_dir: Path | None) -> set[str]:
             fm = yaml.safe_load(parts[1]) or {}
         except yaml.YAMLError:
             continue
+        slugs.add(md.name.split(".", 1)[0])
         built = fm.get("built_from") or {}
         if isinstance(built, dict) and built.get("brief_hash"):
             out.add(built["brief_hash"])
-    return out
+    return out, slugs
 
 
 def enumerate_assemble_jobs(briefs: list[dict], content_dir: Path | None) -> list[Job]:
     """A brief whose brief_hash is not frozen into any article is a pending
     assemble job - the AI writer step, so it is Claude-lane. A brief whose hash
     changed (graph moved) re-appears here automatically: the old article's
-    built_from no longer matches."""
-    assembled = _article_brief_hashes(content_dir)
+    built_from no longer matches.
+
+    Those two cases are reported apart. A rebuild trailing the graph is a
+    different decision from a page that has never existed - one costs allowance to
+    refresh something already readable, the other puts a missing page on the site -
+    and calling both "never_done" hid that. On 2026-08-21, 28 of the 29 published
+    pages with briefs were stale rather than absent."""
+    assembled, existing_slugs = _article_brief_hashes(content_dir)
     jobs: list[Job] = []
     for brief in briefs:
         brief_hash = brief.get("brief_hash")
@@ -668,7 +681,11 @@ def enumerate_assemble_jobs(briefs: list[dict], content_dir: Path | None) -> lis
                 lane=LANE_CLAUDE,
                 target=Target(kind="page", label=page.get("title") or "page"),
                 status=STATUS_ELIGIBLE,
-                trigger="never_done",
+                trigger=(
+                    "stale_brief"
+                    if (page.get("slug") or "") in existing_slugs
+                    else "never_done"
+                ),
                 drivers=[Driver("claims", str(page.get("claim_count", "?")))],
             )
         )
