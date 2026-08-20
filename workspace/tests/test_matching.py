@@ -3,6 +3,7 @@ import sqlite3
 from assimilator.database import init_db, insert_alias, insert_node
 from assimilator.matching import (
     is_bare_acronym_for,
+    punctuation_blind_key,
     is_nickname_of,
     looks_like_a_bare_acronym,
     match_node,
@@ -799,3 +800,23 @@ def test_only_an_all_caps_single_token_is_a_bare_acronym():
         "National Aeronautics and Space Administration (NASA)"
     )
     assert not looks_like_a_bare_acronym("Bob")
+
+
+def test_punctuation_and_spacing_do_not_make_a_second_entity():
+    """Nine same-type pairs in the corpus differed by nothing but punctuation:
+    "Office of the Under Secretary of Defense for Intelligence (OUSDI)" against
+    "...Undersecretary..." at 42 references and 19, and eight more."""
+    same = punctuation_blind_key
+    assert same("KLAS-TV") == same("KLAS TV")
+    assert same("Stargate") == same("Star Gate")
+    assert same("F-117A Nighthawk") == same("F-117A Night Hawk")
+    assert same("S-4 Facility") == same("S4 (facility)")
+    assert same(
+        "Office of the Under Secretary of Defense for Intelligence (OUSDI)"
+    ) == same("Office of the Undersecretary of Defense for Intelligence (OUSDI)")
+
+
+def test_punctuation_blindness_still_separates_different_names():
+    same = punctuation_blind_key
+    assert same("David Fravor") != same("David Grusch")
+    assert same("Apollo 14") != same("Apollo 15")
