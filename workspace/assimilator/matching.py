@@ -414,6 +414,83 @@ def fuzzy_name_similarity(a: str, b: str) -> float:
     return max(levenshtein_ratio(a, b), _token_aware_ratio(a, b))
 
 
+# Short forms that are the SAME person, not a similar one. Levenshtein does not
+# reach these - "Dave"/"David" and "Hal"/"Harold" score below the fuzzy threshold -
+# so without this they become two nodes, and each understates its own evidence
+# because claim_count and independent_source_count are per node. The corpus had 25
+# such splits when this was written, the largest being David/Dave Fravor at 572 and
+# 23 references and Luis/Lue/Lou Elizondo at 256, 472 and 20.
+_NICKNAMES = {
+    "al": "albert",
+    "andy": "andrew",
+    "bill": "william",
+    "bob": "robert",
+    "chris": "christopher",
+    "dan": "daniel",
+    "danny": "daniel",
+    "dave": "david",
+    "dick": "richard",
+    "ed": "edward",
+    "eddie": "edward",
+    "gil": "gilbert",
+    "greg": "gregory",
+    "hal": "harold",
+    "jeff": "jeffrey",
+    "jerry": "gerald",
+    "jim": "james",
+    "jimmy": "james",
+    "joe": "joseph",
+    "ken": "kenneth",
+    "larry": "lawrence",
+    "lou": "luis",
+    "lue": "luis",
+    "matt": "matthew",
+    "mike": "michael",
+    "nick": "nicholas",
+    "pete": "peter",
+    "rick": "richard",
+    "rob": "robert",
+    "ron": "ronald",
+    "sam": "samuel",
+    "steve": "stephen",
+    "tom": "thomas",
+    "tommy": "thomas",
+    "tony": "anthony",
+    "will": "william",
+}
+
+
+def _first_names_are_the_same_person(a: str, b: str) -> bool:
+    """Whether two given names are one person's formal name and short form."""
+    a, b = a.lower().rstrip("."), b.lower().rstrip(".")
+    if a == b:
+        return False
+    if _NICKNAMES.get(a) == b or _NICKNAMES.get(b) == a:
+        return True
+    # "Chris" for "Christopher": a short form is a prefix of the full name. Two
+    # characters is too short to be evidence ("Al" would take "Alan", "Alex" and
+    # "Alfred" all at once).
+    return (len(a) > 2 and b.startswith(a)) or (len(b) > 2 and a.startswith(b))
+
+
+def is_nickname_of(name: str, other: str) -> bool:
+    """Whether two PERSON names differ only by a formal name and its short form.
+
+    Every token after the first must match EXACTLY. That strictness is the whole
+    rule, and it was arrived at by measurement: matching on surname plus a
+    nickname-ish first name found 37 pairs in the corpus and was wrong about a
+    third of them - John Fitzgerald Kennedy against John Neely Kennedy, George
+    Herbert Walker Bush against George W. Bush, Baron Magnus against Baroness Emmy
+    von Braun, and several that collided only because "Jr." is the last word of a
+    name. Requiring the remainder to be identical removed every false pair without
+    losing a true one.
+    """
+    a, b = name.split(), other.split()
+    if len(a) < 2 or len(b) < 2 or a[1:] != b[1:]:
+        return False
+    return _first_names_are_the_same_person(a[0], b[0])
+
+
 def match_node(
     conn: sqlite3.Connection,
     name: str,
@@ -422,7 +499,7 @@ def match_node(
     """Try to match a name to an existing node.
 
     Returns (node_id, match_method) or None if no match found.
-    match_method is one of: "exact", "alias", "acronym", "fuzzy".
+    match_method is one of: "exact", "alias", "acronym", "nickname", "fuzzy".
     """
     # 1. Exact name match
     exact = find_node_by_name(conn, name, node_type)
@@ -438,7 +515,15 @@ def match_node(
         if name_equivalence_key(candidate.name) == key and candidate.name != name:
             return candidate.id, "acronym"
 
-    # 3. Fuzzy name match via Levenshtein
+    # 3. Nickname: "Dave Fravor" is "David Fravor". Ahead of the fuzzy pass
+    # because these score BELOW the Levenshtein threshold and would otherwise be
+    # missed entirely; restricted to people, since the rule is a given-name rule.
+    if (node_type or "") == "person":
+        for candidate in candidates_all:
+            if is_nickname_of(name, candidate.name):
+                return candidate.id, "nickname"
+
+    # 4. Fuzzy name match via Levenshtein
     candidates = candidates_all
     best_match = None
     best_score = 0.0

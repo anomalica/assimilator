@@ -1,7 +1,7 @@
 import sqlite3
 
 from assimilator.database import init_db, insert_alias, insert_node
-from assimilator.matching import match_node, normalise_node_name
+from assimilator.matching import is_nickname_of, match_node, normalise_node_name
 from anomalica_common.digest.models import Node, NodeType
 
 
@@ -718,3 +718,40 @@ def test_a_wording_variant_does_not_get_expanded_again():
 
     # A bare acronym still expands - the guard must not disable the feature.
     assert normalise_node_name("AAWSAP") == singular
+
+
+def test_a_short_form_is_the_same_person():
+    """Levenshtein does not reach these - "Dave"/"David" scores below the fuzzy
+    threshold - so without a nickname step they become two nodes, and each
+    understates its own evidence because the counts are per node."""
+    assert is_nickname_of("Dave Fravor", "David Fravor")
+    assert is_nickname_of("Hal Puthoff", "Harold Puthoff")
+    assert is_nickname_of("Dick Gordon", "Richard Gordon")
+    assert is_nickname_of(
+        "Chris Bledsoe", "Christopher Bledsoe"
+    )  # prefix, not a table entry
+    assert is_nickname_of("David Fravor", "Dave Fravor")  # order does not matter
+
+
+def test_the_rest_of_the_name_must_match_exactly():
+    """The strictness IS the rule. Matching on surname plus a nickname-ish first
+    name found 37 pairs in the corpus and was wrong about a third of them. Every
+    case below is one the loose version accepted."""
+    assert not is_nickname_of("John Fitzgerald Kennedy", "John Neely Kennedy")
+    assert not is_nickname_of("George Herbert Walker Bush", "George W. Bush")
+    assert not is_nickname_of("Robert Amory Jr.", "Robert C. Seamans Jr.")
+    assert not is_nickname_of("Baron Magnus von Braun", "Baroness Emmy von Braun")
+
+
+def test_two_characters_is_not_evidence_of_a_short_form():
+    """ "Al" prefixes Alan, Alex and Alfred alike, so a two-character stem cannot
+    identify anyone."""
+    assert not is_nickname_of("Al Smith", "Alan Smith")
+
+
+def test_a_different_person_is_not_a_nickname():
+    assert not is_nickname_of("David Fravor", "David Grusch")
+    assert not is_nickname_of("Betty Hill", "Barney Hill")
+    assert not is_nickname_of(
+        "Fravor", "David Fravor"
+    )  # single token, no surname to compare
