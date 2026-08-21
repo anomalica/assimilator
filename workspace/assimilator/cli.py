@@ -1222,5 +1222,53 @@ def export_obsidian_cmd(ctx: click.Context, output_dir: str) -> None:
     click.echo(f"\nOpen {out} as an Obsidian vault to navigate.")
 
 
+@main.command("doctor")
+@click.option(
+    "--briefs",
+    default=lambda: os.environ.get("ANOMALICA_BRIEFS_DIR"),
+    help="Briefs dir (default: ANOMALICA_BRIEFS_DIR or ~/.local/share/assimilator/briefs)",
+)
+@click.option("--content", default=None, help="Path to the content repo's pages/ dir")
+@click.pass_context
+def doctor_cmd(ctx: click.Context, briefs: str | None, content: str | None) -> None:
+    """Check the derived stages agree with each other. Read-only.
+
+    Everything after the digests is derived and rebuildable, which is what lets it
+    drift in silence: nothing fails when a proposal points at a node a merge
+    retired, or a page is built from a brief the graph has moved past. The lane
+    runs, exits 0, writes something, and describes a corpus that no longer exists.
+
+    Exits 1 when anything is inconsistent, so it can gate a pipeline run.
+    """
+    from assimilator.consistency import check_all
+    from assimilator.synthesise import default_briefs_dir
+
+    briefs_dir = Path(briefs) if briefs else default_briefs_dir()
+    content_dir = Path(content) if content else None
+    if content_dir is None:
+        guess = Path(__file__).resolve().parents[3] / "content" / "pages"
+        content_dir = guess if guess.is_dir() else None
+
+    conn = _connect(ctx.obj["db_path"])
+    try:
+        findings = check_all(conn, briefs_dir, content_dir)
+    finally:
+        conn.close()
+
+    if not findings:
+        click.echo("Consistent: proposals, briefs and pages all agree with the graph.")
+        return
+    for f in findings:
+        click.echo(f"\n{f.check}: {f.count}")
+        click.echo(f"  {f.detail}")
+        for s in f.samples:
+            click.echo(f"    {s}")
+        if len(f.samples) < f.count:
+            click.echo(f"    ... and {f.count - len(f.samples)} more")
+        if f.repair:
+            click.echo(f"  fix: {f.repair}")
+    raise SystemExit(1)
+
+
 if __name__ == "__main__":
     main()
