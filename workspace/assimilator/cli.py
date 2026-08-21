@@ -1222,6 +1222,40 @@ def export_obsidian_cmd(ctx: click.Context, output_dir: str) -> None:
     click.echo(f"\nOpen {out} as an Obsidian vault to navigate.")
 
 
+@main.command("veto-pages")
+@click.argument("node_ids", nargs=-1, required=True)
+@click.option(
+    "--reason",
+    default=None,
+    help="Why this is never a page (free text, read by humans)",
+)
+@click.option("--by", default=None, help="Who decided")
+@click.pass_context
+def veto_pages_cmd(
+    ctx: click.Context, node_ids: tuple[str, ...], reason: str | None, by: str | None
+) -> None:
+    """Record an editorial "never a page" for one or more nodes.
+
+    veto_pages() has existed since page proposals did, with a durable ledger and
+    replay on rebuild, and nothing exposed it - so the decision could be made in
+    code and never by a person. This is the entry point the workbench calls.
+
+    Durable and replayable: the ledger entry is keyed on natural identity, so it
+    survives the rebuild that discards the node ids.
+    """
+    import uuid
+
+    from assimilator.propose_pages import veto_pages
+
+    conn = _connect(ctx.obj["db_path"])
+    try:
+        veto_pages(conn, list(node_ids), reason, str(uuid.uuid4()), created_by=by)
+        conn.commit()
+    finally:
+        conn.close()
+    click.echo(f"Vetoed {len(node_ids)} node(s); recorded in the curation ledger.")
+
+
 @main.command("doctor")
 @click.option(
     "--briefs",
