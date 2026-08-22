@@ -29,13 +29,21 @@ import <digest>      import one reviewed digest YAML into the graph
 rebuild <dir>        wipe and rebuild the graph from a directory of digests
 stats                node / record / claim / corroboration counts
 show <name>          a node and its scored claims
-embed                embed all claims and nodes for similarity search
+embed                vector-embed all claims and nodes for similarity search
+                     (--bucket N / --limit N for a bounded slice)
 corroborate          find cross-record corroborations (AI-assisted verification)
 search <query>       hybrid / semantic / keyword claim search
 export-obsidian <dir>  export the graph as a navigable Obsidian vault
 ```
 
 Plus the digest-maintenance passes that rewrite digest YAML in place: `reclassify-documents`, `normalise-names`, `migrate-refs-delimiter`, `rewire-refs`, `backfill-record-fields`.
+
+A full vector-embedding pass is hours (the ONNX export runs one text at a time,
+~3 items a second), so the scheduler queues it as 32 batches rather than one job:
+`embed:claims:N` in the queue means `embed --bucket N`. The buckets are a hash of
+each row's own id, so a batch number means the same rows for the life of the
+corpus - a batch empties, it never renumbers. Every slice is idempotent: already
+embedded rows are skipped, so stopping early is always safe.
 
 The graph database defaults to `~/.local/share/assimilator/knowledge.db` (override with `--db` or `ASSIMILATOR_DB`).
 
