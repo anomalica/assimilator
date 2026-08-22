@@ -110,6 +110,11 @@ class Job:
     effort: str | None = None
     blocker: str | None = None
     article: str | None = None
+    # The exact argv that performs this job, for jobs whose command lives in THIS
+    # repo. A runner deriving it from the id ("embed:claims:7" -> --bucket 7) puts
+    # the same assumption in two repos, where only one of them gets updated.
+    # None where the command belongs to another component (ingest, digest).
+    command: list[str] | None = None
 
     def to_dict(self) -> dict:
         d: dict = {
@@ -126,6 +131,8 @@ class Job:
             d["value"] = self.value
         if self.effort is not None:
             d["effort"] = self.effort
+        if self.command is not None:
+            d["command"] = list(self.command)
         if self.blocker is not None:
             d["blocker"] = self.blocker
         if self.article is not None:
@@ -734,10 +741,11 @@ def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
                 status=STATUS_ELIGIBLE,
                 trigger="stale",
                 effort="~local graph scan",
+                command=["propose-pages"],
                 drivers=[Driver("nodes passing gate", str(gate_count))],
             )
         )
-    embedded = _vec_claims_count(conn)
+    embedded = _live_embedded_claims(conn, _embedding_model_id())
     recorded = conn.execute("SELECT COUNT(*) FROM corroborations").fetchone()[0]
     # Total is claims + live nodes: both are embedded, and a progress figure that
     # counts only claims under-reports by the node count and looks stalled at the
@@ -772,6 +780,7 @@ def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
                     status=STATUS_ELIGIBLE,
                     trigger="never_done",
                     effort=f"~{_embed_minutes(remaining)} min local CPU",
+                    command=["embed", "--bucket", str(bucket)],
                     drivers=[
                         Driver("items in this batch", str(remaining)),
                         Driver(
@@ -811,6 +820,7 @@ def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
                 target=Target(kind="page", label="cross-record claim pairs"),
                 status=STATUS_ELIGIBLE,
                 trigger="never_done",
+                command=["corroborate"],
                 drivers=[
                     Driver("claims embedded", str(embedded)),
                     Driver("pairs confirmed", str(recorded), band="off"),
@@ -841,11 +851,26 @@ def _embed_minutes(items: int) -> int:
     return max(1, round(items / 3.06 / 60))
 
 
-def _vec_claims_count(conn: sqlite3.Connection) -> int:
+def _live_embedded_claims(conn: sqlite3.Connection, model_id: str) -> int:
+    """Claims that have a vector in the current space AND still exist.
+
+    The join is the point. Claim ids do not survive a re-digest - the rows are
+    deleted and recreated - so embedding_model accumulates vectors for claims
+    that are gone: 4,640 of 5,218 on the live graph. A bare row count therefore
+    read 18% coverage where the real figure was 6%, and that number reached
+    operator-facing copy before anyone joined it back to the corpus.
+
+    Reads embedding_model rather than vec_claims because vec0 is an extension
+    this host-light module does not load - counting vec_claims here silently
+    returned 0 whenever the queue was enumerated outside the container."""
     try:
-        return conn.execute("SELECT COUNT(*) FROM vec_claims").fetchone()[0]
+        return conn.execute(
+            "SELECT COUNT(*) FROM embedding_model e JOIN claims c ON c.id = e.id "
+            "WHERE e.kind = 'claim' AND e.model_id = ?",
+            (model_id,),
+        ).fetchone()[0]
     except sqlite3.OperationalError:
-        return 0  # the sqlite-vec table is not present until `embed` runs
+        return 0  # the table is not present until the first embed run
 
 
 def _demand_str(d: float | None) -> str:
