@@ -297,15 +297,99 @@ def test_digest_stale_when_body_version_differs(tmp_path):
     assert digest[0]["trigger"] == "stale"
 
 
-def test_corroborate_blocked_without_embeddings(tmp_path):
+def _mark_embedded(conn, ids_by_kind):
+    """Stamp rows as embedded in the current space, via the real (kind, id) table."""
+    from assimilator.scheduler import _embedding_model_id
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS embedding_model ("
+        " kind TEXT NOT NULL, id TEXT NOT NULL, model_id TEXT NOT NULL,"
+        " embedded_at TEXT NOT NULL, PRIMARY KEY (kind, id))"
+    )
+    conn.executemany(
+        "INSERT OR REPLACE INTO embedding_model VALUES (?, ?, ?, 'T')",
+        [(kind, i, _embedding_model_id()) for kind, ids in ids_by_kind for i in ids],
+    )
+    conn.commit()
+
+
+def _rows_by_kind(conn, predicate=lambda row_id: True):
+    return [
+        (kind, [r[0] for r in conn.execute(query) if predicate(r[0])])
+        for kind, query in (
+            ("claim", "SELECT id FROM claims"),
+            ("node", "SELECT id FROM nodes"),
+        )
+    ]
+
+
+def test_corroborate_blocked_while_any_embed_batch_is_outstanding(tmp_path):
+    """Corroboration compares every claim against every other, so it needs the
+    WHOLE corpus embedded - finishing the first batch must not release it. The
+    blocker names the lowest outstanding batch, so the card points at real work
+    rather than at a singleton job id that no longer exists."""
     ingests, digests, sources = _corpus(tmp_path)
-    conn = _graph_with_shared_node()  # has claims, no vec_claims table
+    conn = _graph_with_shared_node()  # has claims, nothing embedded
     q = scheduler.build_queue(conn, ingests, digests, sources, "T")
     embed = [j for j in q["jobs"] if j["type"] == "embed"]
     corr = [j for j in q["jobs"] if j["type"] == "corroborate"]
-    assert embed and embed[0]["lane"] == "eager"
+
+    assert embed and all(j["lane"] == "eager" for j in embed)
     assert corr and corr[0]["status"] == "blocked"
-    assert corr[0]["blocker"] == "embed:claims"
+    assert corr[0]["blocker"] == min(j["id"] for j in embed)
+
+    # Embed everything the lowest batch holds; corroborate stays blocked on the
+    # next one.
+    from assimilator.embed_batches import bucket_of
+
+    first = min(int(j["id"].rsplit(":", 1)[1]) for j in embed)
+    _mark_embedded(conn, _rows_by_kind(conn, lambda i: bucket_of(i) == first))
+
+    q = scheduler.build_queue(conn, ingests, digests, sources, "T")
+    corr = [j for j in q["jobs"] if j["type"] == "corroborate"]
+    remaining = [j for j in q["jobs"] if j["type"] == "embed"]
+    assert f"embed:claims:{first}" not in {j["id"] for j in remaining}
+    assert corr[0]["status"] == "blocked"
+    assert corr[0]["blocker"] == min(j["id"] for j in remaining)
+
+
+def test_corroborate_is_released_once_every_batch_is_embedded(tmp_path):
+    ingests, digests, sources = _corpus(tmp_path)
+    conn = _graph_with_shared_node()
+    _mark_embedded(conn, _rows_by_kind(conn))
+
+    q = scheduler.build_queue(conn, ingests, digests, sources, "T")
+    assert not [j for j in q["jobs"] if j["type"] == "embed"]
+    corr = [j for j in q["jobs"] if j["type"] == "corroborate"]
+    assert corr and corr[0]["status"] != "blocked"
+
+
+def test_a_batch_card_shows_corpus_progress_not_a_bare_job_name(tmp_path):
+    """A three-hour task split into batches is only legible if each card says
+    where the corpus is up to; "batch 7 of 32" alone says nothing about how much
+    is left."""
+    ingests, digests, sources = _corpus(tmp_path)
+    conn = _graph_with_shared_node()
+    q = scheduler.build_queue(conn, ingests, digests, sources, "T")
+    job = next(j for j in q["jobs"] if j["type"] == "embed")
+
+    drivers = {d["label"]: d["value"] for d in job["drivers"]}
+    assert drivers["corpus progress"] == "0 of 3 embedded"  # 2 claims + 1 node
+    assert sum(int(d["value"]) for d in _batch_sizes(q)) == 3
+    # User-facing text says "vector embedding"; the machine-readable type stays
+    # the terse internal name.
+    assert job["target"]["label"].startswith("vector embedding, batch ")
+    assert job["type"] == "embed"
+
+
+def _batch_sizes(queue):
+    return [
+        d
+        for j in queue["jobs"]
+        if j["type"] == "embed"
+        for d in j["drivers"]
+        if d["label"] == "items in this batch"
+    ]
 
 
 def test_demand_map_keyed_by_bare_hash(tmp_path):
@@ -362,3 +446,12 @@ def test_digest_index_accepts_either_the_root_or_the_records_dir(tmp_path):
     )
 
     assert len(_digest_index(tmp_path)) == 1
+
+
+def test_the_scheduler_reads_the_same_vector_space_as_the_embedder():
+    """scheduler is host-light and cannot import assimilator.embeddings, which
+    pulls in fastembed - so the id is re-derived and must not drift."""
+    from assimilator.embeddings import EMBEDDING_MODEL_ID
+    from assimilator.scheduler import _embedding_model_id
+
+    assert _embedding_model_id() == EMBEDDING_MODEL_ID
