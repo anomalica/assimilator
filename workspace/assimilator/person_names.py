@@ -67,6 +67,22 @@ class PersonName:
         return f"{family}, {given}" if given else family
 
 
+def _top_level_comma(name: str) -> int | None:
+    """Index of the one comma OUTSIDE any bracket, or None if there is not
+    exactly one. A comma inside brackets belongs to a description, not to the
+    surname-first separator."""
+    depth = 0
+    found: list[int] = []
+    for i, ch in enumerate(name):
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth = max(0, depth - 1)
+        elif ch == "," and depth == 0:
+            found.append(i)
+    return found[0] if len(found) == 1 else None
+
+
 def parse_surname_first(name: str) -> PersonName | None:
     """Split "Fravor, David" into its parts. None if the name is not comma form.
 
@@ -83,10 +99,25 @@ def parse_surname_first(name: str) -> PersonName | None:
     'Luis D. Elizondo III (father)'
     >>> parse_surname_first("David Fravor") is None
     True
+    >>> parse_surname_first("Emrich (Mrs., widow of Louis Emrich)") is None
+    True
     """
-    if name.count(",") != 1:
+    paren = ""
+    # The trailing parenthetical comes off FIRST, because it may itself contain a
+    # comma: "Emrich (Mrs., widow of Louis Emrich)" is a name with a description
+    # attached, not surname-first form. Splitting on that comma produced
+    # "widow of Louis Emrich) Emrich (Mrs." in the live graph - two nodes were
+    # mangled this way before the parenthetical was hoisted above the split.
+    paren_match = _PARENTHETICAL_RE.search(name)
+    if paren_match:
+        paren = paren_match.group(1)
+        name = name[: paren_match.start()].strip()
+
+    split_at = _top_level_comma(name)
+    if split_at is None:
         return None
-    family_part, given_part = (p.strip() for p in name.split(","))
+    family_part = name[:split_at].strip()
+    given_part = name[split_at + 1 :].strip()
     if not family_part or not given_part:
         return None
 
@@ -95,12 +126,6 @@ def parse_surname_first(name: str) -> PersonName | None:
     if len(family_tokens) > 1 and _SUFFIX_RE.match(family_tokens[-1]):
         suffix = family_tokens[-1]
         family_part = " ".join(family_tokens[:-1])
-
-    paren = ""
-    paren_match = _PARENTHETICAL_RE.search(given_part)
-    if paren_match:
-        paren = paren_match.group(1)
-        given_part = given_part[: paren_match.start()].strip()
 
     given_tokens = given_part.split()
     if given_tokens and _SUFFIX_RE.match(given_tokens[-1]) and len(given_tokens) > 1:
@@ -307,4 +332,156 @@ def naturalise_digests_in_dir(
         renamed = naturalise_digest_file(path, dry_run=dry_run)
         if renamed:
             results[str(path.relative_to(digests_dir))] = renamed
+    return results
+
+
+def _mangled_person_nodes(doc: dict) -> dict[str, str]:
+    """Mangled name -> the original, for person nodes the migration should never
+    have touched.
+
+    An early ``parse_surname_first`` split on a comma INSIDE a parenthetical, so
+    "Emrich (Mrs., widow of Louis Emrich)" - a name with a description attached,
+    not surname-first form - came out as "widow of Louis Emrich) Emrich (Mrs.".
+    The original survives verbatim in the alias the migration wrote, and the
+    fixed parser is what identifies which aliases were never comma form.
+    """
+    mangled: dict[str, str] = {}
+    for node in doc.get("nodes") or []:
+        if node.get("type") != "person":
+            continue
+        metadata = node.get("metadata") or {}
+        if not metadata.get("family_name"):
+            continue
+        for alias in metadata.get("aliases") or []:
+            if parse_surname_first(alias) is None:
+                mangled[node.get("name")] = alias
+    return mangled
+
+
+def _unmangled_document(doc: dict, mangled: dict[str, str]) -> dict:
+    out = yaml.safe_load(yaml.safe_dump(doc))
+
+    def _restore(value: str) -> str:
+        return mangled.get(value, value)
+
+    record = out.get("record")
+    if isinstance(record, dict) and record.get("producer"):
+        record["producer"] = _restore(record["producer"])
+    for node in out.get("nodes") or []:
+        original = mangled.get(node.get("name"))
+        if not original:
+            continue
+        node["name"] = original
+        metadata = dict(node.get("metadata") or {})
+        metadata.pop("family_name", None)
+        aliases = [a for a in metadata.get("aliases") or [] if a != original]
+        if aliases:
+            metadata["aliases"] = aliases
+        else:
+            metadata.pop("aliases", None)
+        if metadata:
+            node["metadata"] = metadata
+        else:
+            node.pop("metadata", None)
+    for section in ("domain_claims", "infrastructure_claims", "claims"):
+        for claim in out.get(section) or []:
+            speaker = claim.get("speaker")
+            if isinstance(speaker, dict) and speaker.get("name"):
+                speaker["name"] = _restore(speaker["name"])
+            for ref in claim.get("refs") or []:
+                if isinstance(ref, dict) and ref.get("name"):
+                    ref["name"] = _restore(ref["name"])
+    return out
+
+
+def _unmangle_lines(lines: list[str], mangled: dict[str, str]) -> list[str]:
+    """Rename back, and delete only the metadata the migration itself injected."""
+    out: list[str] = []
+    drop_until_indent: str | None = None
+    original_for_block: str | None = None
+
+    for line in lines:
+        if drop_until_indent is not None:
+            stripped = line.strip()
+            indent = line[: len(line) - len(line.lstrip())]
+            # The injected keys sit UNDER metadata:, which is itself a sibling of
+            # name: at the same indent - so "deeper than the name line" is the
+            # wrong test and skipped straight past them. Scan until the node ends
+            # and drop by shape instead.
+            if (
+                stripped.startswith("family_name:")
+                or stripped.startswith("aliases:")
+                or stripped == f"- {original_for_block}"
+            ):
+                continue
+            if stripped.startswith("- ") or len(indent) < len(drop_until_indent):
+                drop_until_indent = None
+                original_for_block = None
+
+        name_match = _NAME_LINE_RE.match(line)
+        producer_match = _PRODUCER_LINE_RE.match(line)
+        match = name_match or producer_match
+        if match and match.group("name") in mangled:
+            original = mangled[match.group("name")]
+            indent = match.group("indent")
+            if producer_match:
+                out.append(f"{indent}producer: {original}")
+                continue
+            dash = name_match.group("dash") or ""
+            out.append(f"{indent}{dash}name: {original}")
+            drop_until_indent = indent
+            original_for_block = original
+            continue
+        out.append(line)
+
+    return _drop_empty_metadata(out)
+
+
+def _drop_empty_metadata(lines: list[str]) -> list[str]:
+    """Remove a ``metadata:`` key left with no children by the restore."""
+    out: list[str] = []
+    for i, line in enumerate(lines):
+        match = _METADATA_LINE_RE.match(line)
+        if match:
+            indent = match.group("indent")
+            nxt = lines[i + 1] if i + 1 < len(lines) else ""
+            nxt_indent = nxt[: len(nxt) - len(nxt.lstrip())]
+            if not nxt.strip() or len(nxt_indent) <= len(indent):
+                continue
+        out.append(line)
+    return out
+
+
+def unmangle_digest_text(text: str) -> tuple[str, int]:
+    """Undo the comma-inside-parentheses mangling. Returns text and count fixed.
+
+    Raises ValueError if the line rewrite does not reproduce the expected
+    document, on the same principle as the forward migration: a half-restored
+    name is worse than a refused file.
+    """
+    doc = yaml.safe_load(text) or {}
+    mangled = _mangled_person_nodes(doc)
+    if not mangled:
+        return text, 0
+
+    rewritten = "\n".join(_unmangle_lines(text.splitlines(), mangled))
+    if text.endswith("\n"):
+        rewritten += "\n"
+
+    produced = yaml.safe_load(rewritten)
+    expected = _unmangled_document(doc, mangled)
+    if produced != expected:
+        raise ValueError("restored digest does not match the expected document")
+    return rewritten, len(mangled)
+
+
+def unmangle_digests_in_dir(digests_dir: Path, dry_run: bool = False) -> dict[str, int]:
+    results: dict[str, int] = {}
+    for path in canonical_digests(digests_dir):
+        text = path.read_text()
+        rewritten, fixed = unmangle_digest_text(text)
+        if fixed:
+            results[str(path.relative_to(digests_dir))] = fixed
+            if not dry_run:
+                path.write_text(rewritten)
     return results

@@ -224,3 +224,123 @@ def test_sequence_items_at_column_zero_are_migrated():
     }
     assert doc["domain_claims"][0]["refs"][0]["name"] == "David Fravor"
     assert doc["nodes"][1]["name"] == "USA, Nevada, Area 51"
+
+
+MANGLED = textwrap.dedent(
+    """\
+    schema: anomalica/digest/1
+    record:
+      id: r1
+      title: A Record
+      producer: widow of Louis Emrich) Emrich (Mrs.
+    nodes:
+      - id: 11111111-1111-1111-1111-111111111111
+        type: person
+        name: widow of Louis Emrich) Emrich (Mrs.
+        metadata:
+          family_name: 'Emrich (Mrs.'
+          aliases:
+            - Emrich (Mrs., widow of Louis Emrich)
+      - id: 22222222-2222-2222-2222-222222222222
+        type: person
+        name: of Calcutta) Teresa (Mother
+        metadata:
+          role: Missionary
+          family_name: 'Teresa (Mother'
+          aliases:
+            - Teresa (Mother, of Calcutta)
+      - id: 33333333-3333-3333-3333-333333333333
+        type: person
+        name: David Fravor
+        metadata:
+          family_name: Fravor
+          aliases:
+            - Fravor, David
+    domain_claims:
+      - id: c1
+        type: testimony
+        speaker:
+          id: 11111111-1111-1111-1111-111111111111
+          name: widow of Louis Emrich) Emrich (Mrs.
+        refs:
+          - id: 22222222-2222-2222-2222-222222222222
+            name: of Calcutta) Teresa (Mother
+        text: Mrs. Emrich told Hans Bender about the Fatima story.
+    """
+)
+
+
+def test_a_comma_inside_a_parenthetical_is_not_a_surname_separator():
+    """ "Emrich (Mrs., widow of Louis Emrich)" is a name with a description
+    attached, not surname-first form. Splitting on that comma put
+    "widow of Louis Emrich) Emrich (Mrs." into the live graph."""
+    assert parse_surname_first("Emrich (Mrs., widow of Louis Emrich)") is None
+    assert parse_surname_first("Teresa (Mother, of Calcutta)") is None
+    # A comma OUTSIDE the brackets still separates, and the parenthetical still
+    # travels to the end of the natural form.
+    assert parse_surname_first("Smith (a, b), John").natural == "John Smith (a, b)"
+    assert (
+        parse_surname_first("Elizondo, Luis D. III (father)").natural
+        == "Luis D. Elizondo III (father)"
+    )
+
+
+def test_restore_puts_the_mangled_names_back_everywhere():
+    from assimilator.person_names import unmangle_digest_text
+
+    rewritten, fixed = unmangle_digest_text(MANGLED)
+    doc = yaml.safe_load(rewritten)
+
+    assert fixed == 2
+    assert doc["record"]["producer"] == "Emrich (Mrs., widow of Louis Emrich)"
+    assert doc["nodes"][0]["name"] == "Emrich (Mrs., widow of Louis Emrich)"
+    assert doc["nodes"][1]["name"] == "Teresa (Mother, of Calcutta)"
+    assert doc["domain_claims"][0]["speaker"]["name"] == (
+        "Emrich (Mrs., widow of Louis Emrich)"
+    )
+    assert doc["domain_claims"][0]["refs"][0]["name"] == "Teresa (Mother, of Calcutta)"
+
+
+def test_restore_removes_only_what_the_migration_injected():
+    """family_name and the alias were added by the migration and are wrong, but
+    metadata the digester wrote must survive."""
+    from assimilator.person_names import unmangle_digest_text
+
+    doc = yaml.safe_load(unmangle_digest_text(MANGLED)[0])
+
+    assert "metadata" not in doc["nodes"][0], "metadata existed only to hold them"
+    assert doc["nodes"][1]["metadata"] == {"role": "Missionary"}
+
+
+def test_restore_leaves_correctly_migrated_people_alone():
+    from assimilator.person_names import unmangle_digest_text
+
+    doc = yaml.safe_load(unmangle_digest_text(MANGLED)[0])
+
+    assert doc["nodes"][2] == {
+        "id": "33333333-3333-3333-3333-333333333333",
+        "type": "person",
+        "name": "David Fravor",
+        "metadata": {"family_name": "Fravor", "aliases": ["Fravor, David"]},
+    }
+
+
+def test_restoring_twice_is_a_no_op():
+    from assimilator.person_names import unmangle_digest_text
+
+    once, _ = unmangle_digest_text(MANGLED)
+    twice, fixed = unmangle_digest_text(once)
+    assert fixed == 0
+    assert twice == once
+
+
+def test_the_migration_no_longer_creates_what_the_restore_undoes():
+    """The forward pass must be idempotent against the fixed parser, or the next
+    run re-mangles everything this repaired."""
+    from assimilator.person_names import unmangle_digest_text
+
+    restored, _ = unmangle_digest_text(MANGLED)
+    remigrated, renamed = naturalise_digest_text(restored)
+
+    assert renamed == 0
+    assert remigrated == restored
