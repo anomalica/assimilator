@@ -25,7 +25,7 @@ from assimilator.database import (
     update_claim_chain,
     update_claim_hash,
 )
-from assimilator.matching import match_node, normalise_node_name
+from assimilator.matching import is_a_description, match_node, normalise_node_name
 from anomalica_common.digest import claim_hash
 from anomalica_common.digest.models import Claim, Node, ProvenanceChain, Record
 
@@ -65,31 +65,6 @@ _SPELLED_DATE_MONTH_YEAR_RE = re.compile(
     r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b",
     re.IGNORECASE,
 )
-
-
-_DESCRIPTION_RE = re.compile(r"^\s*\[[^\[\]]+\]\s*$")
-
-
-def is_a_description(name: str) -> bool:
-    """Whether a value is a DESCRIPTION of somebody rather than their name.
-
-    Square brackets around the whole value are the marker (ingest-format.md,
-    "Square brackets mean 'this is a description, not a name'"): `[interviewer 2]`,
-    `[senior US intelligence officer]`, `[redacted]`. It is record-scoped - the
-    `[interviewer 2]` in one recording is not the one in another - so a description
-    must never become a node, or two unrelated people accumulate one biography.
-
-    The brackets must wrap the WHOLE value. "Sally (Budd Hopkins abductee)" and
-    "Dr. X (French physician)" are names with a qualifier attached: around twenty
-    real people in the corpus are written that way, and the qualifier is what
-    tells two Sallys apart.
-
-    >>> is_a_description("[senior US intelligence officer]")
-    True
-    >>> is_a_description("Sally (Budd Hopkins abductee)")
-    False
-    """
-    return bool(_DESCRIPTION_RE.match(name or ""))
 
 
 def _node_name_is_unusable(name: str) -> str | None:
@@ -779,6 +754,19 @@ def import_extraction(
                 origin=speaker_name,
                 origin_ref=chain.origin_ref if chain else "",
                 relay=list(chain.relay) if chain else [],
+            )
+        # A DESCRIBED ORIGIN IS ANONYMOUS WHATEVER THE DIGEST CALLED IT. The
+        # corpus holds ~20 claims written `origin_kind: named` with an origin of
+        # "unnamed APEG biochemist" - a contradiction the extraction model does
+        # not notice. "named" makes independence resolve the origin to a node and
+        # treat it as a distinct identifiable source; a description has no node,
+        # so it would silently fall back to counting each claim as its own root.
+        elif chain and is_a_description(chain.origin):
+            chain = ProvenanceChain(
+                origin_kind="anonymous",
+                origin=chain.origin,
+                origin_ref=chain.origin_ref,
+                relay=list(chain.relay),
             )
         claim = Claim(
             id=claim_def["id"],

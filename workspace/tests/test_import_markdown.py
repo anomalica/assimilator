@@ -145,3 +145,54 @@ def test_is_a_description_requires_the_whole_value_to_be_bracketed():
     assert not is_a_description("Dr. X (French physician)")
     assert not is_a_description("Ed [sic] Rhodes")
     assert not is_a_description("")
+
+
+def test_a_described_origin_is_anonymous_whatever_the_digest_called_it():
+    """The corpus holds ~20 claims written `origin_kind: named` with an origin of
+    "unnamed APEG biochemist" - a contradiction the extraction model does not
+    notice. "named" makes independence resolve the origin to a node; a
+    description has no node, so it falls back to counting each claim as its own
+    root and one anonymous source reads as many."""
+    import sqlite3
+
+    from assimilator.database import init_db
+    from assimilator.import_markdown import import_extraction
+
+    parsed = _described_parsed()
+    parsed["domain_claims"][1]["speaker"] = None
+    parsed["domain_claims"][1]["provenance_chain"] = {
+        "origin_kind": "named",
+        "origin": "[Anomaly Physical Evidence Group (APEG) biochemist]",
+    }
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    import_extraction(conn, parsed)
+
+    kind, origin = conn.execute(
+        "SELECT origin_kind, origin FROM claims WHERE content LIKE 'Sally%'"
+    ).fetchone()
+    assert kind == "anonymous"
+    assert origin == "[Anomaly Physical Evidence Group (APEG) biochemist]"
+
+
+def test_a_real_named_origin_is_left_alone():
+    import sqlite3
+
+    from assimilator.database import init_db
+    from assimilator.import_markdown import import_extraction
+
+    parsed = _described_parsed()
+    parsed["domain_claims"][1]["provenance_chain"] = {
+        "origin_kind": "named",
+        "origin": "Sally (Budd Hopkins abductee)",
+    }
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    import_extraction(conn, parsed)
+
+    kind, _ = conn.execute(
+        "SELECT origin_kind, origin FROM claims WHERE content LIKE 'Sally%'"
+    ).fetchone()
+    assert kind == "named"

@@ -839,3 +839,39 @@ def test_an_acronym_inside_a_person_name_is_never_expanded():
     assert normalise_node_name("AATIP Dave", "organisation") != "AATIP Dave"
     # An untyped call keeps the old behaviour rather than silently exempting.
     assert normalise_node_name("AATIP Dave") != "AATIP Dave"
+
+
+def test_a_description_never_matches_a_node():
+    """A description is record-scoped, so there is no node it could correctly
+    resolve to - and the fuzzy tier finds one anyway. "[Anomaly Physical Evidence
+    Group (APEG) biochemist]" matched the node "unnamed Anomaly Physical Evidence
+    Group (APEG) biochemist" it had just been written to replace, re-creating the
+    refs the rewrite had removed."""
+    import sqlite3
+
+    from assimilator.database import init_db, insert_node
+    from anomalica_common.digest.models import Node
+    from assimilator.matching import match_node
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(
+        conn,
+        Node(
+            id="n1",
+            node_type="person",
+            name="unnamed Anomaly Physical Evidence Group (APEG) biochemist",
+        ),
+    )
+    conn.commit()
+
+    assert (
+        match_node(
+            conn, "[Anomaly Physical Evidence Group (APEG) biochemist]", "person"
+        )
+        is None
+    )
+    # The unbracketed form still matches - the exemption is the marker, not the words.
+    assert match_node(
+        conn, "unnamed Anomaly Physical Evidence Group (APEG) biochemist", "person"
+    )

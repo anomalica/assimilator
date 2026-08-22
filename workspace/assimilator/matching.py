@@ -116,6 +116,31 @@ def normalise_node_name(name: str, node_type: str | None = None) -> str:
     return out
 
 
+_DESCRIPTION_RE = re.compile(r"^\s*\[[^\[\]]+\]\s*$")
+
+
+def is_a_description(name: str) -> bool:
+    """Whether a value is a DESCRIPTION of somebody rather than their name.
+
+    Square brackets around the whole value are the marker (ingest-format.md,
+    "Square brackets mean 'this is a description, not a name'"): `[interviewer 2]`,
+    `[senior US intelligence officer]`, `[redacted]`. It is record-scoped - the
+    `[interviewer 2]` in one recording is not the one in another - so a description
+    must never become a node, or two unrelated people accumulate one biography.
+
+    The brackets must wrap the WHOLE value. "Sally (Budd Hopkins abductee)" and
+    "Dr. X (French physician)" are names with a qualifier attached: around twenty
+    real people in the corpus are written that way, and the qualifier is what
+    tells two Sallys apart.
+
+    >>> is_a_description("[senior US intelligence officer]")
+    True
+    >>> is_a_description("Sally (Budd Hopkins abductee)")
+    False
+    """
+    return bool(_DESCRIPTION_RE.match(name or ""))
+
+
 def strip_acronym_suffix(name: str) -> str:
     """Strip a trailing '(ACRONYM)' suffix if present.
 
@@ -568,7 +593,17 @@ def match_node(
     Returns (node_id, match_method) or None if no match found.
     match_method is one of: "exact", "alias", "acronym", "punctuation",
     "nickname", "fuzzy".
+
+    A DESCRIPTION NEVER MATCHES ANYTHING. It is record-scoped, so there is no
+    node it could correctly resolve to - and the fuzzy tier will happily find one
+    anyway: "[Anomaly Physical Evidence Group (APEG) biochemist]" matched the very
+    node "unnamed Anomaly Physical Evidence Group (APEG) biochemist" it had just
+    been written to replace, silently re-creating the refs the rewrite removed.
+    The check lives HERE rather than at each call site because refs, speakers and
+    node minting are three paths and guarding one of them is how that happened.
     """
+    if is_a_description(name):
+        return None
     # 1. Exact name match
     exact = find_node_by_name(conn, name, node_type)
     if exact:
