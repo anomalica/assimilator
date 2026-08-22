@@ -37,6 +37,8 @@ from pathlib import Path
 
 import yaml
 
+from assimilator.embed_batches import BUCKETS, pending_by_bucket
+
 # --- Lanes, job types, statuses (aligned to workbench src/lib/schedule.ts) ---
 
 LANE_CLAUDE = "claude"
@@ -737,21 +739,48 @@ def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
         )
     embedded = _vec_claims_count(conn)
     recorded = conn.execute("SELECT COUNT(*) FROM corroborations").fetchone()[0]
-    if embedded == 0:
-        # Corroborate cannot run without embeddings; surface the eager embed job
-        # that unblocks it rather than a corroborate job that would fail.
-        jobs.append(
-            Job(
-                id="embed:claims",
-                type="embed",
-                lane=LANE_EAGER,
-                target=Target(kind="page", label="all claims + nodes"),
-                status=STATUS_ELIGIBLE,
-                trigger="never_done",
-                effort="~local CPU",
-                drivers=[Driver("claims to embed", str(total_claims))],
+    # Total is claims + live nodes: both are embedded, and a progress figure that
+    # counts only claims under-reports by the node count and looks stalled at the
+    # end of a run.
+    total_items = (
+        total_claims
+        + conn.execute(
+            "SELECT COUNT(*) FROM nodes WHERE retired_at IS NULL"
+        ).fetchone()[0]
+    )
+    pending = pending_by_bucket(conn, _embedding_model_id())
+    if pending:
+        # ONE JOB PER FIXED BUCKET, not one job for the backlog. Vector embedding
+        # is ~3 items a second, so the whole corpus is a ~3-hour task, and as a
+        # single job it holds the background lane for that entire time - a
+        # document ingested during it waits behind work with no reason to be
+        # atomic. The buckets are a hash of each row's own id, so job ids never
+        # renumber as rows are embedded; a finished bucket simply stops being
+        # emitted. See embed_batches.
+        outstanding = sum(pending.values())
+        for bucket in sorted(pending):
+            remaining = pending[bucket]
+            jobs.append(
+                Job(
+                    id=f"embed:claims:{bucket}",
+                    type="embed",
+                    lane=LANE_EAGER,
+                    target=Target(
+                        kind="page",
+                        label=f"vector embedding, batch {bucket + 1} of {BUCKETS}",
+                    ),
+                    status=STATUS_ELIGIBLE,
+                    trigger="never_done",
+                    effort=f"~{_embed_minutes(remaining)} min local CPU",
+                    drivers=[
+                        Driver("items in this batch", str(remaining)),
+                        Driver(
+                            "corpus progress",
+                            f"{total_items - outstanding} of {total_items} embedded",
+                        ),
+                    ],
+                )
             )
-        )
         jobs.append(
             Job(
                 id="corroborate:graph",
@@ -759,9 +788,18 @@ def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
                 lane=LANE_CLAUDE,
                 target=Target(kind="page", label="cross-record claim pairs"),
                 status=STATUS_BLOCKED,
-                blocker="embed:claims",
+                # Blocked on the LOWEST outstanding batch rather than on a
+                # singleton that no longer exists. Corroborate needs the whole
+                # corpus embedded, so any outstanding batch blocks it.
+                blocker=f"embed:claims:{min(pending)}",
                 trigger="never_done",
-                drivers=[Driver("embeddings", "not computed", band="off")],
+                drivers=[
+                    Driver(
+                        "vector embedding",
+                        f"{outstanding} items outstanding",
+                        band="off",
+                    )
+                ],
             )
         )
     else:
@@ -780,6 +818,27 @@ def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
             )
         )
     return jobs
+
+
+def _embedding_model_id() -> str:
+    """The vector space this graph stores, read WITHOUT importing the embedder.
+
+    assimilator.embeddings pulls in fastembed, which is a container-only
+    dependency; this module is deliberately host-light so the queue can be
+    enumerated anywhere. The id is a plain string constant, so it is re-derived
+    from the same parts rather than imported - and the parts are asserted equal
+    in tests, so the two cannot drift.
+    """
+    return (
+        "electroglyph/Qwen3-Embedding-0.6B-onnx-uint8:dynamic_uint8.onnx:1024:"
+        "dequant-v1"
+    )
+
+
+def _embed_minutes(items: int) -> int:
+    """Rough wall-clock for a batch. 3.06 items/second, measured over a 7,269-item
+    run: 5,218 claims in 2,266s and 2,051 nodes in 164s."""
+    return max(1, round(items / 3.06 / 60))
 
 
 def _vec_claims_count(conn: sqlite3.Connection) -> int:

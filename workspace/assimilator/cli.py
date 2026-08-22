@@ -290,8 +290,21 @@ def show(ctx: click.Context, name: str) -> None:
     help="Re-embed rows that already have a vector in the current space.",
 )
 @click.option("--chunk", default=50, help="Rows per endpoint call and per commit.")
+@click.option(
+    "--limit",
+    default=0,
+    help="Stop after this many rows and exit 0. 0 means no limit. Resumability "
+    "does the rest - the next run picks up where this one stopped.",
+)
+@click.option(
+    "--bucket",
+    default=-1,
+    help="Embed only rows in this fixed partition (see embed_batches.BUCKETS). "
+    "-1 means every bucket. The partition is a hash of each row's own id, so a "
+    "bucket number means the same rows for the life of the corpus.",
+)
 @click.pass_context
-def embed(ctx: click.Context, force: bool, chunk: int) -> None:
+def embed(ctx: click.Context, force: bool, chunk: int, limit: int, bucket: int) -> None:
     """Embed all claims and nodes for similarity search.
 
     Prefers the embed_service endpoint, which caches every vector by text hash,
@@ -304,23 +317,43 @@ def embed(ctx: click.Context, force: bool, chunk: int) -> None:
     skipped, so re-running after a crash costs only what is left. This matters:
     the model runs one text at a time (batching is broken for this ONNX export),
     so a full corpus pass is hours, not minutes.
+
+    --limit and --bucket exist so the scheduler can queue that pass as many short
+    jobs rather than one three-hour one. A single job holds the background lane
+    for its whole duration, so a document ingested during it waits behind a task
+    with no reason to be atomic. Both are bounded slices of the same idempotent
+    work: stopping early is always safe, and nothing needs to know where the last
+    run stopped.
     """
+    from assimilator.embed_batches import BUCKETS, bucket_of
     from anomalica_common.embedding_client import EmbeddingUnavailable, embed_texts
     from assimilator.embeddings import EMBEDDING_MODEL_ID
+
+    if bucket >= BUCKETS or bucket < -1:
+        # Out of range would match no rows and print "nothing to embed", which is
+        # exactly what a FINISHED batch prints - a typo would read as success.
+        raise click.ClickException(
+            f"--bucket must be 0..{BUCKETS - 1} (or -1 for all), got {bucket}"
+        )
 
     conn = _connect(ctx.obj["db_path"])
     init_vec(conn)
 
-    done: set[str] = set()
-    if not force:
-        done = {
+    def _already_embedded(kind: str) -> set[str]:
+        """Rows of this kind already in the current space. Keyed (kind, id) as
+        embedding_model is - a bare-id set would let an embedded claim mark a
+        same-id node as done."""
+        if force:
+            return set()
+        return {
             r[0]
             for r in conn.execute(
-                "SELECT id FROM embedding_model WHERE model_id = ?",
-                (EMBEDDING_MODEL_ID,),
+                "SELECT id FROM embedding_model WHERE kind = ? AND model_id = ?",
+                (kind, EMBEDDING_MODEL_ID),
             )
         }
 
+    embedded = 0
     use_endpoint = True
     try:
         model_id, _ = embed_texts(["probe"])
@@ -336,15 +369,21 @@ def embed(ctx: click.Context, force: bool, chunk: int) -> None:
     def _vectors(texts: list[str]) -> list[list[float]]:
         return embed_texts(texts)[1] if use_endpoint else embed_batch(texts)
 
-    for label, query, store in (
-        ("claims", "SELECT id, content FROM claims", store_claim_embedding),
+    for label, kind, query, store in (
+        ("claims", "claim", "SELECT id, content FROM claims", store_claim_embedding),
         (
             "nodes",
+            "node",
             "SELECT id, name FROM nodes WHERE retired_at IS NULL",
             store_node_embedding,
         ),
     ):
+        done = _already_embedded(kind)
         rows = [r for r in conn.execute(query).fetchall() if r[0] not in done]
+        if bucket >= 0:
+            rows = [r for r in rows if bucket_of(r[0], BUCKETS) == bucket]
+        if limit > 0:
+            rows = rows[: max(0, limit - embedded)]
         if not rows:
             click.echo(f"{label}: nothing to embed.")
             continue
@@ -353,6 +392,7 @@ def embed(ctx: click.Context, force: bool, chunk: int) -> None:
             batch = rows[start : start + chunk]
             for (row_id, _), vector in zip(batch, _vectors([r[1] for r in batch])):
                 store(conn, row_id, vector)
+                embedded += 1
             conn.commit()
             click.echo(f"  {label}: {min(start + chunk, len(rows))}/{len(rows)}")
 
