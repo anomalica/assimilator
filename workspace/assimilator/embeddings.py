@@ -60,6 +60,7 @@ _embedder = None
 def _get_embedder():
     global _embedder
     if _embedder is None:
+        import inspect
         import os
 
         from fastembed import TextEmbedding
@@ -88,6 +89,27 @@ def _get_embedder():
         kwargs = {"model_name": MODEL_NAME}
         if model_path and os.path.isdir(model_path):
             kwargs["specific_model_path"] = model_path
+
+        # CAP THE THREAD POOL. ONNX Runtime defaults its intra-op pool to the
+        # machine's core count, and this box shares 20 cores with a 52-thread
+        # audio transcription: the service was measured at 451% CPU across 55
+        # threads with a load average of 41, and a POST of two short texts took
+        # 5.3 seconds - enough to blow the client's 120s timeout and fail whole
+        # batches. Inference here is serialised by a lock anyway (the pooling
+        # note below explains why batching is off), so a pool wider than a few
+        # threads buys contention rather than throughput.
+        #
+        # The number is a STARTING POINT, not a measurement: it was chosen while
+        # the box was oversubscribed, so it wants re-measuring on an idle machine
+        # before anyone treats it as tuned. Override with EMBEDDING_THREADS.
+        threads = int(os.environ.get("EMBEDDING_THREADS") or 6)
+        # Passed only if this fastembed accepts it. A TypeError here would take
+        # the endpoint down on restart, and the restart is what makes the cap
+        # live - so the version check is worth more than the brevity. The
+        # container also gets OMP_NUM_THREADS, which constrains the pool even
+        # when the kwarg is unavailable.
+        if threads > 0 and "threads" in inspect.signature(TextEmbedding).parameters:
+            kwargs["threads"] = threads
 
         _embedder = TextEmbedding(**kwargs)
     return _embedder

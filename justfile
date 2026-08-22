@@ -28,6 +28,8 @@ embed-service:
         -v "$HOME/.local/share/assimilator:/data" \
         -e PYTHONPATH=/opt/anomalica-common \
         -e ANOMALICA_TEXT_EMBEDDINGS_DB=/data/text-embeddings.db \
+        -e EMBEDDING_THREADS="${EMBEDDING_THREADS:-6}" \
+        -e OMP_NUM_THREADS="${EMBEDDING_THREADS:-6}" \
         --user "$(id -u):$(id -g)" \
         -w /home/nonroot/workspace \
         {{IMAGE}} \
