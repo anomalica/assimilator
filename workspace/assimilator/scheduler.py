@@ -846,9 +846,15 @@ def _embedding_model_id() -> str:
 
 
 def _embed_minutes(items: int) -> int:
-    """Rough wall-clock for a batch. 3.06 items/second, measured over a 7,269-item
-    run: 5,218 claims in 2,266s and 2,051 nodes in 164s."""
-    return max(1, round(items / 3.06 / 60))
+    """Rough wall-clock for a batch. 4.9 items/second.
+
+    Measured end to end over batch 0 on 2026-08-22: 1,221 items (983 claims,
+    238 nodes) in 248s from launch to exit. The earlier 3.06 figure came from a
+    run that included the in-process fastembed fallback; through the endpoint it
+    is meaningfully faster, and ~16s of that 248 was model warm-up before the
+    first commit, so a longer batch beats this rate rather than missing it.
+    """
+    return max(1, round(items / 4.9 / 60))
 
 
 def _live_embedded_claims(conn: sqlite3.Connection, model_id: str) -> int:
