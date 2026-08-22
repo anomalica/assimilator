@@ -196,3 +196,79 @@ def test_a_real_named_origin_is_left_alone():
         "SELECT origin_kind, origin FROM claims WHERE content LIKE 'Sally%'"
     ).fetchone()
     assert kind == "named"
+
+
+def test_a_described_producer_survives_its_failed_lookup():
+    """producer_id NULL already means "no author recorded" on most records. A
+    source whose author was deliberately withheld is a different thing and
+    carries different evidential weight, so the two must not collapse."""
+    import json
+    import sqlite3
+
+    from assimilator.database import init_db
+    from assimilator.import_markdown import import_extraction
+
+    parsed = _described_parsed()
+    parsed["frontmatter"]["record_producer"] = "[senior US intelligence officer]"
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    import_extraction(conn, parsed)
+
+    producer_id, metadata = conn.execute(
+        "SELECT producer_id, metadata FROM records"
+    ).fetchone()
+    assert producer_id is None, "there is no node, and none should be invented"
+    assert json.loads(metadata)["producer"] == "[senior US intelligence officer]"
+
+
+def test_a_named_producer_still_links_to_its_node():
+    import json
+    import sqlite3
+
+    from assimilator.database import init_db
+    from assimilator.import_markdown import import_extraction
+
+    parsed = _described_parsed()
+    parsed["frontmatter"]["record_producer"] = "Sally (Budd Hopkins abductee)"
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    import_extraction(conn, parsed)
+
+    producer_id, metadata = conn.execute(
+        "SELECT producer_id, metadata FROM records"
+    ).fetchone()
+    assert producer_id is not None
+    assert "producer" not in json.loads(metadata or "{}"), (
+        "a resolved producer lives in producer_id; duplicating it invites drift"
+    )
+
+
+def test_a_producer_that_stops_resolving_does_not_keep_the_old_link():
+    """producer_id was only ever set, never cleared. A record whose producer was
+    rewritten to a description kept pointing at the node the rewrite had just
+    retired - a described producer AND a producer_id into a retired row."""
+    import json
+    import sqlite3
+
+    from assimilator.database import init_db
+    from assimilator.import_markdown import import_extraction
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+
+    named = _described_parsed()
+    named["frontmatter"]["record_producer"] = "Sally (Budd Hopkins abductee)"
+    import_extraction(conn, named)
+    assert conn.execute("SELECT producer_id FROM records").fetchone()[0] is not None
+
+    bracketed = _described_parsed()
+    bracketed["frontmatter"]["record_producer"] = "[senior US intelligence officer]"
+    import_extraction(conn, bracketed)
+
+    producer_id, metadata = conn.execute(
+        "SELECT producer_id, metadata FROM records"
+    ).fetchone()
+    assert producer_id is None
+    assert json.loads(metadata)["producer"] == "[senior US intelligence officer]"

@@ -67,6 +67,21 @@ _SPELLED_DATE_MONTH_YEAR_RE = re.compile(
 )
 
 
+def _merge_record_metadata(
+    conn: sqlite3.Connection, record_id: str, extra: dict
+) -> None:
+    """Merge keys into a record's metadata JSON without disturbing the rest."""
+    row = conn.execute(
+        "SELECT metadata FROM records WHERE id = ?", (record_id,)
+    ).fetchone()
+    current = json.loads(row[0]) if row and row[0] else {}
+    current.update(extra)
+    conn.execute(
+        "UPDATE records SET metadata = ? WHERE id = ?",
+        (json.dumps(current), record_id),
+    )
+
+
 def _node_name_is_unusable(name: str) -> str | None:
     """Return a short reason string if the name should be rejected, else None."""
     if _REDACTED_RE.search(name):
@@ -681,6 +696,23 @@ def import_extraction(
             "UPDATE records SET producer_id = ? WHERE id = ?",
             (node_name_to_id[producer_name], record.id),
         )
+    elif producer_name:
+        # CLEAR THE OLD LINK. producer_id is only ever set, never cleared, so a
+        # record whose producer stopped resolving kept pointing at whatever it
+        # resolved to last time - here, the retired node the bracketed form was
+        # written to replace. The record then had both a described producer and a
+        # producer_id into a retired row.
+        conn.execute("UPDATE records SET producer_id = NULL WHERE id = ?", (record.id,))
+    if producer_name and is_a_description(producer_name):
+        # A DESCRIBED PRODUCER SURVIVES ITS FAILED LOOKUP. It resolves to no node,
+        # correctly, but dropping it would leave producer_id NULL - and NULL
+        # already means "no author recorded" on 60 of 89 records. Those are
+        # materially different: a source whose author was deliberately withheld
+        # carries different evidential weight from one whose authorship we simply
+        # never captured, and collapsing them loses that signal entirely. The
+        # bracketed string IS the representation; it needs no node, no
+        # placeholder and no extra column, only somewhere to survive.
+        _merge_record_metadata(conn, record.id, {"producer": producer_name})
 
     # Import claims from the specified section. On a re-import of an existing
     # record the record's claim set is RECONCILED, not blindly re-inserted:
