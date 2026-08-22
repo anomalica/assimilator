@@ -74,3 +74,51 @@ def pending_by_bucket(
             b = bucket_of(row_id, buckets)
             remaining[b] = remaining.get(b, 0) + 1
     return remaining
+
+
+def _load_vec(conn: sqlite3.Connection) -> None:
+    """Load sqlite-vec into this connection so the vec0 tables are addressable."""
+    import sqlite_vec
+
+    conn.enable_load_extension(True)
+    sqlite_vec.load(conn)
+    conn.enable_load_extension(False)
+
+
+def forget_embeddings(conn: sqlite3.Connection, kind: str, row_id: str) -> None:
+    """Drop a row's stamp AND its vector, so the invariant holds: a stamp exists
+    only for a live row whose CURRENT text was embedded in the current space.
+
+    Both halves matter and the vector half matters more. A stale stamp only makes
+    a coverage figure wrong - that is how 7,269 stamps read as 7,269 embedded
+    when 2,583 rows were live. A stale VECTOR sits in the search index, so
+    search_similar_claims returns ids that no longer exist, and a renamed node
+    keeps answering to its old name.
+
+    Called on delete, on retirement and after any rename. A rename costs one
+    re-embed of about a second; a similarity computed against the old name is
+    wrong for as long as nobody notices.
+    """
+    table, column = (
+        ("vec_claims", "claim_id") if kind == "claim" else ("vec_nodes", "node_id")
+    )
+    try:
+        conn.execute(
+            "DELETE FROM embedding_model WHERE kind = ? AND id = ?", (kind, row_id)
+        )
+    except sqlite3.OperationalError:
+        pass  # no embed run yet, so no stamp to drop
+
+    try:
+        conn.execute(f"DELETE FROM {table} WHERE {column} = ?", (row_id,))
+    except sqlite3.OperationalError as exc:
+        message = str(exc)
+        if "no such table" in message:
+            return
+        if "no such module" not in message:
+            raise
+        # The vec0 extension is not loaded on this connection - the importer runs
+        # host-side without it. Load it rather than skipping: skipping is what
+        # leaves an unreachable vector behind, and nothing downstream can see it.
+        _load_vec(conn)
+        conn.execute(f"DELETE FROM {table} WHERE {column} = ?", (row_id,))

@@ -32,6 +32,7 @@ from pathlib import Path
 
 import yaml
 
+from assimilator.embed_batches import forget_embeddings
 from assimilator.database import init_db
 from assimilator.matching import match_node
 
@@ -140,6 +141,12 @@ def merge_nodes(
         conn.execute(
             "UPDATE nodes SET retired_at = ? WHERE id = ?", (created_at, victim_id)
         )
+        # A retired node is not a live row, so the invariant says its stamp and
+        # vector go too. Deliberately unconditional rather than "except victims,
+        # so undo is cheaper": an invariant with an exception reads as a bug to
+        # whoever finds the exception first. undo_merge pays one re-embed per
+        # resurrected victim, which is about a second each.
+        forget_embeddings(conn, "node", victim_id)
 
         reversal = json.dumps(
             {
@@ -169,9 +176,14 @@ def merge_nodes(
         )
         merged += 1
 
-    conn.execute(
-        "UPDATE nodes SET name = ? WHERE id = ?", (canonical_name, survivor_id)
-    )
+    if canonical_name != survivor_prior_name:
+        conn.execute(
+            "UPDATE nodes SET name = ? WHERE id = ?", (canonical_name, survivor_id)
+        )
+        # The vector is of the OLD name. The stamp would still read current, so
+        # nothing would ever re-embed it and the node would answer to a name it
+        # no longer has.
+        forget_embeddings(conn, "node", survivor_id)
     conn.commit()
     return merged
 
@@ -594,6 +606,7 @@ def rename_node(
         _natural(conn, node_id), new_name, rename_id, created_at, created_by
     )
     conn.execute("UPDATE nodes SET name = ? WHERE id = ?", (new_name, node_id))
+    forget_embeddings(conn, "node", node_id)
     conn.execute(
         "INSERT OR IGNORE INTO aliases (alias, node_id) VALUES (?, ?)",
         (old_name, node_id),
@@ -619,6 +632,7 @@ def replay_renames(conn: sqlite3.Connection, on_progress=None) -> dict:
             continue
         old_name = _node(conn, nid)[0]
         conn.execute("UPDATE nodes SET name = ? WHERE id = ?", (e["new_name"], nid))
+        forget_embeddings(conn, "node", nid)
         conn.execute(
             "INSERT OR IGNORE INTO aliases (alias, node_id) VALUES (?, ?)",
             (old_name, nid),

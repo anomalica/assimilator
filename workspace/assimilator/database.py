@@ -4,6 +4,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 
+from assimilator.embed_batches import forget_embeddings
 from anomalica_common.digest.models import (
     Claim,
     ClaimRole,
@@ -435,6 +436,10 @@ def delete_claim(conn: sqlite3.Connection, claim_id: str) -> None:
         (claim_id, claim_id),
     )
     conn.execute("DELETE FROM claims WHERE id = ?", (claim_id,))
+    # Same transaction as the delete. A re-digest deletes and recreates claims, so
+    # without this the stamp and the vector outlive the claim: 4,640 orphan claim
+    # stamps had accumulated, and their vectors were still in the search index.
+    forget_embeddings(conn, "claim", claim_id)
 
 
 def update_claim_chain(
