@@ -820,3 +820,22 @@ def test_punctuation_blindness_still_separates_different_names():
     same = punctuation_blind_key
     assert same("David Fravor") != same("David Grusch")
     assert same("Apollo 14") != same("Apollo 15")
+
+
+def test_an_acronym_inside_a_person_name_is_never_expanded():
+    """ "UAP Gerb" is the handle of a real UAP researcher. The whole-word
+    substitution turned it into "Unidentified Aerial Phenomena (UAP) Gerb",
+    which reached the page gate as page-worthy with 36 claims and 8 independent
+    sources and was then read downstream as a corrupted merge of two people.
+    A name is the one field where an expansion is never a clarification."""
+    from assimilator.matching import normalise_node_name
+
+    assert normalise_node_name("UAP Gerb", "person") == "UAP Gerb"
+    assert normalise_node_name("UAP Juan", "person") == "UAP Juan"
+    # A programme acronym in a person's name is exempt too; the same string as
+    # an organisation still expands. The exemption is about what a person's name
+    # IS, not about which acronym it happens to contain.
+    assert normalise_node_name("AATIP Dave", "person") == "AATIP Dave"
+    assert normalise_node_name("AATIP Dave", "organisation") != "AATIP Dave"
+    # An untyped call keeps the old behaviour rather than silently exempting.
+    assert normalise_node_name("AATIP Dave") != "AATIP Dave"

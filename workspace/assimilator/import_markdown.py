@@ -67,6 +67,31 @@ _SPELLED_DATE_MONTH_YEAR_RE = re.compile(
 )
 
 
+_DESCRIPTION_RE = re.compile(r"^\s*\[[^\[\]]+\]\s*$")
+
+
+def is_a_description(name: str) -> bool:
+    """Whether a value is a DESCRIPTION of somebody rather than their name.
+
+    Square brackets around the whole value are the marker (ingest-format.md,
+    "Square brackets mean 'this is a description, not a name'"): `[interviewer 2]`,
+    `[senior US intelligence officer]`, `[redacted]`. It is record-scoped - the
+    `[interviewer 2]` in one recording is not the one in another - so a description
+    must never become a node, or two unrelated people accumulate one biography.
+
+    The brackets must wrap the WHOLE value. "Sally (Budd Hopkins abductee)" and
+    "Dr. X (French physician)" are names with a qualifier attached: around twenty
+    real people in the corpus are written that way, and the qualifier is what
+    tells two Sallys apart.
+
+    >>> is_a_description("[senior US intelligence officer]")
+    True
+    >>> is_a_description("Sally (Budd Hopkins abductee)")
+    False
+    """
+    return bool(_DESCRIPTION_RE.match(name or ""))
+
+
 def _node_name_is_unusable(name: str) -> str | None:
     """Return a short reason string if the name should be rejected, else None."""
     if _REDACTED_RE.search(name):
@@ -162,12 +187,20 @@ def _build_terminology_enforcers(terminology: dict | None):
 
 
 def _apply_doc_terminology(
-    name: str, codenames: set[str], expansions: dict[str, str]
+    name: str, codenames: set[str], expansions: dict[str, str], node_type: str = ""
 ) -> tuple[str, str | None]:
     """Apply per-document terminology to a node name.
 
     Returns (rewritten_name, reject_reason). reject_reason is non-None if the
     name should be rejected (e.g. matches a codename).
+
+    A PERSON IS EXEMPT FROM THE EXPANSIONS, though never from the codename
+    rejection. The document's glossary says what a term means in its prose; a
+    person's name is not a term. "UAP Gerb" is the handle of a real UAP
+    researcher, and the whole-word substitution stored it as "Unidentified
+    Aerial Phenomena (UAP) Gerb" - which reached the page gate as page-worthy
+    with 36 claims and 8 independent sources, and was read downstream as a
+    corrupted merge of two people.
     """
     if not name:
         return name, None
@@ -188,6 +221,8 @@ def _apply_doc_terminology(
     # normaliser, and matching "CSG" inside "(CSG-11)" creates nested-parens
     # nonsense.
     out = name
+    if node_type == "person":
+        return _normalise_spelled_dates(out), None
     for acro in sorted(expansions, key=len, reverse=True):
         full_form = expansions[acro]
         # Same test as the global expander, and for the same reason: an exact
@@ -436,6 +471,7 @@ def import_extraction(
         "nodes_created": 0,
         "nodes_matched": 0,
         "nodes_rejected": 0,
+        "nodes_described": 0,
         "claims_created": 0,
         "claims_carried": 0,
         "claims_deleted": 0,
@@ -456,6 +492,14 @@ def import_extraction(
     name_rewrites: dict[str, str] = {}
     usable_nodes = []
     for node_def in parsed["nodes"]:
+        # A described actor is dropped as a NODE but keeps its claims: the
+        # identity does not exist, the testimony does. Nothing further is needed
+        # for its refs - they resolve by name, so they simply find nothing, and
+        # the claim survives one ref lighter.
+        if is_a_description(node_def["name"]):
+            log(f"  Description, not a node: {node_def['name']}")
+            counts["nodes_described"] += 1
+            continue
         reason = _node_name_is_unusable(node_def["name"])
         if reason:
             log(f"  Rejected node: {node_def['name']} ({reason})")
@@ -463,11 +507,13 @@ def import_extraction(
             counts["nodes_rejected"] += 1
             continue
         original_name = node_def["name"]
-        # First the global expansions (squadron designators etc.).
-        normalised = normalise_node_name(original_name)
+        # First the global expansions (squadron designators etc.). The node type
+        # goes in because a person is exempt: an acronym inside a person's name
+        # is part of the name, not a term to expand.
+        normalised = normalise_node_name(original_name, node_def.get("type"))
         # Then the per-document codename/acronym/date enforcement.
         normalised, doc_reason = _apply_doc_terminology(
-            normalised, codenames, doc_acronyms
+            normalised, codenames, doc_acronyms, node_def.get("type") or ""
         )
         if doc_reason:
             log(f"  Rejected node: {original_name} ({doc_reason})")
@@ -720,6 +766,19 @@ def import_extraction(
                 origin=chain_def.get("origin") or "",
                 origin_ref=chain_def.get("origin_ref") or "",
                 relay=list(chain_def.get("relay") or []),
+            )
+        # A described speaker has no node to point at, so the attribution would
+        # be lost entirely - "who said it" is not recoverable from the claim text.
+        # It goes to the chain as an anonymous origin, which is the shape the
+        # corpus already uses for an unnamed source and which independence
+        # already collapses to a single root (ADR 0039): one anonymous officer is
+        # one source, not one per claim.
+        if speaker_name and is_a_description(speaker_name):
+            chain = ProvenanceChain(
+                origin_kind="anonymous",
+                origin=speaker_name,
+                origin_ref=chain.origin_ref if chain else "",
+                relay=list(chain.relay) if chain else [],
             )
         claim = Claim(
             id=claim_def["id"],

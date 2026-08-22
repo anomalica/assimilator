@@ -59,13 +59,21 @@ def _expand_squadron(match: "re.Match[str]") -> str:
     return f"{full} {number} ({prefix}-{number})"
 
 
-def normalise_node_name(name: str) -> str:
+def normalise_node_name(name: str, node_type: str | None = None) -> str:
     """Apply deterministic acronym expansions the extraction model misses.
 
-    Conservative: only rewrites a bare prefix-number squadron designator OR a
-    bare programme acronym from the known list. Names that already include the
-    expanded form ("Strike Fighter Squadron 41 (VFA-41)") are left untouched
-    because the regex matches the bare form and would produce duplicates.
+    NEVER APPLIED TO A PERSON. These expansions name programmes and units, and a
+    person's name is neither - but the substitution is whole-word and positional,
+    so it fires on any name that happens to contain one. "UAP Gerb" is the handle
+    of a real UAP researcher; it was stored as "Unidentified Aerial Phenomena
+    (UAP) Gerb", reached the page gate as page-worthy with 36 claims and 8
+    independent sources, and was read downstream as a corrupted merge of two
+    people. A name is the one field where an expansion is never a clarification.
+
+    Otherwise conservative: it rewrites a prefix-number squadron designator or a
+    programme acronym from the known list. Names that already carry a trailing
+    "(ACRO)" are left alone, whatever wording precedes it, because that tail is
+    the evidence the model already expanded it.
 
     >>> normalise_node_name("VFA-41")
     'Strike Fighter Squadron 41 (VFA-41)'
@@ -73,7 +81,11 @@ def normalise_node_name(name: str) -> str:
     'Carrier Strike Group 11 (CSG-11) AAV MISREP November 2004'
     >>> normalise_node_name("Strike Fighter Squadron 41 (VFA-41)")
     'Strike Fighter Squadron 41 (VFA-41)'
+    >>> normalise_node_name("UAP Gerb", "person")
+    'UAP Gerb'
     """
+    if node_type == "person":
+        return name
     # Skip names that already contain the expanded form - the existing parens
     # acronym tail means the model did the work.
     #
