@@ -238,3 +238,64 @@ def test_bucket_embeds_exactly_its_own_partition(graph_file):
     CliRunner().invoke(main, ["--db", str(graph_file), "embed", "--bucket", "3"])
 
     assert set(_embedded_ids(graph_file)) == expected
+
+
+def test_the_job_carries_its_command_rather_than_implying_it(tmp_path):
+    """A runner deriving `--bucket 7` from the id "embed:claims:7" puts the same
+    assumption in two repos, and only one of them gets updated."""
+    from assimilator import scheduler
+
+    conn = sqlite3.connect(":memory:")
+    _seed(conn)
+    jobs = [j for j in scheduler.enumerate_graph_jobs(conn) if j.type == "embed"]
+
+    assert jobs
+    for job in jobs:
+        bucket = job.id.rsplit(":", 1)[1]
+        assert job.command == ["embed", "--bucket", bucket]
+        assert job.to_dict()["command"] == ["embed", "--bucket", bucket]
+
+
+def test_coverage_joins_the_corpus_instead_of_counting_stamps(tmp_path):
+    """Claim ids do not survive a re-digest, so embedding_model keeps vectors for
+    claims that are gone. Counting its rows read 18% coverage on the live graph
+    where the real figure was 6%, and that number reached operator-facing copy."""
+    from assimilator.scheduler import _embedding_model_id, _live_embedded_claims
+
+    conn = sqlite3.connect(":memory:")
+    _seed(conn)
+    model = _embedding_model_id()
+    conn.executemany(
+        "INSERT INTO embedding_model VALUES ('claim', ?, ?, 'T')",
+        [("c0", model), ("c1", model), ("gone-in-a-re-digest", model)],
+    )
+    conn.commit()
+
+    assert _live_embedded_claims(conn, model) == 2
+
+
+def _seed(conn: sqlite3.Connection) -> None:
+    """A real graph - enumerate_graph_jobs runs the page gate, which needs the
+    whole schema, not a claims table."""
+    from anomalica_common.digest.models import Claim, Record
+
+    from assimilator.database import init_db, insert_claim, insert_record
+
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R1", content_hash="sha256:aa"))
+    for i in range(200):
+        insert_claim(
+            conn,
+            Claim(
+                id=f"c{i}",
+                content=f"claim {i}",
+                claim_type="testimony",
+                record_id="r1",
+            ),
+        )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS embedding_model (kind TEXT NOT NULL,"
+        " id TEXT NOT NULL, model_id TEXT NOT NULL, embedded_at TEXT NOT NULL,"
+        " PRIMARY KEY (kind, id))"
+    )
+    conn.commit()
