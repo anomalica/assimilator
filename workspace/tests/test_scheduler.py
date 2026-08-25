@@ -455,3 +455,39 @@ def test_the_scheduler_reads_the_same_vector_space_as_the_embedder():
     from assimilator.scheduler import _embedding_model_id
 
     assert _embedding_model_id() == EMBEDDING_MODEL_ID
+
+
+def test_a_model_comparison_variant_is_not_an_importable_digest(tmp_path):
+    """digests/variants/ holds what each model emitted for a record. They carry a
+    record.content_hash like any digest, so a recursive scan indexes them as
+    importable - and five import jobs were emitted for records whose only
+    artefact was a variant. The job can never succeed: the importer wants the
+    canonical digest, and there is not one."""
+    import yaml as _yaml
+
+    digests = tmp_path / "digests"
+    (digests / "variants" / "some-record").mkdir(parents=True)
+    doc = {
+        "schema": "anomalica/digest/1",
+        "record": {
+            "id": "r-variant",
+            "title": "V",
+            "content_hash": "sha256:" + "c" * 64,
+        },
+    }
+    (digests / "variants" / "some-record" / "opus.yaml").write_text(
+        _yaml.safe_dump(doc)
+    )
+
+    canonical = dict(doc)
+    canonical["record"] = {
+        **doc["record"],
+        "id": "r-canonical",
+        "content_hash": "sha256:" + "d" * 64,
+    }
+    (digests / "real.yaml").write_text(_yaml.safe_dump(canonical))
+
+    index = scheduler._digest_index(digests)
+
+    assert "d" * 64 in index, "the canonical digest must be indexed"
+    assert "c" * 64 not in index, "a variant must never be offered as an import"

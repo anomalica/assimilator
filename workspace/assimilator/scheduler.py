@@ -37,6 +37,8 @@ from pathlib import Path
 
 import yaml
 
+from assimilator.digest_files import canonical_digests
+
 from assimilator.embed_batches import BUCKETS, pending_by_bucket
 
 # --- Lanes, job types, statuses (aligned to workbench src/lib/schedule.ts) ---
@@ -266,18 +268,20 @@ def _digest_index(digests_dir: Path) -> dict[str, dict]:
     is the digest-freshness key (a digest is current only while it equals the
     record's current body version); title labels the import/digest jobs.
     """
-    # Canonical digests sit at the root of digests/; the variants/ subtree is
-    # deliberately not scanned. The previous records/ subdirectory is gone, and
-    # with it the trap of passing either level and getting an empty index rather
-    # than an error.
-    records = digests_dir
+    # VARIANTS ARE EXCLUDED BY canonical_digests, NOT BY THIS COMMENT. The
+    # previous version said the variants/ subtree was "deliberately not scanned"
+    # and then scanned it with rglob, so every model-comparison snapshot entered
+    # the index as though it were an importable digest. Five import jobs were
+    # emitted for records whose only artefact is a variant - work that can never
+    # succeed, because pick_top_import_job wants a canonical digest.
+    #
+    # Recursive on purpose: a slash in a record title nests the digest in a
+    # subdirectory, and a flat scan would miss it and re-dispatch forever.
+    # canonical_digests globs **/*.yaml and drops anything under variants/.
     out: dict[str, dict] = {}
-    if not records.is_dir():
+    if not digests_dir.is_dir():
         return out
-    # rglob, not glob: a slash in a record title nests the digest in a
-    # subdirectory; a non-recursive scan would miss it and re-dispatch the job
-    # forever. Defence-in-depth alongside the flat-path keying upstream.
-    for y in records.rglob("*.yaml"):
+    for y in canonical_digests(digests_dir):
         try:
             data = yaml.safe_load(y.read_text())
         except (OSError, yaml.YAMLError):
