@@ -35,8 +35,13 @@ from anomalica_common.digest.models import Claim, Node, ProvenanceChain, Record
 # - trailing "(person)" / "(organisation)" / "(document)" / "(matter)" / etc.
 #   (type-in-parens artefact - the model misread the acronym-parens rule)
 _REDACTED_RE = re.compile(r"\([Rr][Ee][Dd][Aa][Cc][Tt][Ee][Dd]\)")
+# `topic` and `project` were missing from this list, so "Levitation (topic)" and
+# "Blue Book (project)" passed a rule written to catch exactly them - the same
+# half-closed shape as the leading form having no rule at all. Nothing in the live
+# corpus carries either suffix, so adding them rejects nothing that exists today.
 _TYPE_SUFFIX_RE = re.compile(
-    r"\s*\((person|organisation|place|event|matter|object|document|concept|record)\)\s*$",
+    r"\s*\((person|organisation|place|event|matter|object|document|concept|record"
+    r"|topic|project)\)\s*$",
     re.IGNORECASE,
 )
 
@@ -80,6 +85,36 @@ def _merge_record_metadata(
         "UPDATE records SET metadata = ? WHERE id = ?",
         (json.dumps(current), record_id),
     )
+
+
+_TYPE_PREFIX_RE = re.compile(
+    r"^(person|organisation|project|place|event|object|document|topic|concept|matter)"
+    r"\s*:\s*",
+    re.IGNORECASE,
+)
+
+
+def strip_type_prefix(name: str) -> str:
+    """Remove a leading "topic: " / "object: " written into the name itself.
+
+    The type belongs in the type field. The model occasionally writes it into the
+    name as well, and the result is a node - and a page title - reading
+    "topic: telepathy". 185 of them had accumulated, one at 31 references.
+
+    Stripped rather than rejected, because the name after the prefix is correct:
+    rejecting would drop the node and its claims for a cosmetic fault. Note the
+    trailing form is REJECTED instead ("Foo (topic)" via _TYPE_SUFFIX_RE) because
+    that one marks a model that misread the acronym-parens rule, which is a
+    different failure. This gap existed because only the trailing form had a rule.
+
+    >>> strip_type_prefix("topic: levitation")
+    'levitation'
+    >>> strip_type_prefix("Project Blue Book")
+    'Project Blue Book'
+    >>> strip_type_prefix("Person: A Study")
+    'A Study'
+    """
+    return _TYPE_PREFIX_RE.sub("", name).strip() or name
 
 
 def _node_name_is_unusable(name: str) -> str | None:
@@ -500,7 +535,8 @@ def import_extraction(
         # First the global expansions (squadron designators etc.). The node type
         # goes in because a person is exempt: an acronym inside a person's name
         # is part of the name, not a term to expand.
-        normalised = normalise_node_name(original_name, node_def.get("type"))
+        normalised = strip_type_prefix(original_name)
+        normalised = normalise_node_name(normalised, node_def.get("type"))
         # Then the per-document codename/acronym/date enforcement.
         normalised, doc_reason = _apply_doc_terminology(
             normalised, codenames, doc_acronyms, node_def.get("type") or ""

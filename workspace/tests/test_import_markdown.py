@@ -272,3 +272,32 @@ def test_a_producer_that_stops_resolving_does_not_keep_the_old_link():
     ).fetchone()
     assert producer_id is None
     assert json.loads(metadata)["producer"] == "[senior US intelligence officer]"
+
+
+def test_a_type_written_into_the_name_is_stripped_not_rejected():
+    """The type belongs in the type field. 185 nodes had accumulated with it in
+    the name too - "topic: telepathy", "object: Baalbek" - one at 31 references
+    and every one of them a page title. Stripped rather than rejected, because
+    the name after the prefix is correct and rejecting drops the claims with it."""
+    from assimilator.import_markdown import strip_type_prefix
+
+    assert strip_type_prefix("topic: levitation") == "levitation"
+    assert strip_type_prefix("object: Baalbek") == "Baalbek"
+    assert strip_type_prefix("Topic:  ectoplasm ") == "ectoplasm"
+    # A name that merely starts with a type WORD is untouched - only the colon
+    # form is the artefact.
+    assert strip_type_prefix("Project Blue Book") == "Project Blue Book"
+    assert strip_type_prefix("Document 47") == "Document 47"
+    # And a name that is nothing but the prefix keeps its original text rather
+    # than becoming empty.
+    assert strip_type_prefix("topic:") == "topic:"
+
+
+def test_the_trailing_form_is_still_rejected_not_stripped():
+    """The two forms mean different things. A leading "topic: " is the type
+    duplicated into the name; a trailing "(topic)" marks a model that misread the
+    acronym-parens rule, which is a defect in the whole node."""
+    from assimilator.import_markdown import _node_name_is_unusable, strip_type_prefix
+
+    assert _node_name_is_unusable("Levitation (topic)") is not None
+    assert strip_type_prefix("Levitation (topic)") == "Levitation (topic)"
