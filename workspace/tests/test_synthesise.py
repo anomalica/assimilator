@@ -62,3 +62,75 @@ def test_prune_never_deletes_an_unreadable_brief(tmp_path):
     bad.write_text("{{{ not yaml")
     assert synthesise.prune_retired_briefs(conn, tmp_path, slug_map={}) == []
     assert bad.exists()
+
+
+def _row(claim_id, attestation=None, speaker=None, work="w1"):
+    """A claim row shaped like the synthesise query's SELECT."""
+    row = [None] * 21
+    row[0] = claim_id
+    row[4] = attestation
+    row[9] = speaker
+    row[-1] = work
+    return tuple(row)
+
+
+def test_importance_ranks_corroborated_over_first_hand_over_nothing():
+    """Only signals that are populated are used. `confidence` is 1.0 on all
+    31,066 claims and `claim_role` is null on all of them, so ranking by either
+    would be ranking by a constant."""
+    from assimilator.synthesise import _importance
+
+    corroborated = {"c-corr"}
+    def key(r):
+        return _importance(r, "n1", corroborated)
+
+    assert key(_row("c-corr")) > key(_row("c1", "first_hand"))
+    assert key(_row("c1", "first_hand")) > key(_row("c2", "second_hand"))
+    assert key(_row("c2", "second_hand")) > key(_row("c3", "third_hand"))
+    assert key(_row("c3", "third_hand")) > key(_row("c4", None))
+    # A claim the node itself SPOKE outranks one that merely mentions it.
+    assert key(_row("c5", "first_hand", speaker="n1")) > key(_row("c6", "first_hand"))
+
+
+def test_the_cap_keeps_the_best_claims_not_the_earliest():
+    """Document order is right for one record read in sequence and meaningless
+    for a person drawn from twenty sources, where it hands the budget to whatever
+    each transcript happened to open with."""
+    from assimilator.synthesise import _importance, _spread_across_sources
+
+    rows = [_row("weak-%d" % i) for i in range(5)] + [
+        _row("strong-0", "first_hand"),
+        _row("strong-1", "first_hand"),
+    ]
+    corroborated = set()
+
+    kept = _spread_across_sources(
+        rows, 2, importance=lambda r: _importance(r, "n1", corroborated)
+    )
+
+    assert {r[0] for r in kept} == {"strong-0", "strong-1"}
+
+
+def test_selection_changes_but_the_brief_still_reads_in_document_order():
+    """The importance key decides WHICH claims survive; the order they are
+    emitted in is unchanged, because brief_hash is computed over that sequence
+    and the article has to read as a narrative."""
+    from assimilator.synthesise import _importance, _spread_across_sources
+
+    rows = [
+        _row("first", "first_hand"),
+        _row("middle", None),
+        _row("last", "first_hand"),
+    ]
+    kept = _spread_across_sources(
+        rows, 2, importance=lambda r: _importance(r, "n1", set())
+    )
+
+    assert [r[0] for r in kept] == ["first", "last"], "document order, not rank order"
+
+
+def test_without_an_importance_key_the_behaviour_is_unchanged():
+    from assimilator.synthesise import _spread_across_sources
+
+    rows = [_row("a"), _row("b"), _row("c")]
+    assert [r[0] for r in _spread_across_sources(rows, 2)] == ["a", "b"]

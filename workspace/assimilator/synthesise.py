@@ -42,7 +42,21 @@ SCHEMA = "anomalica/brief/1"
 # source is still chronological, pending evidence-scoring;
 # claim_count vs claim_count_total on the page makes any truncation explicit, not
 # silent. Tunable via ANOMALICA_BRIEF_MAX_CLAIMS.
-MAX_CLAIMS = int(os.environ.get("ANOMALICA_BRIEF_MAX_CLAIMS", "200"))
+#
+# 200 WAS NOT A PROMPT-SIZE CONSTRAINT, though it was believed to be one. The
+# largest node in the corpus is 1,422 claims, roughly 248k tokens as structured
+# YAML, and every model in the pipeline except Haiku has a 1M context. Measured
+# at 200: of 690 proposed nodes only 28 exceed the cap, but they are the biggest
+# pages, and 30% of every claim-reference on a proposed node was being discarded
+# (29,738 available, 20,813 kept). Whitley Strieber kept 14% of his evidence.
+#
+# 600 is chosen rather than "no cap": the assembler measured generation time
+# tracking SOURCE count rather than prompt length (5 sources ~4 min, 12 sources
+# over 21 min from a SMALLER prompt), so length is the cheap axis - but that is
+# n=1 each side, and an unbounded brief is an unbounded failure when it is wrong.
+# At 600 only six nodes truncate at all, and what they lose is now the weakest
+# material rather than whatever the transcript happened to say last.
+MAX_CLAIMS = int(os.environ.get("ANOMALICA_BRIEF_MAX_CLAIMS", "600"))
 
 # Per-node-type ceiling on how many SOURCES contribute to a brief. Absent means
 # unlimited: spread across everything, which is right for a person, where breadth
@@ -63,11 +77,56 @@ MAX_SOURCES: dict[str, int] = {
 MIN_SOURCE_CLAIMS = 5
 
 
+# Column offsets into the claim rows selected below, named because the tuple is
+# long and an importance key that silently reads the wrong field would rank on
+# nonsense while looking like it worked.
+_COL_ID = 0
+_COL_ATTESTATION = 4
+_COL_SPEAKER_ID = 9
+
+# Attestation ranked by evidential weight. Measured across the corpus: first_hand
+# 16,794, second_hand 6,479, third_hand 431, absent 7,362 - so this discriminates
+# on 76% of claims. `confidence` and `claim_role` are NOT used: both exist on the
+# schema and neither is populated (confidence is 1.0 on all 31,066 claims,
+# claim_role is null on all of them), so ranking by either would be ranking by a
+# constant.
+_ATTESTATION_RANK = {"first_hand": 3, "second_hand": 2, "third_hand": 1}
+
+
+def _importance(row, node_id: str, corroborated: set[str]) -> tuple:
+    """Sort key for WHICH claims survive the cap. Higher is kept.
+
+    Document position is the wrong criterion once a node draws on twenty sources:
+    you get whatever each transcript happened to open with. This ranks by what
+    makes a claim worth the space instead.
+
+    Only signals that are actually populated are used, and the ordering within a
+    tier stays the caller's document order, so this changes what is DISCARDED
+    rather than what the brief reads like.
+    """
+    return (
+        1 if row[_COL_ID] in corroborated else 0,
+        1 if row[_COL_SPEAKER_ID] == node_id else 0,
+        _ATTESTATION_RANK.get(row[_COL_ATTESTATION], 0),
+    )
+
+
+def _corroborated_claim_ids(conn: sqlite3.Connection) -> set[str]:
+    """Claims confirmed against another source. Rare - 53 of 31,066 today - but
+    the strongest single signal that a claim is load-bearing, so it sorts first."""
+    try:
+        rows = conn.execute("SELECT claim_a, claim_b FROM corroborations").fetchall()
+    except sqlite3.OperationalError:
+        return set()
+    return {c for pair in rows for c in pair if c}
+
+
 def _spread_across_sources(
     rows: list,
     cap: int,
     max_sources: int | None = None,
     focus: dict | None = None,
+    importance=None,
 ) -> list:
     """Fill the cap ROUND-ROBIN across sources, not chronologically.
 
@@ -124,6 +183,16 @@ def _spread_across_sources(
         queues = [by_first_index[q[0]] for q in sorted(keep, key=lambda q: q[0])]
     if sum(len(q) for q in queues) <= cap:
         return [rows[i] for i in sorted(i for q in queues for i in q)]
+
+    if importance is not None:
+        # Order each source's queue by importance so the round-robin takes that
+        # source's BEST claims first. The final `sorted(chosen)` still returns
+        # everything in document order, so this changes which claims survive the
+        # cap and not how the brief reads.
+        queues = [
+            sorted(q, key=lambda i: (importance(rows[i]), -i), reverse=True)
+            for q in queues
+        ]
 
     chosen: list[int] = []
     while len(chosen) < cap and any(queues):
@@ -339,7 +408,14 @@ def build_entity_brief(
     ordered_pairs: list[tuple[str, str]] = []
     max_sources = MAX_SOURCES.get(node_type)
     focus = _source_focus(conn, node_id) if max_sources else None
-    for row in _spread_across_sources(rows, MAX_CLAIMS, max_sources, focus):
+    corroborated = _corroborated_claim_ids(conn)
+    for row in _spread_across_sources(
+        rows,
+        MAX_CLAIMS,
+        max_sources,
+        focus,
+        importance=lambda r: _importance(r, node_id, corroborated),
+    ):
         (
             cid,
             content,
