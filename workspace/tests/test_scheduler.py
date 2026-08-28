@@ -491,3 +491,59 @@ def test_a_model_comparison_variant_is_not_an_importable_digest(tmp_path):
 
     assert "d" * 64 in index, "the canonical digest must be indexed"
     assert "c" * 64 not in index, "a variant must never be offered as an import"
+
+
+def test_the_digest_index_reads_only_the_record_header(tmp_path):
+    """A digest runs to 14,000 lines and 1,800 claims; the index wants four
+    header fields. Parsing every file in full cost 54 seconds of every queue
+    rebuild - on its own enough to push the rebuild past the runner's 180s
+    timeout, so the queue never refreshed and other components' work stayed
+    invisible."""
+    import yaml as _yaml
+
+    digests = tmp_path / "digests"
+    digests.mkdir()
+    doc = {
+        "schema": "anomalica/digest/1",
+        "record": {
+            "id": "r1",
+            "title": "A Record",
+            "content_hash": "sha256:" + "e" * 64,
+            "processing_version": "abc123",
+        },
+        "nodes": [
+            {"id": f"n{i}", "type": "person", "name": f"P{i}"} for i in range(400)
+        ],
+    }
+    (digests / "big.yaml").write_text(_yaml.safe_dump(doc, sort_keys=False))
+
+    index = scheduler._digest_index(digests)
+
+    assert index["e" * 64] == {
+        "version": "abc123",
+        "title": "A Record",
+        "record_id": "r1",
+    }
+
+
+def test_a_digest_with_the_record_block_out_of_order_still_resolves(tmp_path):
+    """The fast path stops at the next top-level key, so a file that puts record
+    somewhere unexpected must fall back to a full parse rather than silently
+    vanish from the index. Being slow beats being wrong about which digests
+    exist."""
+    digests = tmp_path / "digests"
+    digests.mkdir()
+    (digests / "odd.yaml").write_text(
+        "schema: anomalica/digest/1\n"
+        "nodes:\n"
+        "  - id: n1\n"
+        "    name: Someone\n"
+        "record:\n"
+        "  id: r2\n"
+        "  title: Out Of Order\n"
+        "  content_hash: sha256:" + "f" * 64 + "\n"
+    )
+
+    index = scheduler._digest_index(digests)
+
+    assert index["f" * 64]["record_id"] == "r2"

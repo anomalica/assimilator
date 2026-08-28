@@ -282,11 +282,7 @@ def _digest_index(digests_dir: Path) -> dict[str, dict]:
     if not digests_dir.is_dir():
         return out
     for y in canonical_digests(digests_dir):
-        try:
-            data = yaml.safe_load(y.read_text())
-        except (OSError, yaml.YAMLError):
-            continue
-        rec = (data or {}).get("record") or {}
+        rec = _digest_record_header(y)
         ch = _bare_hash(rec.get("content_hash"))
         if len(ch) == 64:
             out[ch] = {
@@ -295,6 +291,54 @@ def _digest_index(digests_dir: Path) -> dict[str, dict]:
                 "record_id": rec.get("id"),
             }
     return out
+
+
+def _digest_record_header(path: Path) -> dict:
+    """The `record:` block of a digest, without parsing the whole file.
+
+    Four fields are wanted from a document that runs to 14,000 lines and 1,800
+    claims, and yaml.safe_load on the whole corpus cost 54 seconds of every queue
+    rebuild - enough on its own to push the rebuild past the runner's 180-second
+    timeout, so the queue never refreshed and work added by other components
+    stayed invisible.
+
+    The record block sits in the header by the format's fixed key order, so the
+    scan stops at the next top-level key after it. Falls back to a full parse if
+    the block is not found where the format says it is, because being slow beats
+    being wrong about which digests exist.
+    """
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return {}
+
+    block: list[str] = []
+    inside = False
+    for line in lines:
+        if not line[:1].isspace() and line.strip():
+            if inside:
+                break  # the next top-level key ends the record block
+            inside = line.startswith("record:")
+            if inside:
+                block.append(line)
+            continue
+        if inside:
+            block.append(line)
+
+    if block:
+        try:
+            parsed = yaml.safe_load("\n".join(block)) or {}
+            rec = parsed.get("record")
+            if isinstance(rec, dict):
+                return rec
+        except yaml.YAMLError:
+            pass
+
+    try:  # not where the format says it should be - pay for the full parse
+        data = yaml.safe_load(path.read_text()) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+    return (data or {}).get("record") or {}
 
 
 def _graph_record_ids(conn: sqlite3.Connection) -> set[str]:
