@@ -1520,5 +1520,72 @@ def publish_briefs_cmd(
         click.echo(f"   {k:22} {v}")
 
 
+@main.command("brief-staleness")
+@click.option(
+    "--briefs", default=None, help="Briefs dir (default: ANOMALICA_BRIEFS_DIR)."
+)
+@click.option(
+    "--out",
+    default=None,
+    help="Manifest path (default: content/briefs/staleness.json).",
+)
+@click.option("--top", default=10, help="How many of the most-drifted pages to print.")
+@click.pass_context
+def brief_staleness_cmd(
+    ctx: click.Context, briefs: str | None, out: str | None, top: int
+) -> None:
+    """Per-page drift between each brief and the graph it was built from.
+
+    Every brief freezes the claim ids and hashes it used, so "this page is 12%
+    behind its sources" is a real number we already had and were not showing.
+
+    Written as ONE timestamped manifest rather than a field in each brief: the
+    figure decays the moment it is written, so 752 copies would be 752
+    assertions going wrong at different rates, correctable only by rewriting all
+    of them. One snapshot says when it was taken and cannot disagree with itself.
+    """
+    from assimilator.brief_staleness import staleness_manifest, write_manifest
+    from assimilator.synthesise import default_briefs_dir
+
+    conn = _connect(ctx.obj["db_path"])
+    briefs_dir = Path(briefs) if briefs else default_briefs_dir()
+    out_path = (
+        Path(out)
+        if out
+        else Path.home() / "repos/anomalica/content/briefs/staleness.json"
+    )
+
+    manifest = staleness_manifest(conn, briefs_dir)
+    write_manifest(manifest, out_path)
+    pages = manifest["pages"]
+    click.echo(f"Wrote {out_path} - {len(pages)} pages measured")
+    if manifest["not_measurable"]:
+        click.echo(
+            f"  {manifest['not_measurable']} briefs have no node and were skipped"
+        )
+    if not pages:
+        return
+    superseded = {k: v for k, v in pages.items() if v.get("node_state") != "live"}
+    if superseded:
+        click.echo(
+            f"  {len(superseded)} briefs point at a node that was merged away or "
+            "removed - superseded, not stale; their material is on the survivor's page"
+        )
+    live = {k: v for k, v in pages.items() if v.get("node_state") == "live"}
+    drifted = sorted(live.items(), key=lambda kv: -kv[1]["pct"])
+    pages = live or pages
+    fresh = sum(1 for _, v in pages.items() if v["pct"] == 0)
+    click.echo(
+        f"  {fresh} pages exactly current; median drift "
+        f"{sorted(v['pct'] for v in pages.values())[len(pages) // 2]:.1f}%"
+    )
+    click.echo("  most drifted:")
+    for slug, v in drifted[:top]:
+        click.echo(
+            f"    {v['pct']:5.1f}%  {slug[:46]:48} "
+            f"+{v['added']} new, {v['changed']} changed, {v['gone']} gone"
+        )
+
+
 if __name__ == "__main__":
     main()
