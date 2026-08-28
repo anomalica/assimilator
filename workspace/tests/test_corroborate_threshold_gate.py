@@ -60,3 +60,83 @@ def test_threshold_is_still_required_alongside_limit(tmp_path):
 
     assert result.exit_code != 0
     assert "--threshold is required" in result.output
+
+
+def test_a_rejected_pair_is_recorded_so_it_is_not_bought_twice():
+    """The verdict cost a model call. 26 of the first 86 candidate pairs were
+    rejected, and nothing recorded them - so every later run over the same corpus
+    re-verifies and re-pays for the same 26 verdicts, forever, and an automated
+    lane would do it on every pass."""
+    import sqlite3
+
+    from assimilator.database import (
+        adjudicated_pairs,
+        init_db,
+        insert_corroboration_rejection,
+    )
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_corroboration_rejection(conn, "c1", "c2", 0.93, "sonnet")
+    conn.commit()
+
+    decided = adjudicated_pairs(conn)
+    assert ("c1", "c2") in decided
+    assert ("c2", "c1") in decided, "order must not matter - the pair is the unit"
+
+    # Stored canonically, as insert_corroboration does: otherwise (a,b) and (b,a)
+    # are two rows, the primary key is decorative, and the pair is bought twice.
+    insert_corroboration_rejection(conn, "c2", "c1", 0.93, "sonnet")
+    conn.commit()
+    assert (
+        conn.execute("SELECT COUNT(*) FROM corroboration_rejections").fetchone()[0] == 1
+    )
+
+
+def test_rejections_are_kept_out_of_the_corroborations_table():
+    """Consumers read that table as 'pairs that corroborate' - scoring,
+    synthesise and the scheduler's count all do. A verdict column would make
+    every one of them wrong by default."""
+    import sqlite3
+
+    from assimilator.database import init_db, insert_corroboration_rejection
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_corroboration_rejection(conn, "c1", "c2", 0.93, "sonnet")
+    conn.commit()
+
+    assert conn.execute("SELECT COUNT(*) FROM corroborations").fetchone()[0] == 0
+    assert (
+        conn.execute("SELECT COUNT(*) FROM corroboration_rejections").fetchone()[0] == 1
+    )
+
+
+def test_adjudicated_pairs_covers_both_verdicts():
+    import sqlite3
+
+    from assimilator.database import (
+        adjudicated_pairs,
+        init_db,
+        insert_corroboration,
+        insert_corroboration_rejection,
+    )
+
+    from anomalica_common.digest.models import Claim, Record
+
+    from assimilator.database import insert_claim, insert_record
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="rec", title="R", content_hash="sha256:aa"))
+    for cid in ("a1", "a2"):
+        insert_claim(
+            conn, Claim(id=cid, content=cid, claim_type="testimony", record_id="rec")
+        )
+    insert_corroboration(conn, "a1", "a2", 0.95)
+    insert_corroboration_rejection(conn, "r1", "r2", 0.91, "sonnet")
+    conn.commit()
+
+    decided = adjudicated_pairs(conn)
+    assert {("a1", "a2"), ("r1", "r2")} <= decided
+    assert ("x1", "x2") not in decided

@@ -99,6 +99,23 @@ CREATE TABLE IF NOT EXISTS corroborations (
     PRIMARY KEY (claim_a, claim_b)
 );
 
+-- A pair the model ADJUDICATED AND REJECTED. Without this a rejection is invisible
+-- and every subsequent run re-verifies it and re-pays for it: 26 of the first 86
+-- pairs were rejected, so an automated lane would re-buy the same 26 verdicts on
+-- every pass forever. Mirrors node_rejections, which exists for the same reason.
+--
+-- Kept OUT of the corroborations table deliberately: consumers read that table as
+-- "pairs that corroborate" (scoring, synthesise, the scheduler's count), and a
+-- verdict column would make every one of them wrong by default.
+CREATE TABLE IF NOT EXISTS corroboration_rejections (
+    claim_a TEXT NOT NULL,
+    claim_b TEXT NOT NULL,
+    similarity REAL NOT NULL,
+    model TEXT,
+    rejected_at TEXT NOT NULL,
+    PRIMARY KEY (claim_a, claim_b)
+);
+
 -- Node-merge curation log. DERIVED: re-populated from the durable curation
 -- ledger on every rebuild+replay; the workbench reads it read-only for its
 -- merged-groups + undo surface. `reversal` is the apply-time data needed to undo
@@ -668,3 +685,40 @@ def _row_to_chain(row: tuple) -> ProvenanceChain | None:
         origin=row[16] or "",
         relay=json.loads(row[17]) if len(row) > 17 and row[17] else [],
     )
+
+
+def insert_corroboration_rejection(
+    conn: sqlite3.Connection,
+    claim_a: str,
+    claim_b: str,
+    similarity: float,
+    model: str | None = None,
+) -> None:
+    """Record that a candidate pair was adjudicated and found NOT to corroborate.
+
+    The verdict cost a model call; not storing it means buying it again on every
+    later run over the same corpus."""
+    # Sorted, exactly as insert_corroboration does. The pair is the unit, not the
+    # order, and an unsorted insert would let (a,b) and (b,a) both be stored -
+    # making the primary key decorative and the pair bought twice anyway, which is
+    # the whole thing this table exists to prevent.
+    a, b = sorted([claim_a, claim_b])
+    conn.execute(
+        "INSERT OR REPLACE INTO corroboration_rejections "
+        "(claim_a, claim_b, similarity, model, rejected_at) VALUES (?, ?, ?, ?, ?)",
+        (a, b, similarity, model, _now()),
+    )
+
+
+def adjudicated_pairs(conn: sqlite3.Connection) -> set[tuple[str, str]]:
+    """Every pair already decided, accepted or rejected - the set a new run skips."""
+    pairs: set[tuple[str, str]] = set()
+    for table in ("corroborations", "corroboration_rejections"):
+        try:
+            rows = conn.execute(f"SELECT claim_a, claim_b FROM {table}").fetchall()
+        except sqlite3.OperationalError:
+            continue
+        for a, b in rows:
+            pairs.add((a, b))
+            pairs.add((b, a))
+    return pairs

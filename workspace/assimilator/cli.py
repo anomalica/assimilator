@@ -570,7 +570,11 @@ def corroborate(
     number of Claude calls without losing genuine corroborations.
     """
     from anomalica_common.llm import _call, _parse_json, resolve_use_api
-    from assimilator.database import insert_corroboration
+    from assimilator.database import (
+        adjudicated_pairs,
+        insert_corroboration,
+        insert_corroboration_rejection,
+    )
     from assimilator.embeddings import deserialise_f32, search_similar_claims
 
     if threshold is None:
@@ -637,6 +641,23 @@ def corroborate(
         conn.close()
         return
 
+    # Skip pairs already decided either way. Without this a rejection is bought
+    # again on every run: 26 of the first 86 were rejected, and an automated lane
+    # would re-pay for those 26 verdicts forever.
+    decided = adjudicated_pairs(conn)
+    if decided:
+        before = len(candidates)
+        candidates = [c for c in candidates if (c[0], c[1]) not in decided]
+        skipped = before - len(candidates)
+        if skipped:
+            click.echo(
+                f"  Skipping {skipped} pairs already adjudicated in an earlier run"
+            )
+
+    if not candidates:
+        click.echo("Nothing new to verify - every candidate has been decided.")
+        return
+
     if limit > 0 and len(candidates) > limit:
         click.echo(
             f"  --limit {limit}: measuring on the first {limit} of {len(candidates)}"
@@ -674,11 +695,17 @@ def corroborate(
             verdict = decisions.get(i, "different")
             if verdict == "same":
                 insert_corroboration(conn, cid_a, cid_b, sim)
+            else:
+                insert_corroboration_rejection(conn, cid_a, cid_b, sim, model)
 
     conn.commit()
     actual = conn.execute("SELECT COUNT(*) FROM corroborations").fetchone()[0]
+    rejected = conn.execute("SELECT COUNT(*) FROM corroboration_rejections").fetchone()[
+        0
+    ]
     click.echo(
-        f"Verified {actual} genuine corroborations (from {len(candidates)} candidates)"
+        f"Verified {actual} genuine corroborations (from {len(candidates)} candidates "
+        f"this run); {rejected} rejections recorded and will not be re-bought"
     )
 
     usage = get_usage() or {}

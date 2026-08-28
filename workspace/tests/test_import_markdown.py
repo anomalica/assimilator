@@ -301,3 +301,48 @@ def test_the_trailing_form_is_still_rejected_not_stripped():
 
     assert _node_name_is_unusable("Levitation (topic)") is not None
     assert strip_type_prefix("Levitation (topic)") == "Levitation (topic)"
+
+
+def test_the_record_block_passes_through_whole_rather_than_by_allow_list():
+    """This was an allow-list of five names, and an allow-list drops the next
+    field added. copyright_status landed in the digest and would have arrived
+    nowhere, silently, exactly as review once did."""
+    from assimilator.import_markdown import _record_metadata
+
+    block = {
+        "id": "r1",
+        "title": "T",
+        "content_hash": "sha256:aa",
+        "review": {"state": "human"},
+        "publisher": "Someone",
+        "copyright_status": "public_domain",
+        "a_field_nobody_has_written_yet": "arrives anyway",
+    }
+
+    meta = _record_metadata({"record": block})
+
+    assert meta["copyright_status"] == "public_domain"
+    assert meta["a_field_nobody_has_written_yet"] == "arrives anyway"
+    assert meta["review"] == {"state": "human"}
+    # Column-backed fields stay out: one fact, one home, so the two cannot disagree.
+    for column in ("id", "title", "content_hash"):
+        assert column not in meta
+
+
+def test_distributability_fails_closed_on_absence():
+    """Absent is the entire corpus digested before the field existed. Reading no
+    opinion as permission is how verbatim text from copyrighted books reaches a
+    CDN in one deploy."""
+    from assimilator.import_markdown import record_is_distributable
+
+    assert record_is_distributable({"copyright_status": "public_domain"})
+    assert record_is_distributable({"copyright_status": "open_licence"})
+
+    assert not record_is_distributable({"copyright_status": "restricted"})
+    assert not record_is_distributable({"copyright_status": "publicly_accessible"})
+    assert not record_is_distributable({}), "absent is unknown, unknown is no"
+    assert not record_is_distributable(None)
+    assert not record_is_distributable({"copyright_status": None})
+    assert not record_is_distributable({"copyright_status": "PUBLIC_DOMAIN"}), (
+        "case variants are not silently accepted - an unrecognised value is unknown"
+    )

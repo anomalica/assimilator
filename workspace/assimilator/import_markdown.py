@@ -306,12 +306,26 @@ def _content_hash_of(target: Path, declared: str | None) -> str | None:
 # `review` above all - it is what lets a consumer tell material Mark reviewed
 # from material nobody has, which is the whole basis on which unreviewed records
 # are allowed into the graph at all.
-_RECORD_METADATA_FIELDS = (
-    "review",
-    "publisher",
-    "medium",
-    "duration",
-    "processing_version",
+# THE RECORD BLOCK PASSES THROUGH WHOLE, minus what is already a column. This
+# was an ALLOW-LIST of five field names, and an allow-list drops the next field
+# added: `copyright_status` landed in the digest today and would have arrived
+# nowhere, silently, exactly as `review` once did. digest-format.md now makes
+# pass-through the normative reader rule for precisely this reason - a parser
+# that enumerates what it knows about is correct on the day it ships and quietly
+# wrong afterwards.
+#
+# Deny-listed rather than allow-listed: these are stored as columns on records,
+# so copying them into metadata would give one fact two homes that can disagree.
+_RECORD_COLUMN_FIELDS = frozenset(
+    {
+        "id",
+        "title",
+        "date",
+        "reference",
+        "content_hash",
+        "friendly_name",
+        "producer",
+    }
 )
 
 # Doc-level fields worth keeping beside the record. Both answer "what would I
@@ -355,7 +369,11 @@ def _record_metadata(fm: dict) -> dict | None:
     promoted. One wrong predicate, two different silent wrong answers.
     """
     block = fm.get("record") or {}
-    out = {k: block[k] for k in _RECORD_METADATA_FIELDS if block.get(k) is not None}
+    out = {
+        k: v
+        for k, v in block.items()
+        if k not in _RECORD_COLUMN_FIELDS and v is not None
+    }
     out.update({k: fm[k] for k in _DOC_METADATA_FIELDS if fm.get(k) is not None})
     return out or None
 
@@ -1028,3 +1046,40 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+# Copyright statuses that permit republishing the record's verbatim text.
+# Everything else - including ABSENT - is not distributable. Absent is the
+# important case: it is the entire corpus digested before the field existed, and
+# a fail-open reading would mark all of it publishable in one pass.
+_DISTRIBUTABLE_STATUSES = frozenset({"public_domain", "open_licence"})
+
+
+def record_is_distributable(metadata: dict | None) -> bool:
+    """Whether this record's VERBATIM text may be republished. Fails closed.
+
+    Three states, not two: distributable, not distributable, and unknown - and
+    unknown must read as not distributable. A digest produced before
+    copyright_status existed carries no opinion, and treating no opinion as
+    permission is how thousands of verbatim passages from copyrighted books reach
+    a CDN in one deploy.
+
+    NOT the authority, deliberately. Copyright lives in the record's frontmatter
+    in the ingests store; this is a snapshot taken at digestion, and a licence
+    that changes afterwards leaves the snapshot asserting the old status with no
+    staleness check able to notice (pre_digest.sha256 covers the BODY, which did
+    not change). Use this to FILTER and PROPOSE, where being stale costs a
+    re-proposal. For an actual publish decision, read the store by content_hash -
+    a wrong answer there is irreversible.
+
+    >>> record_is_distributable({"copyright_status": "public_domain"})
+    True
+    >>> record_is_distributable({"copyright_status": "restricted"})
+    False
+    >>> record_is_distributable({})
+    False
+    >>> record_is_distributable(None)
+    False
+    """
+    status = (metadata or {}).get("copyright_status")
+    return status in _DISTRIBUTABLE_STATUSES
