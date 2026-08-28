@@ -168,21 +168,53 @@ def compute_record_demand(conn: sqlite3.Connection) -> dict[str, float]:
     dominating and handles reach=0 gracefully. Only records with claims+nodes
     appear; everything else is implicitly baseline (absent from the map).
     """
-    rows = conn.execute(
+    # Two passes over 65,000 rows, not a self-join across them. The previous
+    # query joined claim_node_refs to itself on node_id, which materialises one
+    # row per PAIR of claims sharing a node - and the busiest node has 1,422
+    # references, so that node alone contributes two million rows. It cost 33.6s
+    # of a queue rebuild whose whole budget is 180s, and it grows quadratically
+    # with the corpus while the corpus grows linearly.
+    #
+    # The set formulation is the same definition read directly: which records
+    # does each node appear in, and how many OTHER records does a record reach
+    # through its own nodes.
+    node_records: dict[str, set[str]] = {}
+    record_nodes: dict[str, set[str]] = {}
+    for record_id, node_id in conn.execute(
         """
-        SELECT r.content_hash, COUNT(DISTINCT other.record_id) AS reach
-        FROM records r
-        JOIN claims c ON c.record_id = r.id
-        JOIN claim_node_refs cnr ON cnr.claim_id = c.id
-        JOIN claim_node_refs cnr2 ON cnr2.node_id = cnr.node_id
-        JOIN claims other ON other.id = cnr2.claim_id AND other.record_id != r.id
-        WHERE r.content_hash IS NOT NULL
-        GROUP BY r.id
+        SELECT c.record_id, cnr.node_id
+        FROM claim_node_refs cnr
+        JOIN claims c ON c.id = cnr.claim_id
         """
-    ).fetchall()
+    ):
+        node_records.setdefault(node_id, set()).add(record_id)
+        record_nodes.setdefault(record_id, set()).add(node_id)
+
+    hashes = {
+        rid: h
+        for rid, h in conn.execute(
+            "SELECT id, content_hash FROM records WHERE content_hash IS NOT NULL"
+        )
+    }
     demand: dict[str, float] = {}
-    for content_hash, reach in rows:
-        demand[_bare_hash(content_hash)] = round(1.0 + math.log1p(reach or 0), 3)
+    for record_id, nodes in record_nodes.items():
+        content_hash = hashes.get(record_id)
+        if content_hash is None:
+            continue
+        reach = set()
+        for node_id in nodes:
+            reach |= node_records[node_id]
+        reach.discard(record_id)
+        if not reach:
+            # A record sharing no node with any other is OMITTED, matching the
+            # previous query, whose `other.record_id != r.id` join produced no
+            # row for it. Preserved deliberately rather than tidied: the caller
+            # renders an absent record as "baseline (not in graph)", which is
+            # wrong for a record that IS in the graph but reaches nothing. That
+            # is a display bug worth fixing on its own, not inside a change whose
+            # whole claim is that the output is identical.
+            continue
+        demand[_bare_hash(content_hash)] = round(1.0 + math.log1p(len(reach)), 3)
     return demand
 
 
