@@ -28,3 +28,35 @@ def test_similarity_profile_says_embed_first_rather_than_reporting_zero(tmp_path
     )
     assert result.exit_code != 0
     assert "run `embed` first" in result.output
+
+
+def test_limit_exists_so_a_run_can_be_measured_before_it_is_committed_to():
+    """Corroboration spends the plan and recorded nothing about it: it runs
+    outside the scheduler so there is no dispatch row, and the corroborations
+    table keeps claim_a, claim_b and similarity with no model, timestamp or
+    usage. So the cost of the next run could not be sized from the last one.
+    --limit makes a measured slice possible; the usage report makes it a figure
+    rather than a ratio."""
+    from click.testing import CliRunner
+
+    from assimilator.cli import main
+
+    result = CliRunner().invoke(main, ["corroborate", "--help"])
+
+    assert "--limit" in result.output
+    assert result.exit_code == 0
+
+
+def test_threshold_is_still_required_alongside_limit(tmp_path):
+    """--limit must not become a way to run without a measured cut. The old 0.99
+    default came from the pre-decode-fix vector space and silently returned zero."""
+    from click.testing import CliRunner
+
+    from assimilator.cli import main
+
+    result = CliRunner().invoke(
+        main, ["--db", str(tmp_path / "k.db"), "corroborate", "--limit", "20"]
+    )
+
+    assert result.exit_code != 0
+    assert "--threshold is required" in result.output

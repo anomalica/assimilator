@@ -538,6 +538,12 @@ OUTPUT FORMAT (respond with ONLY valid JSON, no markdown fencing):
     type=float,
     help="Drop candidates whose reranker sigmoid score is below this value",
 )
+@click.option(
+    "--limit",
+    default=0,
+    help="Stop after this many candidate pairs (0 = all). For MEASURING cost "
+    "before committing to a full run.",
+)
 @click.pass_context
 def corroborate(
     ctx: click.Context,
@@ -545,6 +551,7 @@ def corroborate(
     model: str,
     rerank: bool,
     rerank_min: float,
+    limit: int,
 ) -> None:
     """Find cross-record corroborations: embedding similarity then AI verification.
 
@@ -630,6 +637,21 @@ def corroborate(
         conn.close()
         return
 
+    if limit > 0 and len(candidates) > limit:
+        click.echo(
+            f"  --limit {limit}: measuring on the first {limit} of {len(candidates)}"
+        )
+        candidates = candidates[:limit]
+
+    # Corroboration spends the plan and recorded NOTHING about it: it runs outside
+    # the scheduler so it produces no dispatch row, and the corroborations table
+    # keeps claim_a, claim_b and similarity with no model, timestamp or usage. So
+    # the cost of the next run could not be sized from the last one. The transport
+    # has accumulated usage all along; nobody asked it.
+    from anomalica_common.llm import get_usage, reset_usage
+
+    reset_usage()
+
     batch_size = 20
     for batch_start in range(0, len(candidates), batch_size):
         batch = candidates[batch_start : batch_start + batch_size]
@@ -658,6 +680,25 @@ def corroborate(
     click.echo(
         f"Verified {actual} genuine corroborations (from {len(candidates)} candidates)"
     )
+
+    usage = get_usage() or {}
+    tin = (
+        int(usage.get("input_tokens") or 0)
+        + int(usage.get("cache_read_input_tokens") or 0)
+        + int(usage.get("cache_creation_input_tokens") or 0)
+    )
+    tout = int(usage.get("output_tokens") or 0)
+    pairs = len(candidates)
+    click.echo(
+        f"Usage: {tin:,} input + {tout:,} output tokens over {pairs} pairs"
+        + (f" = {tin // pairs:,} in / {tout // pairs:,} out per pair" if pairs else "")
+        + f"  [model {model}, transport {'api' if use_api else 'subscription'}]"
+    )
+    if pairs:
+        click.echo(
+            f"  extrapolated to 340 further pairs: "
+            f"{tin // pairs * 340:,} input + {tout // pairs * 340:,} output"
+        )
     conn.close()
 
 
