@@ -569,6 +569,7 @@ def corroborate(
     Claude is consulted. Pairs below --rerank-min are dropped, cutting the
     number of Claude calls without losing genuine corroborations.
     """
+    from anomalica_common import model_policy as mp
     from anomalica_common.llm import _call, _parse_json, resolve_use_api
     from assimilator.database import (
         adjudicated_pairs,
@@ -584,6 +585,17 @@ def corroborate(
             "returns zero in this one. Run `assimilator similarity-profile` to "
             "see the corpus distribution, then pass a measured cut."
         )
+
+    # POLICY BEFORE SPEND. model-policy.yaml is the source of truth (ADR 0047),
+    # and an unlisted model is REFUSED rather than warned about - a warning on a
+    # lane nobody is watching is a model choice nobody made. The parser resolves
+    # the alias first: `sonnet` appears in no priority list, `claude-sonnet-5`
+    # does, so checking before resolving would refuse every Claude dispatch on a
+    # naming difference while looking exactly like a policy refusal.
+    try:
+        model = mp.load().check("corroborate", model)
+    except mp.PolicyRefusal as refusal:
+        raise click.ClickException(str(refusal)) from refusal
 
     use_api = resolve_use_api("ASSIMILATOR_USE_API")
 
@@ -1410,6 +1422,102 @@ def doctor_cmd(ctx: click.Context, briefs: str | None, content: str | None) -> N
         if f.repair:
             click.echo(f"  fix: {f.repair}")
     raise SystemExit(1)
+
+
+@main.command("publish-briefs")
+@click.option(
+    "--briefs", default=None, help="Briefs dir (default: ANOMALICA_BRIEFS_DIR)."
+)
+@click.option(
+    "--out",
+    default=None,
+    help="Where to write publishable briefs (default: content/briefs).",
+)
+@click.option(
+    "--store",
+    default=None,
+    help="Ingests store dir - the copyright AUTHORITY (default: ANOMALICA_INGESTS_DIR/store).",
+)
+@click.option(
+    "--dry-run", is_flag=True, help="Report what would be withheld, write nothing."
+)
+@click.pass_context
+def publish_briefs_cmd(
+    ctx: click.Context,
+    briefs: str | None,
+    out: str | None,
+    store: str | None,
+    dry_run: bool,
+) -> None:
+    """Write briefs for publication, with copyright excerpts redacted.
+
+    A brief is the audit record (ADR 0010) - the exact material the writer saw -
+    so publishing it beside the page makes "every assertion traces to a source"
+    checkable rather than asserted.
+
+    Excerpts are withheld for any source that is not public_domain,
+    publicly_accessible or open_licence, INCLUDING any the store cannot resolve.
+    Withholding is marked on the claim, never silent: a reader must be able to
+    tell a licence boundary from a gap in our evidence.
+
+    Copyright is read live from the ingests store, not from the digest's
+    snapshot. The snapshot is right for filtering; this decision is irreversible.
+    """
+    import os
+
+    from assimilator.publish_briefs import publish_briefs
+    from assimilator.synthesise import default_briefs_dir
+
+    briefs_dir = Path(briefs) if briefs else default_briefs_dir()
+    store_dir = (
+        Path(store)
+        if store
+        else Path(
+            os.environ.get(
+                "ANOMALICA_INGESTS_DIR", Path.home() / "repos/anomalica/ingests"
+            )
+        )
+        / "store"
+    )
+    out_dir = Path(out) if out else Path.home() / "repos/anomalica/content" / "briefs"
+    if not store_dir.is_dir():
+        raise click.ClickException(
+            f"ingests store not found at {store_dir} - refusing to publish without "
+            "the copyright authority, because every record would read as unknown "
+            "and every excerpt would be withheld, which looks like success"
+        )
+
+    if dry_run:
+        from assimilator.publish_briefs import _load, redact_brief
+
+        totals: dict[str, int] = {}
+        n = 0
+        for path in sorted(briefs_dir.glob("*.yaml")):
+            try:
+                brief = _load(path.read_text())
+            except Exception:
+                continue
+            if not isinstance(brief, dict):
+                continue
+            _, counts = redact_brief(brief, store_dir)
+            for k, v in counts.items():
+                totals[k] = totals.get(k, 0) + v
+            n += 1
+        click.echo(f"DRY RUN over {n} briefs. Claim excerpts by source status:")
+        for k, v in sorted(totals.items(), key=lambda x: -x[1]):
+            mark = (
+                "published"
+                if k in {"public_domain", "publicly_accessible", "open_licence"}
+                else "WITHHELD"
+            )
+            click.echo(f"   {k:22} {v:6}  {mark}")
+        return
+
+    stats = publish_briefs(briefs_dir, out_dir, store_dir)
+    click.echo(f"Wrote {stats['briefs']} briefs to {out_dir}")
+    click.echo(f"  excerpts withheld on {stats['withheld_claims']} claims")
+    for k, v in sorted(stats["by_status"].items(), key=lambda x: -x[1]):
+        click.echo(f"   {k:22} {v}")
 
 
 if __name__ == "__main__":

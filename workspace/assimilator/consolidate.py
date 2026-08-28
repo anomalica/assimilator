@@ -52,7 +52,7 @@ def deduplicate_claims(
     conn: sqlite3.Connection,
     claims: list[Claim],
     similarity_threshold: float = 0.80,
-    model: str = "sonnet",
+    model: str | None = None,
     on_progress: callable = None,
 ) -> DeduplicationResult:
     """Check new claims against existing claims and each other for duplicates."""
@@ -95,7 +95,7 @@ def deduplicate_claims(
             log(
                 f"  Found {len(multi)} clusters of similar new claims, sending to AI..."
             )
-            ai_decisions = _consolidate_clusters(multi, model=model)
+            ai_decisions = _consolidate_clusters(multi, model=_policy_model(model))
 
             for cluster, decision in zip(multi, ai_decisions):
                 if decision.get("action") == "merge":
@@ -161,7 +161,7 @@ def _find_clusters(
 
 def _consolidate_clusters(
     clusters: list[list[tuple[int, Claim, list[float]]]],
-    model: str = "sonnet",
+    model: str | None = None,
 ) -> list[dict]:
     lines = []
     for group_id, cluster in enumerate(clusters, 1):
@@ -181,3 +181,24 @@ def _consolidate_clusters(
     return [
         decision_map.get(i + 1, {"action": "keep_all"}) for i in range(len(clusters))
     ]
+
+
+def _policy_model(requested: str | None) -> str:
+    """Resolve this stage's model through model-policy.yaml (ADR 0047).
+
+    Consolidate runs inside the assimilator's own process rather than through the
+    scheduler, so nothing else can apply the policy for it - the file names the
+    assimilator as `enforced_by` for exactly this reason.
+
+    Filed under `assimilate`: consolidate is entity work in the same run, not a
+    separate dispatched stage, and an unlisted stage refuses outright under
+    fail-closed. If it should be its own stage, the file is the place to say so.
+    """
+    from anomalica_common import model_policy as mp
+
+    policy = mp.load()
+    return (
+        policy.check("assimilate", requested)
+        if requested
+        else policy.choose("assimilate")
+    )

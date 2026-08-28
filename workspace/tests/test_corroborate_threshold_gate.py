@@ -140,3 +140,30 @@ def test_adjudicated_pairs_covers_both_verdicts():
     decided = adjudicated_pairs(conn)
     assert {("a1", "a2"), ("r1", "r2")} <= decided
     assert ("x1", "x2") not in decided
+
+
+def test_a_model_the_policy_does_not_permit_is_refused_not_warned_about():
+    """model-policy.yaml is the source of truth (ADR 0047) and the assimilator is
+    named enforced_by for its own stages. A warning on a lane nobody is watching
+    is a model choice nobody made."""
+    from click.testing import CliRunner
+
+    from assimilator.cli import main
+
+    result = CliRunner().invoke(
+        main, ["corroborate", "--threshold", "0.9", "--model", "opus"]
+    )
+
+    assert result.exit_code != 0
+    assert "may not run 'corroborate'" in result.output
+
+
+def test_the_alias_is_resolved_before_the_policy_is_applied():
+    """`sonnet` appears in no priority list; `claude-sonnet-5` does. Checking
+    before resolving would refuse every Claude dispatch on a naming difference
+    while looking exactly like a policy refusal - a lane failing closed for the
+    wrong reason is indistinguishable from one working correctly."""
+    from anomalica_common import model_policy as mp
+
+    policy = mp.load()
+    assert policy.check("corroborate", "sonnet") == "claude-sonnet-5"
