@@ -118,3 +118,40 @@ def write_manifest(manifest: dict, out_path: Path) -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(manifest, indent=2, sort_keys=True))
     return out_path
+
+
+class StaleManifest(RuntimeError):
+    """The staleness manifest is itself too stale to answer."""
+
+
+# How long a staleness snapshot may be trusted. Not a tuning knob: the graph moved
+# 2,008 claims and 21 merges in three days during the week this was written, so a
+# figure older than this is describing a different graph.
+MAX_MANIFEST_AGE_HOURS = 6
+
+
+def read_manifest(path: Path, max_age_hours: float = MAX_MANIFEST_AGE_HOURS) -> dict:
+    """Load a staleness manifest, REFUSING to return one that is too old.
+
+    A stale staleness figure is the purest form of the failure this project keeps
+    hitting: it answers, it answers plausibly, and the answer describes a graph
+    that no longer exists. A consumer reading it cannot tell. The first time this
+    manifest was consumed it was three days old and nobody would have known.
+
+    Refusing beats returning old numbers with a warning, because the reassuring
+    failure mode is the one nobody investigates - a warning in a log is not read
+    by the code that acts on the value.
+    """
+    manifest = json.loads(path.read_text())
+    stamped = manifest.get("generated_at")
+    if not stamped:
+        raise ValueError(f"{path} has no generated_at - it cannot be trusted at all")
+    age = datetime.now(timezone.utc) - datetime.fromisoformat(stamped)
+    hours = age.total_seconds() / 3600
+    if hours > max_age_hours:
+        raise StaleManifest(
+            f"{path} was generated {hours:.1f} hours ago, over the {max_age_hours}h "
+            "limit - regenerate with `assimilator brief-staleness` rather than "
+            "acting on figures that describe an older graph"
+        )
+    return manifest

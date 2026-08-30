@@ -128,3 +128,54 @@ def test_an_unhashed_claim_counts_rather_than_disappearing(tmp_path):
     page = manifest["pages"]["someone"]
     assert page["current_total"] == 2, "the unhashed claim is still in the graph"
     assert page["added"] == 1, "and shows as material the brief has not seen"
+
+
+def test_a_stale_staleness_manifest_refuses_to_answer(tmp_path):
+    """The purest form of the failure this project keeps hitting: it answers, it
+    answers plausibly, and the answer describes a graph that no longer exists. The
+    first time this manifest was consumed it was three days old and the consumer
+    could not have known."""
+    import json as _json
+    from datetime import datetime, timedelta, timezone
+
+    import pytest as _pytest
+
+    from assimilator.brief_staleness import StaleManifest, read_manifest
+
+    p = tmp_path / "m.json"
+    old = (datetime.now(timezone.utc) - timedelta(hours=72)).isoformat()
+    p.write_text(_json.dumps({"generated_at": old, "pages": {}}))
+
+    with _pytest.raises(StaleManifest):
+        read_manifest(p)
+
+
+def test_a_manifest_with_no_timestamp_is_refused_outright(tmp_path):
+    """Undated is worse than old: nothing can even judge it."""
+    import json as _json
+
+    import pytest as _pytest
+
+    from assimilator.brief_staleness import read_manifest
+
+    p = tmp_path / "m.json"
+    p.write_text(_json.dumps({"pages": {}}))
+
+    with _pytest.raises(ValueError):
+        read_manifest(p)
+
+
+def test_a_fresh_manifest_is_returned(tmp_path):
+    import json as _json
+    from datetime import datetime, timezone
+
+    from assimilator.brief_staleness import read_manifest
+
+    p = tmp_path / "m.json"
+    p.write_text(
+        _json.dumps(
+            {"generated_at": datetime.now(timezone.utc).isoformat(), "pages": {"a": {}}}
+        )
+    )
+
+    assert read_manifest(p)["pages"] == {"a": {}}

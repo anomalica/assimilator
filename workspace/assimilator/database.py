@@ -304,26 +304,30 @@ def get_nodes(conn: sqlite3.Connection, node_type: str | None = None) -> list[No
 def find_node_by_name(
     conn: sqlite3.Connection, name: str, node_type: str | None = None
 ) -> Node | None:
-    # ORDER BY id, because 56 live names are shared by more than one node and a
-    # bare fetchone() takes whichever the storage engine hands back first. That is
-    # stable for a given database and NOT stable across a rebuild, where row order
-    # can differ - so provenance_root could attach a claim's origin to a different
-    # node of the same name after a rebuild, silently regrouping independence
-    # counts between runs. Deterministic ordering does not make the choice RIGHT
-    # (a caller with no node_type genuinely cannot tell "Apollo" the project from
-    # "Apollo" the event) but it makes it reproducible, which is the property the
-    # ledger and every re-derived figure depend on.
+    # MOST-REFERENCED FIRST, then id. 56 live names are shared by more than one
+    # node, and a bare fetchone() took whichever row the storage engine handed
+    # back - stable for one database and NOT stable across a rebuild, where row
+    # order can differ. provenance_root resolves a named origin through here with
+    # no node_type, and that root is what ADR 0039 independence counts group on,
+    # so a rebuild could regroup the evidence scoring with nothing to notice.
+    #
+    # Ordering by claim count rather than by id because it is also RIGHT, not
+    # merely reproducible. Every ambiguous origin in the corpus has exactly one
+    # node carrying claims and the rest at zero: "Robertson Panel" is a project
+    # with 38 claims beside an empty organisation and an empty matter;
+    # "O'Brien Committee" a project with 4 beside an empty organisation. The
+    # populated node is the one the corpus means. id order would pick by uuid.
+    ordered = (
+        "SELECT n.* FROM nodes n WHERE n.name = ? AND n.retired_at IS NULL{type_clause}"
+        " ORDER BY (SELECT COUNT(*) FROM claim_node_refs r WHERE r.node_id = n.id) DESC,"
+        " n.id"
+    )
     if node_type:
         row = conn.execute(
-            "SELECT * FROM nodes WHERE name = ? AND node_type = ? AND retired_at IS NULL"
-            " ORDER BY id",
-            (name, node_type),
+            ordered.format(type_clause=" AND n.node_type = ?"), (name, node_type)
         ).fetchone()
     else:
-        row = conn.execute(
-            "SELECT * FROM nodes WHERE name = ? AND retired_at IS NULL ORDER BY id",
-            (name,),
-        ).fetchone()
+        row = conn.execute(ordered.format(type_clause=""), (name,)).fetchone()
     if row:
         return _row_to_node(row)
     if node_type:

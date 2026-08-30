@@ -375,9 +375,7 @@ def test_a_name_shared_by_two_nodes_resolves_deterministically():
         build([("zzz", "event"), ("aaa", "project")]), "Apollo 11"
     )
 
-    assert forward.id == reverse.id == "aaa", (
-        "insertion order must not change the answer"
-    )
+    assert forward.id == reverse.id, "insertion order must not change the answer"
 
 
 def test_a_type_still_disambiguates_properly():
@@ -396,3 +394,45 @@ def test_a_type_still_disambiguates_properly():
     conn.commit()
 
     assert find_node_by_name(conn, "Apollo 11", "event").id == "zzz"
+
+
+def test_the_populated_node_wins_an_ambiguous_name():
+    """Determinism alone would pick by uuid. Every ambiguous origin in the corpus
+    has exactly one node carrying claims and the rest at zero - "Robertson Panel"
+    is a project with 38 claims beside an empty organisation and an empty matter.
+    The populated node is the one the corpus means."""
+    import sqlite3
+
+    from anomalica_common.digest.models import Claim, Node, Record
+
+    from assimilator.database import (
+        find_node_by_name,
+        init_db,
+        insert_claim,
+        insert_node,
+        insert_record,
+    )
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R", content_hash="sha256:aa"))
+    # the EMPTY one sorts first by id, so id order alone would pick it
+    insert_node(
+        conn, Node(id="aaa-empty", node_type="organisation", name="Robertson Panel")
+    )
+    populated = insert_node(
+        conn, Node(id="zzz-populated", node_type="project", name="Robertson Panel")
+    )
+    insert_claim(
+        conn,
+        Claim(
+            id="c1",
+            content="x",
+            claim_type="testimony",
+            record_id="r1",
+            node_references=[populated.id],
+        ),
+    )
+    conn.commit()
+
+    assert find_node_by_name(conn, "Robertson Panel").id == "zzz-populated"
