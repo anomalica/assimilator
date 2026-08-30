@@ -304,14 +304,25 @@ def get_nodes(conn: sqlite3.Connection, node_type: str | None = None) -> list[No
 def find_node_by_name(
     conn: sqlite3.Connection, name: str, node_type: str | None = None
 ) -> Node | None:
+    # ORDER BY id, because 56 live names are shared by more than one node and a
+    # bare fetchone() takes whichever the storage engine hands back first. That is
+    # stable for a given database and NOT stable across a rebuild, where row order
+    # can differ - so provenance_root could attach a claim's origin to a different
+    # node of the same name after a rebuild, silently regrouping independence
+    # counts between runs. Deterministic ordering does not make the choice RIGHT
+    # (a caller with no node_type genuinely cannot tell "Apollo" the project from
+    # "Apollo" the event) but it makes it reproducible, which is the property the
+    # ledger and every re-derived figure depend on.
     if node_type:
         row = conn.execute(
-            "SELECT * FROM nodes WHERE name = ? AND node_type = ? AND retired_at IS NULL",
+            "SELECT * FROM nodes WHERE name = ? AND node_type = ? AND retired_at IS NULL"
+            " ORDER BY id",
             (name, node_type),
         ).fetchone()
     else:
         row = conn.execute(
-            "SELECT * FROM nodes WHERE name = ? AND retired_at IS NULL", (name,)
+            "SELECT * FROM nodes WHERE name = ? AND retired_at IS NULL ORDER BY id",
+            (name,),
         ).fetchone()
     if row:
         return _row_to_node(row)

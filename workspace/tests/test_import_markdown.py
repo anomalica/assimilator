@@ -346,3 +346,53 @@ def test_distributability_fails_closed_on_absence():
     assert not record_is_distributable({"copyright_status": "PUBLIC_DOMAIN"}), (
         "case variants are not silently accepted - an unrecognised value is unknown"
     )
+
+
+def test_a_name_shared_by_two_nodes_resolves_deterministically():
+    """56 live names are shared by more than one node. A bare fetchone() takes
+    whatever the storage engine hands back first - stable for one database, NOT
+    stable across a rebuild, where provenance_root could attach a claim's origin
+    to the other node of the same name and silently regroup independence counts
+    between runs."""
+    import sqlite3
+
+    from anomalica_common.digest.models import Node
+
+    from assimilator.database import find_node_by_name, init_db, insert_node
+
+    def build(order):
+        conn = sqlite3.connect(":memory:")
+        init_db(conn)
+        for nid, ntype in order:
+            insert_node(conn, Node(id=nid, node_type=ntype, name="Apollo 11"))
+        conn.commit()
+        return conn
+
+    forward = find_node_by_name(
+        build([("aaa", "project"), ("zzz", "event")]), "Apollo 11"
+    )
+    reverse = find_node_by_name(
+        build([("zzz", "event"), ("aaa", "project")]), "Apollo 11"
+    )
+
+    assert forward.id == reverse.id == "aaa", (
+        "insertion order must not change the answer"
+    )
+
+
+def test_a_type_still_disambiguates_properly():
+    """Determinism is the fallback. A caller that knows the type gets the right
+    node rather than the lowest id."""
+    import sqlite3
+
+    from anomalica_common.digest.models import Node
+
+    from assimilator.database import find_node_by_name, init_db, insert_node
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(conn, Node(id="aaa", node_type="project", name="Apollo 11"))
+    insert_node(conn, Node(id="zzz", node_type="event", name="Apollo 11"))
+    conn.commit()
+
+    assert find_node_by_name(conn, "Apollo 11", "event").id == "zzz"
