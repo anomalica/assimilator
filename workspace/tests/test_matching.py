@@ -3,6 +3,7 @@ import sqlite3
 from assimilator.database import init_db, insert_alias, insert_node
 from assimilator.matching import (
     FUZZY_NAME_THRESHOLD,
+    _component_similarity,
     collapse_acronym_expansions,
     fuzzy_name_similarity,
     is_bare_acronym_for,
@@ -1016,3 +1017,52 @@ class TestAcronymShorterThanItsExpansion:
             )
             == "AATIP"
         )
+
+
+class TestEveryComparisonPathIsGuarded:
+    """The same bug three times, so assert the class rather than the instances.
+
+    Each was ONE line, each sat directly beside a correct guarded version, and
+    each produced months of quiet misattribution:
+
+    - the alias comparison used raw Levenshtein while the name comparison two
+      lines below was guarded (118 aliases onto one event node);
+    - _component_similarity compared comma components unguarded while the
+      whole-name path was guarded (a Bolivian node holding fifteen Californian
+      places, RAF Woodbridge inside London);
+    - and the acronym collapse, added to fix the first, at first refused
+      expansions of unequal word count and silently cost four true matches.
+
+    A new comparison path that omits the guard will look exactly like these did:
+    correct on whatever pairs someone happens to try, wrong across the corpus.
+    So every path is enumerated here and asserted to reject a pair that differs
+    on a hard token and a pair that substitutes a distinctive word.
+    """
+
+    # (label, callable) - add the new path here when adding one, or explain why
+    # the guard genuinely does not apply to it.
+    def _paths(self):
+        return [
+            ("whole name", fuzzy_name_similarity),
+            ("comma component", _component_similarity),
+        ]
+
+    def test_every_path_rejects_a_hard_token_conflict(self):
+        for label, compare in self._paths():
+            assert compare("1947 roswell incident", "1948 roswell incident") < (
+                FUZZY_NAME_THRESHOLD
+            ), f"{label} accepted a differing year"
+
+    def test_every_path_rejects_a_substituted_distinctive_word(self):
+        for label, compare in self._paths():
+            assert (
+                compare("walker air force base", "kirtland air force base")
+                < FUZZY_NAME_THRESHOLD
+            ), f"{label} accepted a substituted proper noun"
+
+    def test_every_path_still_accepts_a_genuine_variant(self):
+        for label, compare in self._paths():
+            assert (
+                compare("kirtland air force base", "kirtland air force base")
+                >= FUZZY_NAME_THRESHOLD
+            ), f"{label} rejected an identical name"
