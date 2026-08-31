@@ -1518,6 +1518,17 @@ def publish_briefs_cmd(
     click.echo(f"  excerpts withheld on {stats['withheld_claims']} claims")
     for k, v in sorted(stats["by_status"].items(), key=lambda x: -x[1]):
         click.echo(f"   {k:22} {v}")
+    unreadable = stats.get("unreadable") or []
+    if unreadable:
+        # Loud and non-zero: an unreadable brief silently dropped is an entity
+        # missing from the published record with nothing to say why.
+        click.echo(
+            f"\n{len(unreadable)} brief(s) COULD NOT BE READ and were not published:",
+            err=True,
+        )
+        for line in unreadable:
+            click.echo(f"   {line}", err=True)
+        raise SystemExit(1)
 
 
 @main.command("brief-staleness")

@@ -149,12 +149,21 @@ def publish_briefs(
     totals: dict[str, int] = {}
     written = 0
     withheld_claims = 0
+    # A brief this path cannot read is REPORTED, never passed over. Skipping it
+    # silently drops an entity from the published record with nothing to show
+    # why - the assembler hit exactly this shape in its own link index, where
+    # two entities carrying 200 and 183 claims became unlinkable corpus-wide and
+    # no output said so. Continue past the bad file so one brief cannot stop a
+    # publish, but return the failures so the caller can fail loudly.
+    unreadable: list[str] = []
     for path in sorted(briefs_dir.glob("*.yaml")):
         try:
             brief = _load(path.read_text())
-        except (OSError, yaml.YAMLError):
+        except (OSError, yaml.YAMLError) as exc:
+            unreadable.append(f"{path.name}: {type(exc).__name__}")
             continue
         if not isinstance(brief, dict):
+            unreadable.append(f"{path.name}: not a mapping")
             continue
         published, counts = redact_brief(brief, store_dir)
         for status, n in counts.items():
@@ -163,4 +172,9 @@ def publish_briefs(
                 withheld_claims += n
         (out_dir / path.name).write_text(_dump(published))
         written += 1
-    return {"briefs": written, "withheld_claims": withheld_claims, "by_status": totals}
+    return {
+        "briefs": written,
+        "withheld_claims": withheld_claims,
+        "by_status": totals,
+        "unreadable": unreadable,
+    }

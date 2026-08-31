@@ -147,6 +147,7 @@ def test_the_source_brief_on_disk_is_never_modified(tmp_path):
         "briefs": 1,
         "withheld_claims": 1,
         "by_status": {"restricted": 1},
+        "unreadable": [],
     }
 
 
@@ -170,3 +171,25 @@ def test_a_record_stored_under_v1_still_resolves(tmp_path):
     )
 
     assert copyright_status(store, "sha256:" + "f" * 64) == "public_domain"
+
+
+def test_an_unreadable_brief_is_reported_not_skipped(tmp_path):
+    """A brief that cannot be parsed must never vanish quietly.
+
+    Skipping it silently drops an entity from the published record with nothing
+    to say why - the shape that made two entities carrying 200 and 183 claims
+    unlinkable across the whole corpus with no output explaining it.
+    """
+    store = _store(tmp_path, {"a" * 64: "public_domain"})
+    briefs = tmp_path / "briefs"
+    briefs.mkdir()
+    (briefs / "good.yaml").write_text(yaml.safe_dump(_brief("a" * 64)))
+    (briefs / "broken.yaml").write_text("claims:\n- content: 'unterminated\n")
+    (briefs / "notamapping.yaml").write_text("- just\n- a list\n")
+
+    stats = publish_briefs(briefs, tmp_path / "out", store)
+
+    assert stats["briefs"] == 1
+    assert len(stats["unreadable"]) == 2
+    assert any(u.startswith("broken.yaml") for u in stats["unreadable"])
+    assert any("not a mapping" in u for u in stats["unreadable"])
