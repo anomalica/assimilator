@@ -450,6 +450,18 @@ def collapse_acronym_expansions(name: str) -> str:
     directions, one cause - so this collapses rather than strips, putting both
     spellings into the short form instead of deleting the words from one side.
 
+    WHY THIS MUST BE FIXED BEFORE ANY MERGE, not after. A merge deposits every
+    victim name as an alias on the survivor, so merging duplicates MINTS fresh
+    boilerplate-shaped aliases - collapsing the seven Roswell event nodes
+    created ten of them in one operation. Measured against that post-merge graph
+    with five unrelated event names: the previous comparison sent Socorro,
+    Mantell and Rendlesham to the Nimitz node and Aztec to the Roswell one, four
+    of five wrong, while this one resolves each correctly or mints a new node.
+    So the merge that repairs fragmentation is also the operation that arms the
+    next round of it, and the comparison is the only place to stop it. Fixing
+    the matcher is not tidy-up that precedes a merge; it is what makes any merge
+    in this corpus safe to perform.
+
     The declared acronym is the evidence, exactly as in is_bare_acronym_for: the
     span is only collapsed when the parenthetical's letters are the initials of
     the words in front of it. "Office of the Under Secretary of Defense for

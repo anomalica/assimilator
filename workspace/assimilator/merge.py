@@ -329,13 +329,39 @@ def read_ledger() -> list[dict]:
 
 def _resolve_natural(conn: sqlite3.Connection, nat: dict) -> str | None:
     """Resolve a node by its natural identity in the current graph: name then
-    prior_names, within node_type. Returns the node id, or None if absent."""
+    prior_names, within node_type. Returns the node id, or None if absent.
+
+    NO FUZZY TIER. Everywhere else a fuzzy match is a reasonable guess that a
+    later curator can correct; here it decides which nodes a REPLAYED HUMAN
+    DECISION lands on, and a wrong guess silently applies a curator's merge to
+    a node they never looked at. That is not a guess we are entitled to make on
+    their behalf, and it is unreviewable after the fact - the ledger records the
+    name, not what it resolved to. Replay is the one caller that must rather
+    lose an op, loudly, than apply it to the wrong node: replay_ledger already
+    counts and ERRORs on a lost op, so refusing to guess is visible where
+    guessing wrong is not.
+
+    Not hypothetical. The Nimitz node carried 118 aliases naming other events,
+    so a Roswell op replayed through the fuzzy tier resolved onto Nimitz. That
+    particular route is closed (see matching.collapse_acronym_expansions), but
+    replay runs against a REBUILT graph whose node set differs from the one the
+    curator saw, which is exactly when a near-miss is most likely.
+
+    The deterministic tiers are kept. They resolve on declared evidence rather
+    than on string distance - the acronym a name itself declares, a known
+    given-name short form, punctuation - and dropping them costs real
+    resolutions: measured over the ledger, exact-name-only loses five, "CIA"
+    reaching Central Intelligence Agency (CIA) and "Dave Saunders" reaching
+    David Saunders among them. Measured the other way, refusing fuzzy changes
+    nothing that currently resolves: 179 identities resolve identically and none
+    resolve to a different node.
+    """
     node_type = nat.get("node_type")
     for name in [nat.get("name"), *(nat.get("prior_names") or [])]:
         if not name:
             continue
         m = match_node(conn, name, node_type)
-        if m:
+        if m and m[1] != "fuzzy":
             return m[0]
     return None
 

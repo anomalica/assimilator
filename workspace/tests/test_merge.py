@@ -160,3 +160,46 @@ def test_replay_skips_undone(tmp_path, monkeypatch):
 
 def _name(conn, nid):
     return conn.execute("SELECT name FROM nodes WHERE id=?", (nid,)).fetchone()[0]
+
+
+def test_resolve_natural_refuses_a_fuzzy_guess():
+    """Replay must lose an op loudly rather than apply it to the wrong node.
+
+    A fuzzy match elsewhere is a guess a curator can correct later. Here it
+    decides which nodes a replayed HUMAN decision lands on, and the ledger
+    records the name rather than what it resolved to - so a wrong guess is both
+    unreviewable and made on the curator's behalf.
+    """
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(
+        conn,
+        Node(id="N", node_type="event", name="2004 USS Nimitz UAP encounter"),
+    )
+    # Close enough for the fuzzy tier, a different event to a human.
+    nat = {"name": "2004 USS Nimitz UAP encounters", "node_type": "event"}
+    assert merge._resolve_natural(conn, nat) is None
+
+
+def test_resolve_natural_keeps_the_deterministic_tiers():
+    """Refusing fuzzy must not cost the tiers that resolve on declared evidence."""
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(
+        conn,
+        Node(
+            id="C",
+            node_type="organisation",
+            name="Central Intelligence Agency (CIA)",
+        ),
+    )
+    insert_node(conn, Node(id="P", node_type="person", name="David Saunders"))
+    # The acronym the name itself declares, and a known given-name short form.
+    assert (
+        merge._resolve_natural(conn, {"name": "CIA", "node_type": "organisation"})
+        == "C"
+    )
+    assert (
+        merge._resolve_natural(conn, {"name": "Dave Saunders", "node_type": "person"})
+        == "P"
+    )
