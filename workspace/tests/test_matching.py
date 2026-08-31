@@ -944,3 +944,75 @@ class TestAcronymBoilerplate:
             collapse_acronym_expansions("roswell incident (1947)")
             == "roswell incident (1947)"
         )
+
+
+class TestPlaceComponentBoilerplate:
+    """A comma-component carries mandated boilerplate of its own.
+
+    The structured branch takes the MINIMUM component score, so one component
+    decides the merge - and "Walker Air Force Base" against "Kirtland Air Force
+    Base" is 0.82 on the shared tail alone.
+    """
+
+    def test_distinct_air_force_bases_do_not_merge(self):
+        assert (
+            fuzzy_name_similarity(
+                "usa, new mexico, walker air force base",
+                "usa, new mexico, kirtland air force base",
+            )
+            < FUZZY_NAME_THRESHOLD
+        )
+
+    def test_a_state_is_not_its_namesake_district(self):
+        assert (
+            fuzzy_name_similarity(
+                "usa, washington, seattle", "usa, district of columbia, washington"
+            )
+            < FUZZY_NAME_THRESHOLD
+        )
+
+    def test_distinct_streets_do_not_merge(self):
+        assert (
+            fuzzy_name_similarity(
+                "usa, new york, manhattan, east seventy-fifth street",
+                "usa, new york, manhattan, west fifty-fifth street",
+            )
+            < FUZZY_NAME_THRESHOLD
+        )
+
+    def test_the_same_place_still_matches_through_its_components(self):
+        assert (
+            fuzzy_name_similarity(
+                "usa, new mexico, kirtland air force base",
+                "usa, new mexico, kirtland air force base",
+            )
+            >= FUZZY_NAME_THRESHOLD
+        )
+
+
+class TestAcronymShorterThanItsExpansion:
+    """An acronym need not draw one letter per word."""
+
+    def test_two_letters_from_one_word(self):
+        assert (
+            collapse_acronym_expansions("Phobos 2 Hydaspis Chaos Infrared (IR) image")
+            == "Phobos 2 Hydaspis Chaos IR image"
+        )
+
+    def test_three_letters_from_two_words(self):
+        assert (
+            collapse_acronym_expansions(
+                "mitochondrial Deoxyribonucleic Acid (DNA) region"
+            )
+            == "mitochondrial DNA region"
+        )
+
+    def test_the_longest_expansion_wins(self):
+        # Also matches on its last four words; stopping at the shortest would
+        # leave a stray "Advanced" in front of the acronym.
+        assert (
+            collapse_acronym_expansions(
+                "Advanced Aerospace Threat Identification Program (AATIP)"
+            )
+            == "AATIP"
+        )

@@ -416,9 +416,19 @@ def _token_aware_ratio(a: str, b: str) -> float:
 
 
 def _component_similarity(a: str, b: str) -> float:
-    """Similarity of one comma-component, initial-aware on its tokens."""
+    """Similarity of one comma-component, initial-aware on its tokens.
+
+    Guarded like the whole-name comparison. Place components carry mandated
+    boilerplate of their own - "Walker Air Force Base" against "Kirtland Air
+    Force Base" is 0.82 on the shared tail alone, and the structured branch
+    takes the MINIMUM component score, so that one component decides the merge.
+    Without this the hierarchy collapses exactly as the event names did: distinct
+    bases, distinct Manhattan streets, Seattle onto Washington DC.
+    """
     if a == b:
         return 1.0
+    if _distinctive_tokens_disagree(a, b):
+        return 0.0
     return max(levenshtein_ratio(a, b), _token_aware_ratio(a, b))
 
 
@@ -436,6 +446,12 @@ def _comma_components(name: str) -> list[str]:
 _INLINE_ACRONYM_RE = re.compile(
     r"((?:[^\s()]+\s+){1,8})\(([A-Za-z0-9][A-Za-z0-9-]{1,})\)"
 )
+
+
+def _is_subsequence(needle: list[str], haystack: list[str]) -> bool:
+    """Whether every element of needle appears in haystack, in order."""
+    it = iter(haystack)
+    return all(item in it for item in needle)
 
 
 def collapse_acronym_expansions(name: str) -> str:
@@ -478,10 +494,24 @@ def collapse_acronym_expansions(name: str) -> str:
         # The regex takes as many preceding words as it can; the expansion is
         # the last len(letters) of them, and anything before that is unrelated
         # text that must survive ("1947 Kenneth Arnold" ahead of "UFO").
-        head, expansion = words[: -len(letters)], words[-len(letters) :]
-        if not all(w[:1].upper() == ch.upper() for w, ch in zip(expansion, letters)):
-            return m.group(0)
-        return " ".join(head + [acronym]) + " "
+        # An acronym need not be one letter per word: "Infrared (IR)" draws two
+        # from one, "Deoxyribonucleic Acid (DNA)" three from two. So try each
+        # possible expansion length and accept the first where the words'
+        # initials appear IN ORDER within the acronym and both start alike.
+        # Requiring exactly one letter per word would reject those; requiring
+        # nothing would collapse "Joe (mother)".
+        # LONGEST expansion first: "Advanced Aerospace Threat Identification
+        # Program (AATIP)" also matches on its last four words, and stopping at
+        # the shortest would leave a stray "Advanced" in front of the acronym.
+        upper = [ch.upper() for ch in letters]
+        for take in range(len(words), 0, -1):
+            expansion = words[-take:]
+            initials = [w[:1].upper() for w in expansion if w[:1]]
+            if not initials or initials[0] != upper[0]:
+                continue
+            if _is_subsequence(initials, upper):
+                return " ".join(words[:-take] + [acronym]) + " "
+        return m.group(0)
 
     return " ".join(_INLINE_ACRONYM_RE.sub(replace, name).split())
 
