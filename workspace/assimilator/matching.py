@@ -59,6 +59,42 @@ def _expand_squadron(match: "re.Match[str]") -> str:
     return f"{full} {number} ({prefix}-{number})"
 
 
+# The country component of a place name, in the two forms the corpus uses. NOT a
+# heuristic and deliberately tiny: a closed, factual list of alternative names for
+# the same country, applied ONLY to the first comma-component of a PLACE. It is a
+# list rather than a rule because no rule derives "UK" from "United Kingdom" on
+# evidence the name itself carries - is_bare_acronym_for needs a DECLARED
+# acronym, and a place name never declares one.
+#
+# The convention is measured, not chosen: over the live graph USA leads United
+# States 463 to 6 and UK leads United Kingdom 29 to 14, so the short form wins.
+# Without this the two spellings score 0.0 against each other - the components
+# "united kingdom" and "uk" are mutual orphans - and every import mints a
+# duplicate. That is not hypothetical: re-pointing claims one morning I created
+# "UK, England, Brighton" and "UK, England, Salisbury" beside the "United
+# Kingdom, England, ..." nodes that already existed.
+_COUNTRY_FORMS = {
+    "united kingdom": "UK",
+    "great britain": "UK",
+    "united states": "USA",
+    "united states of america": "USA",
+}
+
+
+def canonical_place_country(name: str) -> str:
+    """Rewrite the country component of a place name to the short form.
+
+    Covers the bare country too: a digest emitting "United Kingdom" as a place
+    would otherwise mint a duplicate of the existing "UK" node, which is the
+    same fault one level up.
+    """
+    head, _, rest = name.partition(",")
+    canonical = _COUNTRY_FORMS.get(head.strip().lower())
+    if not canonical:
+        return name
+    return f"{canonical},{rest}" if rest else canonical
+
+
 def normalise_node_name(name: str, node_type: str | None = None) -> str:
     """Apply deterministic acronym expansions the extraction model misses.
 
@@ -86,6 +122,10 @@ def normalise_node_name(name: str, node_type: str | None = None) -> str:
     """
     if node_type == "person":
         return name
+    if node_type == "place":
+        # Country-form only, and only for places: "United Kingdom Ministry of
+        # Defence" is an organisation whose name is not a place hierarchy.
+        name = canonical_place_country(name)
     # Skip names that already contain the expanded form - the existing parens
     # acronym tail means the model did the work.
     #

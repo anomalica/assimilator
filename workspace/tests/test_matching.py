@@ -1066,3 +1066,37 @@ class TestEveryComparisonPathIsGuarded:
                 compare("kirtland air force base", "kirtland air force base")
                 >= FUZZY_NAME_THRESHOLD
             ), f"{label} rejected an identical name"
+
+
+class TestPlaceCountryForm:
+    """Two spellings of one country must not mint two nodes.
+
+    The components "united kingdom" and "uk" are mutual orphans, so they score
+    0.0 against each other and every import creates a duplicate. This is the
+    fault that produced "UK, England, Brighton" beside "United Kingdom, England,
+    Brighton" in the live graph.
+    """
+
+    def test_the_long_country_form_normalises_to_the_convention(self):
+        assert (
+            normalise_node_name("United Kingdom, England, Oxford", "place")
+            == "UK, England, Oxford"
+        )
+        assert (
+            normalise_node_name("United States, California, Fresno", "place")
+            == "USA, California, Fresno"
+        )
+
+    def test_a_bare_country_normalises_too(self):
+        assert normalise_node_name("United Kingdom", "place") == "UK"
+
+    def test_only_the_country_component_is_touched(self):
+        # A place whose LATER components happen to read like a country name.
+        assert normalise_node_name("France, Paris", "place") == "France, Paris"
+
+    def test_an_organisation_keeps_its_own_wording(self):
+        # "United Kingdom Ministry of Defence" is not a place hierarchy.
+        assert (
+            normalise_node_name("United Kingdom Ministry of Defence", "organisation")
+            == "United Kingdom Ministry of Defence"
+        )
