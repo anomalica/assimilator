@@ -196,7 +196,27 @@ def name_equivalence_key(name: str) -> str:
 # Minimum similarity (0-1) to consider a fuzzy match. 0.75 catches typos
 # ("David Fravor" vs "David Favor") and initial-vs-full first names ("K. Day"
 # vs "Kevin Day") but not unrelated names ("Kevin Day" vs "David Fravor").
+#
+# UNCHANGED FOR WANT OF EVIDENCE, NOT BECAUSE IT WAS VALIDATED. There is no
+# unbiased corpus to tune it on. The obvious one - pairs a curator merged by
+# hand - is biased by construction: a pair reaches the merge ledger BECAUSE the
+# matcher missed it, so pairs it caught are absent by definition and the
+# measured "45.5% false reject" at 0.75 describes the residue, not the recall.
+# Fitting the number to that population would fit it to the failures. Prefer
+# fixing what the comparison measures (see collapse_acronym_expansions) over
+# moving this line; a mechanism change can be argued from the pair it repairs,
+# a threshold change cannot.
 FUZZY_NAME_THRESHOLD = 0.75
+
+# THE BOUNDARY OF THIS METHOD, worth knowing before reaching for a better
+# string metric: about a quarter of genuine duplicates in this corpus share no
+# words at all. "Tic Tac Sighting" and "2004 USS Nimitz UAP encounter" are one
+# event under two names, and no edit-distance threshold reaches that pair at any
+# setting - lowering it merely admits unrelated names first. Measured over the
+# merge ledger, dropping to 0.70 leaves 36.5% unmatched and 0.60 leaves 23.7%,
+# then it plateaus: the remainder is not a tuning problem. Those duplicates are
+# what the embedding neighbourhood and human curation exist to catch; string
+# matching is the cheap first pass, not the whole answer.
 
 # Per-component threshold for comma-structured names ("Surname, First" people,
 # "Country, State, City" places). Higher than the whole-name threshold because a
@@ -406,6 +426,54 @@ def _comma_components(name: str) -> list[str]:
     return [part.strip() for part in name.split(",") if part.strip()]
 
 
+# An acronym declared anywhere in a name, not only as a trailing suffix:
+# "1947 Kenneth Arnold Unidentified Flying Object (UFO) sighting".
+# Case-insensitive where _ACRONYM_SUFFIX_RE is not: comparisons run on
+# lowercased names, so ALL-CAPS is not available as the signal. The initials
+# check below is the stronger evidence anyway - "Joe (mother) Smith" would need
+# six preceding words spelling M-O-T-H-E-R - and a digits-only parenthetical
+# ("(1947)") yields no letters and is left alone.
+_INLINE_ACRONYM_RE = re.compile(
+    r"((?:[^\s()]+\s+){1,8})\(([A-Za-z0-9][A-Za-z0-9-]{1,})\)"
+)
+
+
+def collapse_acronym_expansions(name: str) -> str:
+    """Rewrite "Full Name (ACRO)" to "ACRO" wherever the name declares one.
+
+    Event names carry a mandated expansion ("... Unidentified Flying Object
+    (UFO) incident") while the same event arrives from another digest in the
+    short form ("... UFO incident"). Compared literally the expansion is most of
+    the string, which breaks similarity in BOTH directions at once: two
+    unrelated events score high on the shared boilerplate, and one event written
+    both ways scores low because the spelled-out words are orphan tokens. Two
+    directions, one cause - so this collapses rather than strips, putting both
+    spellings into the short form instead of deleting the words from one side.
+
+    The declared acronym is the evidence, exactly as in is_bare_acronym_for: the
+    span is only collapsed when the parenthetical's letters are the initials of
+    the words in front of it. "Office of the Under Secretary of Defense for
+    Intelligence (OUSDI)" does not match its initials (the stop-words break it)
+    and is left untouched, which is the safe outcome - no collapse is no change.
+    """
+
+    def replace(m: re.Match) -> str:
+        words = m.group(1).split()
+        acronym = m.group(2)
+        letters = [ch for ch in acronym if ch.isalpha()]
+        if not letters or len(letters) > len(words):
+            return m.group(0)
+        # The regex takes as many preceding words as it can; the expansion is
+        # the last len(letters) of them, and anything before that is unrelated
+        # text that must survive ("1947 Kenneth Arnold" ahead of "UFO").
+        head, expansion = words[: -len(letters)], words[-len(letters) :]
+        if not all(w[:1].upper() == ch.upper() for w, ch in zip(expansion, letters)):
+            return m.group(0)
+        return " ".join(head + [acronym]) + " "
+
+    return " ".join(_INLINE_ACRONYM_RE.sub(replace, name).split())
+
+
 def fuzzy_name_similarity(a: str, b: str) -> float:
     """Structure-aware similarity (0-1) between two lowercased names.
 
@@ -434,6 +502,39 @@ def fuzzy_name_similarity(a: str, b: str) -> float:
     "Andrews Air Force Base" vs "Vandenberg Air Force Base") cannot merge on the
     shared structure alone.
     """
+    # Score the pair in both acronym spellings and keep the better. Collapsing
+    # is not safe to do unconditionally: it helps when both sides declare the
+    # acronym ("... UFO sighting" vs "... Unidentified Flying Object (UFO)
+    # sighting" become identical) but hurts when only one declares it and the
+    # other spells the words out bare ("artificial intelligence (AI)" collapses
+    # to "AI" and moves AWAY from "artificial intelligence"). Taking the max
+    # keeps the gain without the asymmetry, and every guard below still applies
+    # to whichever spelling is being scored.
+    ca, cb = collapse_acronym_expansions(a), collapse_acronym_expansions(b)
+    if (ca, cb) != (a, b) and not _collapses_to_a_bare_acronym(ca, cb):
+        return max(_fuzzy_one_spelling(a, b), _fuzzy_one_spelling(ca, cb))
+    return _fuzzy_one_spelling(a, b)
+
+
+def _collapses_to_a_bare_acronym(ca: str, cb: str) -> bool:
+    """Whether collapsing left one side as nothing but the acronym itself.
+
+    "Unidentified Flying Object (UFO)" collapses to "UFO", and every "UFO
+    <something>" topic then reads as a mere extension of it - "UFO disclosure",
+    "UFO flap" and "UFO abduction phenomenon" all matched the bare phenomenon
+    node this way. The extension rule is right for ordinary names ("Filming" vs
+    "Filming 1964") but a three-letter stem makes it fire on anything, so the
+    collapsed spelling is refused here. Nothing is lost: a bare acronym against
+    the node that spells it out is tier 3's job, decided on the declared acronym
+    rather than on string distance.
+    """
+    if ca == cb:
+        return False
+    return any(side and " " not in side and len(side) <= 10 for side in (ca, cb))
+
+
+def _fuzzy_one_spelling(a: str, b: str) -> float:
+    """fuzzy_name_similarity for one fixed acronym spelling of the pair."""
     # A differing hard token (number, year, designator) means different entities
     # whatever the name shape, so guard both branches with it.
     if _hard_tokens_conflict(_hard_tokens(a), _hard_tokens(b)):
@@ -670,7 +771,22 @@ def match_node(
                 ).fetchall()
                 alias_match = False
                 for (alias,) in aliases:
-                    alias_sim = levenshtein_ratio(name_lower, alias.lower())
+                    # Structure-aware, exactly as the name comparison below. Raw
+                    # Levenshtein here was the single widest false-merge path in
+                    # the graph: event names carry a mandated boilerplate tail
+                    # ("... Unidentified Flying Object (UFO) incident") that is
+                    # most of the string, so any two events scored above the
+                    # threshold on the scaffolding alone - "1947 Roswell ..." vs
+                    # the Nimitz alias "2004 USS Nimitz ..." reached 0.811 with
+                    # nothing in common but the boilerplate. Worse, it ratcheted:
+                    # a match is recorded as a new alias (see import_markdown),
+                    # so each false match widened the net for the next one, which
+                    # is how one node accumulated 118 aliases naming other events.
+                    # fuzzy_name_similarity applies the hard-token guard (1947 vs
+                    # 2004 conflict) and the distinctive-token guard, taking that
+                    # pair to 0.0. Exact alias hits never reach here - they match
+                    # in tier 1 - so this only tightens the fuzzy path.
+                    alias_sim = fuzzy_name_similarity(name_lower, alias.lower())
                     if alias_sim >= FUZZY_NAME_THRESHOLD and alias_sim > best_score:
                         best_match = candidate
                         best_score = alias_sim

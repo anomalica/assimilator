@@ -2,6 +2,9 @@ import sqlite3
 
 from assimilator.database import init_db, insert_alias, insert_node
 from assimilator.matching import (
+    FUZZY_NAME_THRESHOLD,
+    collapse_acronym_expansions,
+    fuzzy_name_similarity,
     is_bare_acronym_for,
     punctuation_blind_key,
     is_nickname_of,
@@ -875,3 +878,69 @@ def test_a_description_never_matches_a_node():
     assert match_node(
         conn, "unnamed Anomaly Physical Evidence Group (APEG) biochemist", "person"
     )
+
+
+class TestAcronymBoilerplate:
+    """The mandated expansion must not decide a comparison on its own.
+
+    Event names carry "... Unidentified Flying Object (UFO) incident" while the
+    same event arrives elsewhere in the short form. Literal comparison gets both
+    directions wrong at once: unrelated events score high on the shared tail,
+    and one event written both ways scores low on the spelled-out words.
+    """
+
+    def test_different_events_sharing_only_the_boilerplate_are_rejected(self):
+        assert (
+            fuzzy_name_similarity(
+                "1947 roswell unidentified flying object (ufo) incident",
+                "2004 uss nimitz unidentified flying object (ufo) incident",
+            )
+            < FUZZY_NAME_THRESHOLD
+        )
+
+    def test_same_event_in_both_acronym_spellings_matches(self):
+        assert (
+            fuzzy_name_similarity(
+                "1947 kenneth arnold ufo sighting, mount rainier",
+                "1947 kenneth arnold unidentified flying object (ufo) sighting, "
+                "mount rainier",
+            )
+            >= FUZZY_NAME_THRESHOLD
+        )
+
+    def test_one_side_spelled_out_without_declaring_the_acronym_still_matches(self):
+        # Collapsing only the declaring side would move these APART, so the
+        # comparison keeps the better of both spellings.
+        assert (
+            fuzzy_name_similarity(
+                "artificial intelligence (ai)", "artificial intelligence"
+            )
+            >= FUZZY_NAME_THRESHOLD
+        )
+
+    def test_a_topic_is_not_an_extension_of_the_bare_phenomenon(self):
+        # "Unidentified Flying Object (UFO)" collapses to "UFO", and without a
+        # guard every "UFO <something>" reads as an extension of it.
+        assert (
+            fuzzy_name_similarity("ufo disclosure", "unidentified flying object (ufo)")
+            < FUZZY_NAME_THRESHOLD
+        )
+
+    def test_collapse_needs_the_initials_as_evidence(self):
+        assert collapse_acronym_expansions("Joe (mother) Smith") == "Joe (mother) Smith"
+        assert (
+            collapse_acronym_expansions(
+                "Advanced Aerospace Threat Identification Program (AATIP)"
+            )
+            == "AATIP"
+        )
+        # Stop-words break the initials, so the name is left alone - no collapse
+        # is the safe outcome.
+        full = "Office of the Under Secretary of Defense for Intelligence (OUSDI)"
+        assert collapse_acronym_expansions(full) == full
+
+    def test_a_year_parenthetical_is_not_an_acronym(self):
+        assert (
+            collapse_acronym_expansions("roswell incident (1947)")
+            == "roswell incident (1947)"
+        )
