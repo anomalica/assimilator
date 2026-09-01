@@ -116,6 +116,30 @@ CREATE TABLE IF NOT EXISTS corroboration_rejections (
     PRIMARY KEY (claim_a, claim_b)
 );
 
+-- Which nodes a RECORD's digest declared, as distinct from which nodes its
+-- claims reference. The two diverge, and the divergence is the point.
+--
+-- The CSG-11 AAV Incident Report declares the 2004 USS Nimitz UAP encounter and
+-- edges only 2 of its 204 claims to it - the other 202 go to the participants
+-- (117 to the object, 41 to Fravor, 32 to Underwood). That extraction is
+-- defensible: a claim about what Fravor saw IS a claim about Fravor. But it
+-- means "claims edged to this node" measures something quite different from
+-- "records about this node", and the source-focus measure built on the former
+-- scored the primary document at 0.010 on the event it documents.
+--
+-- Declaration is NOT by itself an aboutness signal - across 60 digests the
+-- count per digest runs from 0 to 187, and a book declaring 187 events declares
+-- this one too. It is kept because it is real extracted evidence that was being
+-- discarded at import, and because any answer to "is this record about this
+-- event" will need it. Interpreting it is a data-model question, not this
+-- table's job.
+CREATE TABLE IF NOT EXISTS record_nodes (
+    record_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    PRIMARY KEY (record_id, node_id)
+);
+CREATE INDEX IF NOT EXISTS idx_record_nodes_node ON record_nodes(node_id);
+
 -- Whether a claim BELONGS on a node, as distinct from being ATTACHED to it.
 -- ADR-worthy distinction, and the whole reason this table exists: a claim's
 -- presence in claim_node_refs is evidence the importer put it there, not that
@@ -809,3 +833,33 @@ def node_belonging_counts(conn: sqlite3.Connection, node_id: str) -> dict[str, i
     counts["unreviewed"] = total - counts["verified"] - counts["suspect"]
     counts["total"] = total
     return counts
+
+
+def link_record_nodes(
+    conn: sqlite3.Connection, record_id: str, node_ids: "list[str]"
+) -> None:
+    """Record which nodes this record's digest DECLARED.
+
+    Replaces the record's set rather than adding to it, so a re-import after a
+    re-digest does not leave declarations the digest no longer makes.
+    """
+    conn.execute("DELETE FROM record_nodes WHERE record_id = ?", (record_id,))
+    conn.executemany(
+        "INSERT OR IGNORE INTO record_nodes (record_id, node_id) VALUES (?, ?)",
+        [(record_id, n) for n in dict.fromkeys(node_ids)],
+    )
+
+
+def records_declaring(conn: sqlite3.Connection, node_id: str) -> "list[tuple]":
+    """Records whose digest declared this node, with how many nodes each declared.
+
+    The second number is the caller's confidence signal: a record declaring two
+    events and naming this one is saying something; a book declaring 187 is not.
+    """
+    return conn.execute(
+        "SELECT rn.record_id, r.title,"
+        " (SELECT COUNT(*) FROM record_nodes rn2 WHERE rn2.record_id = rn.record_id)"
+        " FROM record_nodes rn JOIN records r ON r.id = rn.record_id"
+        " WHERE rn.node_id = ? ORDER BY 3",
+        (node_id,),
+    ).fetchall()

@@ -19,6 +19,7 @@ from assimilator.database import (
     get_record_by_title,
     get_record_claim_hashes,
     insert_alias,
+    link_record_nodes,
     insert_claim,
     insert_node,
     insert_record,
@@ -742,6 +743,11 @@ def import_extraction(
         for alias in (node_def.get("metadata") or {}).get("aliases") or []:
             if alias and alias != name:
                 insert_alias(conn, alias, node_name_to_id[name])
+
+    # Which nodes this record's digest DECLARED - kept separately from the claim
+    # edges, because the two diverge and the divergence matters. See the
+    # record_nodes table comment.
+    link_record_nodes(conn, record.id, list(node_name_to_id.values()))
 
     # Link record producer
     producer_name = fm.get("record_producer")

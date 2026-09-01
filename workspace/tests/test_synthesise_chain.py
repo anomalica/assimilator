@@ -11,6 +11,8 @@ arguments reach the shared function - a wiring bug would silently downgrade ever
 claim to a mode it did not earn.
 """
 
+from collections import Counter
+
 import sqlite3
 
 from anomalica_common.digest.models import (
@@ -233,11 +235,21 @@ def test_same_type_same_name_is_still_disambiguated():
     assert {c["slug"] for c in collisions} == {"aaro", "klas-tv"}
 
 
-def test_event_keeps_the_sources_that_are_about_it_not_the_biggest():
-    """Ranking capped sources by claim count picks long books over short primary
-    accounts: on the Nimitz encounter it selected five books and dropped the
-    CSG-11 incident report, the document the event happened in. Focus - the share
-    of a record that concerns the node - inverts that correctly."""
+def test_event_keeps_both_the_primary_account_and_the_bulk():
+    """Two failures pull in opposite directions and BOTH have happened.
+
+    Ranking capped sources by claim count picks long books over short primary
+    accounts: on the Nimitz encounter it dropped the CSG-11 incident report, the
+    document the event happened in.
+
+    Ranking by focus alone does the reverse - it kept a 141-claim podcast and
+    dropped the second and third largest sources outright, so evidence that was
+    35% one podcast produced a brief that was 67% one podcast. A brief must not
+    be more concentrated than the evidence behind it.
+
+    So the slots alternate, starting with focus: slot 1 guarantees the primary
+    account, slot 2 guarantees the largest contributor.
+    """
     from assimilator.synthesise import _spread_across_sources
 
     rows = []
@@ -247,8 +259,41 @@ def test_event_keeps_the_sources_that_are_about_it_not_the_biggest():
 
     kept = _spread_across_sources(rows, 200, max_sources=3, focus=focus)
     works = {w for _cid, w in kept}
-    assert works == {"statement", "report", "podcast"}
-    assert "book" not in works
+
+    assert "statement" in works, "the most-focused source must survive"
+    assert "book" in works, "the largest contributor must survive"
+
+
+def test_the_largest_contributors_are_not_dropped():
+    """Capping sources concentrates by arithmetic; it must concentrate as little
+    as the cap allows.
+
+    Focus ranking dropped the second and third largest sources on the Nimitz
+    encounter - 114 and 70 claims - and kept four small ones, so evidence that
+    is 35% one podcast became a brief that is 67% one podcast. No cap can make
+    a 3-of-5 selection as diverse as the whole, but dropping the bulk while
+    keeping the tail is the wrong direction.
+    """
+    from assimilator.synthesise import _spread_across_sources
+
+    sizes = {"podcast": 141, "book_a": 114, "book_b": 70, "short": 25, "tiny": 17}
+    rows = []
+    for work, n in sizes.items():
+        rows += [(f"{work}-{i}", work) for i in range(n)]
+    # The podcast is highly focused; the big books range over other subjects.
+    focus = {"podcast": 0.26, "book_a": 0.03, "book_b": 0.02, "short": 0.4, "tiny": 0.3}
+
+    kept = _spread_across_sources(rows, 1000, max_sources=4, focus=focus)
+    counts = Counter(w for _cid, w in kept)
+
+    assert "book_a" in counts, "the 114-claim source must not be dropped"
+    assert "book_b" in counts, "the 70-claim source must not be dropped"
+    evidence_share = max(sizes.values()) / sum(sizes.values())
+    brief_share = max(counts.values()) / sum(counts.values())
+    assert brief_share <= evidence_share + 0.05, (
+        f"brief is {brief_share:.0%} one source against evidence at "
+        f"{evidence_share:.0%}"
+    )
 
 
 def test_a_tiny_record_cannot_win_on_focus_alone():

@@ -197,10 +197,38 @@ def _spread_across_sources(
         # drop evidence when there is room. Applied as a filter it did exactly
         # that: Rendlesham has 7 sources and a cap of 5, three clear the
         # minimum, and the other four were discarded with two slots still free,
-        # losing 6 claims the node held. Substantial sources first, then the
-        # rest fill whatever the cap leaves.
+        # losing 6 claims the node held.
         substantial = [q for q in ranked if len(q) >= MIN_SOURCE_CLAIMS]
-        keep = substantial[:max_sources]
+        pool = substantial or ranked
+        # FOCUS PICKS THE PRIMARY ACCOUNT; SIZE FILLS THE REST. Focus alone
+        # concentrated the brief instead of representing the evidence: on the
+        # Nimitz encounter it kept the 141-claim podcast and DROPPED the second
+        # and third largest sources outright (114 and 70 claims), so a body of
+        # evidence that is 35% one podcast produced a brief that was 67% one
+        # podcast. A brief must not be more concentrated than the evidence
+        # behind it - the whole point of spreading is defeated if the spread is
+        # computed over a set already narrowed to one voice.
+        #
+        # The most-focused source takes the first slot, the rest go by SIZE.
+        # Focus alone concentrated the brief instead of representing the
+        # evidence: on the Nimitz encounter it kept a 141-claim podcast and
+        # dropped the second and third largest sources outright (114 and 70
+        # claims), turning evidence that is 35% one podcast into a brief that is
+        # 67% one podcast. Size fills the rest so the article rests on the bulk
+        # of what we hold.
+        #
+        # THIS DOES NOT SOLVE THE PRIMARY-DOCUMENT PROBLEM and must not be read
+        # as doing so. Focus cannot find the CSG-11 incident report: it edges 2
+        # of its 204 claims to the event and 202 to the participants, scoring
+        # 0.010 - the LOWEST of any source on that node. The signal that
+        # identifies it is which nodes the record's digest DECLARED, which is a
+        # different fact from what its claims edge to (see record_nodes). How to
+        # combine the two is a data-model question and is not settled here.
+        keep = pool[:1]
+        kept_ids = {q[0] for q in keep}
+        keep += sorted(
+            (q for q in pool if q[0] not in kept_ids), key=lambda q: (-len(q), q[0])
+        )[: max_sources - len(keep)]
         if len(keep) < max_sources:
             kept_ids = {q[0] for q in keep}
             keep += [q for q in ranked if q[0] not in kept_ids][
