@@ -208,6 +208,17 @@ def is_a_description(name: str) -> bool:
     return bool(_DESCRIPTION_RE.match(name or ""))
 
 
+# A TWO-character trailing parenthetical. Deliberately not folded into
+# _ACRONYM_SUFFIX_RE, which requires three: at two characters a parenthetical is
+# as often a QUALIFIER as an acronym - "UFO magazine (UK)" is a country and
+# "George Russell (AE)" a pen name, and stripping either would make two distinct
+# things equivalent. So a two-character suffix is stripped only where the
+# letters are the initials of the words in front of it, which is evidence rather
+# than a length rule: "Artificial intelligence (AI)" and "Remote viewing (RV)"
+# pass, "UFO magazine (UK)" does not.
+_SHORT_ACRONYM_SUFFIX_RE = re.compile(r"\s*\(([A-Z0-9]{2})\)\s*$")
+
+
 def strip_acronym_suffix(name: str) -> str:
     """Strip a trailing '(ACRONYM)' suffix if present.
 
@@ -215,8 +226,18 @@ def strip_acronym_suffix(name: str) -> str:
     'Defense Intelligence Agency'
     >>> strip_acronym_suffix('Joe (mother)')
     'Joe (mother)'
+    >>> strip_acronym_suffix('Artificial intelligence (AI)')
+    'Artificial intelligence'
+    >>> strip_acronym_suffix('UFO magazine (UK)')
+    'UFO magazine (UK)'
     """
-    return _ACRONYM_SUFFIX_RE.sub("", name).rstrip()
+    stripped = _ACRONYM_SUFFIX_RE.sub("", name).rstrip()
+    if stripped != name:
+        return stripped
+    match = _SHORT_ACRONYM_SUFFIX_RE.search(name)
+    if match and collapse_acronym_expansions(name) != name:
+        return name[: match.start()].rstrip()
+    return name
 
 
 def fold_diacritics(text: str) -> str:

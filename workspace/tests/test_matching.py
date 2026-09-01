@@ -1100,3 +1100,37 @@ class TestPlaceCountryForm:
             normalise_node_name("United Kingdom Ministry of Defence", "organisation")
             == "United Kingdom Ministry of Defence"
         )
+
+
+class TestShortAcronymSuffix:
+    """A two-character parenthetical is as often a qualifier as an acronym."""
+
+    def test_two_letter_acronym_of_its_own_words_is_stripped(self):
+        from assimilator.matching import strip_acronym_suffix
+
+        assert (
+            strip_acronym_suffix("Artificial intelligence (AI)")
+            == "Artificial intelligence"
+        )
+        assert strip_acronym_suffix("Remote viewing (RV)") == "Remote viewing"
+        assert strip_acronym_suffix("United Nations (UN)") == "United Nations"
+
+    def test_a_two_letter_qualifier_is_not_stripped(self):
+        """The reason this is an evidence test and not a length rule.
+
+        "UFO magazine (UK)" is a country and "George Russell (AE)" a pen name;
+        stripping either would make two distinct things equivalent.
+        """
+        from assimilator.matching import strip_acronym_suffix
+
+        assert strip_acronym_suffix("UFO magazine (UK)") == "UFO magazine (UK)"
+        assert strip_acronym_suffix("George Russell (AE)") == "George Russell (AE)"
+
+    def test_the_pair_it_was_built_for_is_now_one_node(self):
+        """'Artificial intelligence' and 'Artificial intelligence (AI)' keyed
+        differently, so the matcher never saw them as the same topic."""
+        from assimilator.matching import name_equivalence_key
+
+        assert name_equivalence_key("Artificial intelligence") == name_equivalence_key(
+            "Artificial intelligence (AI)"
+        )
