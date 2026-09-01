@@ -26,6 +26,7 @@ from pathlib import Path
 
 import yaml
 
+from assimilator.brief_size import budget_for, consuming_window, estimate_tokens
 from assimilator.brief_yaml import INTERNAL_ONLY
 from assimilator.brief_yaml import dump as dump_brief_yaml
 
@@ -60,7 +61,12 @@ SCHEMA = "anomalica/brief/1"
 # n=1 each side, and an unbounded brief is an unbounded failure when it is wrong.
 # At 600 only six nodes truncate at all, and what they lose is now the weakest
 # material rather than whatever the transcript happened to say last.
-MAX_CLAIMS = int(os.environ.get("ANOMALICA_BRIEF_MAX_CLAIMS", "600"))
+# A BACKSTOP, NOT THE CAP. The real limit is the token budget below; this stops
+# a pathological node from building a million-entry list before the budget
+# refuses it. It was 600 and that WAS the cap, set against context limits no
+# model in the policy file has any more - it cut 76% of what the graph knows
+# about Whitley Strieber out of his article, uncitable and unreported.
+MAX_CLAIMS = int(os.environ.get("ANOMALICA_BRIEF_MAX_CLAIMS", "20000"))
 
 # Per-node-type ceiling on how many SOURCES contribute to a brief. Absent means
 # unlimited: spread across everything, which is right for a person, where breadth
@@ -84,7 +90,10 @@ MIN_SOURCE_CLAIMS = 5
 # Column offsets into the claim rows selected below, named because the tuple is
 # long and an importance key that silently reads the wrong field would rank on
 # nonsense while looking like it worked.
+_CLAIM_OVERHEAD_TOKENS = 180
 _COL_ID = 0
+_COL_CONTENT = 1
+_COL_EXCERPT = 2
 _COL_ATTESTATION = 4
 _COL_SPEAKER_ID = 9
 
@@ -95,6 +104,18 @@ _COL_SPEAKER_ID = 9
 # claim_role is null on all of them), so ranking by either would be ranking by a
 # constant.
 _ATTESTATION_RANK = {"first_hand": 3, "second_hand": 2, "third_hand": 1}
+
+
+def _claim_token_cost(row) -> int:
+    """Token cost of one claim row, from the fields that reach the brief.
+
+    Content and excerpt are the bulk; the rest is a near-constant of ids,
+    slugs and provenance keys, measured at roughly 180 tokens per claim across
+    the corpus and added flat rather than reconstructed, because building the
+    dict twice to weigh it would double the work of synthesis.
+    """
+    text = (row[_COL_CONTENT] or "") + (row[_COL_EXCERPT] or "")
+    return estimate_tokens(text) + _CLAIM_OVERHEAD_TOKENS
 
 
 def _importance(
@@ -141,6 +162,8 @@ def _spread_across_sources(
     max_sources: int | None = None,
     focus: dict | None = None,
     importance=None,
+    budget: int | None = None,
+    cost=None,
 ) -> list:
     """Fill the cap ROUND-ROBIN across sources, not chronologically.
 
@@ -235,7 +258,7 @@ def _spread_across_sources(
                 : max_sources - len(keep)
             ]
         queues = [by_first_index[q[0]] for q in sorted(keep, key=lambda q: q[0])]
-    if sum(len(q) for q in queues) <= cap:
+    if sum(len(q) for q in queues) <= cap and budget is None:
         return [rows[i] for i in sorted(i for q in queues for i in q)]
 
     if importance is not None:
@@ -249,12 +272,28 @@ def _spread_across_sources(
         ]
 
     chosen: list[int] = []
-    while len(chosen) < cap and any(queues):
+    spent = 0
+    stop = False
+    while len(chosen) < cap and any(queues) and not stop:
         for queue in queues:
             if not queue:
                 continue
-            chosen.append(queue.pop(0))
+            index = queue[0]
+            if budget is not None and cost is not None:
+                price = cost(rows[index])
+                # Stop on the FIRST claim that does not fit rather than
+                # skipping it and trying smaller ones. Skipping would fill the
+                # tail with whichever claims happen to be short, which is a
+                # selection rule nobody chose and one that silently prefers
+                # thin evidence.
+                if spent + price > budget:
+                    stop = True
+                    break
+                spent += price
+            queue.pop(0)
+            chosen.append(index)
             if len(chosen) == cap:
+                stop = True
                 break
     return [rows[i] for i in sorted(chosen)]
 
@@ -475,13 +514,24 @@ def build_entity_brief(
     max_sources = MAX_SOURCES.get(node_type)
     focus = _source_focus(conn, node_id) if max_sources else None
     corroborated = _corroborated_claim_ids(conn)
-    for row in _spread_across_sources(
+    # Size the brief against the window of the stage that CONSUMES it, not
+    # against a claim count. Claim count is a proxy for size and excerpt lengths
+    # vary by an order of magnitude. If the policy file cannot be read the
+    # budget is None and nothing is cut - a guessed window would reintroduce
+    # the fault this replaced, invisibly.
+    window = consuming_window()
+    token_budget = budget_for(window) if window else None
+    available = len(rows)
+    selected_rows = _spread_across_sources(
         rows,
         MAX_CLAIMS,
         max_sources,
         focus,
         importance=lambda r: _importance(r, node_id, corroborated, ref_status),
-    ):
+        budget=token_budget,
+        cost=_claim_token_cost,
+    )
+    for row in selected_rows:
         (
             cid,
             content,
@@ -602,6 +652,34 @@ def build_entity_brief(
             "claim_count_total": claim_count_total,
         },
         "generated": {"graph_version": _graph_version(conn)},
+        # How big this brief is, so a consumer can pick a model that HOLDS it
+        # rather than guessing. `tokens` is an estimate - see brief_size - and
+        # deliberately errs high, because overflowing a context window is a
+        # silent failure at the provider while an oversized model merely costs.
+        "size": {
+            "claims": len(claims),
+            "tokens_estimated": sum(_claim_token_cost(r) for r in selected_rows),
+            "sized_against": window or None,
+        },
+        # SAY SO WHEN THE BRIEF IS NOT ALL OF IT. A claim cut here cannot appear
+        # in the article, cannot be cited, and left unsaid nothing downstream
+        # can tell it ever existed - a page built from a quarter of the evidence
+        # is indistinguishable from one built from all of it. Absent when the
+        # brief is complete, so its presence is the signal.
+        **(
+            {
+                "truncated": {
+                    "kept": len(claims),
+                    "available": available,
+                    "why": (
+                        f"the brief would not fit the {window:,}-token window of "
+                        "the stage that consumes it"
+                    ),
+                }
+            }
+            if available > len(claims)
+            else {}
+        ),
         # THIS DIRECTORY IS NOT A CACHE OF THE PUBLISHED ONE. The brief written
         # here carries every original_excerpt verbatim, including from sources we
         # may not redistribute; publish_briefs strips those by copyright status

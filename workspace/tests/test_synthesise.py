@@ -228,3 +228,71 @@ def test_substantial_sources_still_rank_first():
     kept = synthesise._spread_across_sources(rows, cap=100, max_sources=1)
 
     assert {r[-1] for r in kept} == {"big"}
+
+
+def _sized_graph(n_claims: int):
+    from anomalica_common.digest.models import Claim, Record
+    from assimilator.database import insert_claim, insert_record
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R1"))
+    insert_node(conn, Node(id="N", node_type=NodeType.event, name="An Event"))
+    for i in range(n_claims):
+        cid = f"c{i}"
+        insert_claim(
+            conn,
+            Claim(
+                id=cid,
+                content="a sentence of evidence " * 20,
+                claim_type="testimony",
+                record_id="r1",
+            ),
+        )
+        conn.execute(
+            "INSERT INTO claim_node_refs (claim_id, node_id) VALUES (?, 'N')", (cid,)
+        )
+    conn.commit()
+    return conn
+
+
+def test_a_brief_that_fits_carries_everything_and_says_its_size(monkeypatch):
+    """The 600-claim cap cut 76% of what the graph knew about its largest
+    subjects, uncitable and unreported. Size now comes from the consuming
+    stage's context window, and a brief that fits is not cut at all."""
+    conn = _sized_graph(50)
+    monkeypatch.setattr(synthesise, "consuming_window", lambda *a, **k: 1_050_000)
+
+    brief = synthesise.build_entity_brief(conn, "N")
+
+    assert brief["page"]["claim_count"] == 50
+    assert "truncated" not in brief, "nothing was cut, so nothing should be claimed"
+    assert brief["size"]["claims"] == 50
+    assert brief["size"]["tokens_estimated"] > 0
+    assert brief["size"]["sized_against"] == 1_050_000
+
+
+def test_a_truncated_brief_says_so(monkeypatch):
+    """A claim cut here cannot appear in the article and cannot be cited. Left
+    unsaid, a page built from a quarter of the evidence is indistinguishable
+    from one built from all of it."""
+    conn = _sized_graph(50)
+    monkeypatch.setattr(synthesise, "consuming_window", lambda *a, **k: 4_000)
+
+    brief = synthesise.build_entity_brief(conn, "N")
+
+    assert brief["page"]["claim_count"] < 50
+    assert brief["truncated"]["available"] == 50
+    assert brief["truncated"]["kept"] == brief["page"]["claim_count"]
+    assert "4,000" in brief["truncated"]["why"]
+
+
+def test_an_unreadable_policy_cuts_nothing(monkeypatch):
+    """A guessed window would reintroduce the fault this replaced, invisibly."""
+    conn = _sized_graph(50)
+    monkeypatch.setattr(synthesise, "consuming_window", lambda *a, **k: 0)
+
+    brief = synthesise.build_entity_brief(conn, "N")
+
+    assert brief["page"]["claim_count"] == 50
+    assert "truncated" not in brief
