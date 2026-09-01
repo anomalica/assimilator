@@ -1531,6 +1531,47 @@ def publish_briefs_cmd(
         raise SystemExit(1)
 
 
+@main.command("belonging")
+@click.option(
+    "--node", default=None, help="Node id or exact name; omit for the worst offenders"
+)
+@click.option("--limit", default=20, show_default=True)
+@click.pass_context
+def belonging_cmd(ctx: click.Context, node: str | None, limit: int) -> None:
+    """Whether a node's claims BELONG on it, as distinct from being attached.
+
+    A claim's presence in claim_node_refs is evidence the importer put it there.
+    UNREVIEWED IS NOT VERIFIED - it means nobody has checked.
+    """
+    from assimilator.database import node_belonging_counts
+
+    conn = sqlite3.connect(ctx.obj["db_path"])
+    if node:
+        row = conn.execute(
+            "SELECT id, name FROM nodes WHERE (id = ? OR name = ?) AND retired_at IS NULL",
+            (node, node),
+        ).fetchone()
+        if not row:
+            raise SystemExit(f"no live node: {node}")
+        counts = node_belonging_counts(conn, row[0])
+        click.echo(f"{row[1]}")
+        for k in ("total", "verified", "suspect", "unreviewed"):
+            click.echo(f"   {k:12} {counts[k]}")
+        return
+    rows = conn.execute(
+        "SELECT n.name, COUNT(*) FROM claim_ref_status s"
+        " JOIN nodes n ON n.id = s.node_id"
+        " WHERE s.status = 'suspect' GROUP BY s.node_id ORDER BY 2 DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    if not rows:
+        click.echo("No claim has been marked suspect.")
+        return
+    click.echo("Nodes holding claims read and found NOT to belong:")
+    for name, n in rows:
+        click.echo(f"   {n:>5}  {name}")
+
+
 @main.command("brief-staleness")
 @click.option(
     "--briefs", default=None, help="Briefs dir (default: ANOMALICA_BRIEFS_DIR)."

@@ -81,6 +81,7 @@ def test_importance_ranks_corroborated_over_first_hand_over_nothing():
     from assimilator.synthesise import _importance
 
     corroborated = {"c-corr"}
+
     def key(r):
         return _importance(r, "n1", corroborated)
 
@@ -134,3 +135,62 @@ def test_without_an_importance_key_the_behaviour_is_unchanged():
 
     rows = [_row("a"), _row("b"), _row("c")]
     assert [r[0] for r in _spread_across_sources(rows, 2)] == ["a", "b"]
+
+
+def _belonging_graph(tmp_path):
+    """One node with three claims: one verified, one suspect, one unreviewed."""
+    from assimilator.database import insert_claim, insert_record, set_claim_ref_status
+    from anomalica_common.digest.models import Claim, Record
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R1"))
+    insert_node(conn, Node(id="N", node_type=NodeType.event, name="An Event"))
+    for cid, text in (
+        ("c1", "belongs here"),
+        ("c2", "about something else"),
+        ("c3", "unchecked"),
+    ):
+        insert_claim(
+            conn, Claim(id=cid, content=text, claim_type="testimony", record_id="r1")
+        )
+        conn.execute(
+            "INSERT INTO claim_node_refs (claim_id, node_id) VALUES (?, 'N')", (cid,)
+        )
+    set_claim_ref_status(conn, "c1", "N", "verified", "read it", "test")
+    set_claim_ref_status(conn, "c2", "N", "suspect", "not this event", "test")
+    conn.commit()
+    return conn
+
+
+def test_a_suspect_claim_is_excluded_from_the_brief(tmp_path):
+    """Presence on a node is evidence a claim was ATTACHED, not that it belongs.
+
+    Leaving suspect claims in and merely flagging them makes correct assembly
+    depend on every consumer remembering to filter, and lets them displace
+    usable claims from the cap.
+    """
+    conn = _belonging_graph(tmp_path)
+    brief = synthesise.build_entity_brief(conn, "N")
+    ids = {c["claim_id"] for c in brief["claims"]}
+    assert "c2" not in ids
+    assert ids == {"c1", "c3"}
+
+
+def test_the_brief_reports_what_it_excluded(tmp_path):
+    conn = _belonging_graph(tmp_path)
+    brief = synthesise.build_entity_brief(conn, "N")
+    assert brief["belonging"] == {
+        "verified": 1,
+        "suspect_excluded": 1,
+        "unreviewed": 1,
+    }
+
+
+def test_unreviewed_is_not_reported_as_verified(tmp_path):
+    """The distinction the whole table exists for."""
+    conn = _belonging_graph(tmp_path)
+    brief = synthesise.build_entity_brief(conn, "N")
+    by_id = {c["claim_id"]: c["attachment"] for c in brief["claims"]}
+    assert by_id["c1"] == "verified"
+    assert by_id["c3"] == "unreviewed"

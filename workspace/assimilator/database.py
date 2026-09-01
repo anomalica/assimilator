@@ -116,6 +116,30 @@ CREATE TABLE IF NOT EXISTS corroboration_rejections (
     PRIMARY KEY (claim_a, claim_b)
 );
 
+-- Whether a claim BELONGS on a node, as distinct from being ATTACHED to it.
+-- ADR-worthy distinction, and the whole reason this table exists: a claim's
+-- presence in claim_node_refs is evidence the importer put it there, not that
+-- the claim is about that node. 630 claims sat on the Nimitz event describing
+-- Kaikoura, Socorro, Rendlesham and the Delphos encounter.
+--
+-- ABSENCE OF A ROW MEANS UNREVIEWED, NOT VERIFIED. Only two states are ever
+-- written, and both are positive findings a human or a documented pass made:
+--   verified  - read, and the claim is about this node
+--   suspect   - read, and it is NOT; kept attached but excluded from assembly
+-- A consumer that treats "no row" as verified has reintroduced the fault this
+-- table records. The safe reading is: verified is assertable, suspect must be
+-- excluded, unreviewed is a judgement the consumer has to make and declare.
+CREATE TABLE IF NOT EXISTS claim_ref_status (
+    claim_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('verified', 'suspect')),
+    reason TEXT,
+    set_at TEXT NOT NULL,
+    set_by TEXT,
+    PRIMARY KEY (claim_id, node_id)
+);
+CREATE INDEX IF NOT EXISTS idx_claim_ref_status_node ON claim_ref_status(node_id);
+
 -- Node-merge curation log. DERIVED: re-populated from the durable curation
 -- ledger on every rebuild+replay; the workbench reads it read-only for its
 -- merged-groups + undo surface. `reversal` is the apply-time data needed to undo
@@ -737,3 +761,51 @@ def adjudicated_pairs(conn: sqlite3.Connection) -> set[tuple[str, str]]:
             pairs.add((a, b))
             pairs.add((b, a))
     return pairs
+
+
+def set_claim_ref_status(
+    conn: sqlite3.Connection,
+    claim_id: str,
+    node_id: str,
+    status: str,
+    reason: str | None = None,
+    set_by: str | None = None,
+) -> None:
+    """Record that a claim was READ and found to belong on a node, or not."""
+    conn.execute(
+        "INSERT INTO claim_ref_status (claim_id, node_id, status, reason, set_at, set_by)"
+        " VALUES (?, ?, ?, ?, datetime('now'), ?)"
+        " ON CONFLICT(claim_id, node_id) DO UPDATE SET"
+        " status=excluded.status, reason=excluded.reason,"
+        " set_at=excluded.set_at, set_by=excluded.set_by",
+        (claim_id, node_id, status, reason, set_by),
+    )
+
+
+def claim_ref_statuses(conn: sqlite3.Connection, node_id: str) -> dict[str, str]:
+    """claim_id -> status for one node. A claim absent from the map is UNREVIEWED."""
+    return {
+        row[0]: row[1]
+        for row in conn.execute(
+            "SELECT claim_id, status FROM claim_ref_status WHERE node_id = ?",
+            (node_id,),
+        )
+    }
+
+
+def node_belonging_counts(conn: sqlite3.Connection, node_id: str) -> dict[str, int]:
+    """How many of a node's claims are verified, suspect, and unreviewed."""
+    total = conn.execute(
+        "SELECT COUNT(*) FROM claim_node_refs WHERE node_id = ?", (node_id,)
+    ).fetchone()[0]
+    counts = {"verified": 0, "suspect": 0}
+    for status, n in conn.execute(
+        "SELECT s.status, COUNT(*) FROM claim_ref_status s"
+        " JOIN claim_node_refs r ON r.claim_id = s.claim_id AND r.node_id = s.node_id"
+        " WHERE s.node_id = ? GROUP BY s.status",
+        (node_id,),
+    ):
+        counts[status] = n
+    counts["unreviewed"] = total - counts["verified"] - counts["suspect"]
+    counts["total"] = total
+    return counts

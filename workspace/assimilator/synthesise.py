@@ -31,6 +31,7 @@ from assimilator.brief_yaml import dump as dump_brief_yaml
 from anomalica_common.digest import attribution_mode as common_attribution_mode
 from anomalica_common.slug import node_slug
 from assimilator.database import get_independent_source_count
+from assimilator.database import claim_ref_statuses
 from assimilator.propose_pages import proposed_node_ids
 
 SCHEMA = "anomalica/brief/1"
@@ -95,18 +96,28 @@ _COL_SPEAKER_ID = 9
 _ATTESTATION_RANK = {"first_hand": 3, "second_hand": 2, "third_hand": 1}
 
 
-def _importance(row, node_id: str, corroborated: set[str]) -> tuple:
+def _importance(
+    row, node_id: str, corroborated: set[str], ref_status: dict[str, str] | None = None
+) -> tuple:
     """Sort key for WHICH claims survive the cap. Higher is kept.
 
     Document position is the wrong criterion once a node draws on twenty sources:
     you get whatever each transcript happened to open with. This ranks by what
     makes a claim worth the space instead.
 
+    A claim READ AND FOUND NOT TO BELONG sorts below everything. It is not
+    dropped - the brief is the audit record, and a claim silently missing from
+    it cannot be checked - but it must not displace a usable claim from the cap.
+    Without this the Nimitz brief spent 89 of its 272 slots on claims about
+    Kaikoura, Socorro and the Delphos encounter.
+
     Only signals that are actually populated are used, and the ordering within a
     tier stays the caller's document order, so this changes what is DISCARDED
     rather than what the brief reads like.
     """
+    suspect = (ref_status or {}).get(row[_COL_ID]) == "suspect"
     return (
+        0 if suspect else 1,
         1 if row[_COL_ID] in corroborated else 0,
         1 if row[_COL_SPEAKER_ID] == node_id else 0,
         _ATTESTATION_RANK.get(row[_COL_ATTESTATION], 0),
@@ -382,6 +393,7 @@ def build_entity_brief(
     ).fetchone()
     if node is None:
         return None
+    ref_status = claim_ref_statuses(conn, node_id)
     nid, node_type, name, metadata = node
     slug_map = slug_map or {}
 
@@ -406,6 +418,17 @@ def build_entity_brief(
     ).fetchall()
 
     claim_count_total = len(rows)
+    # A claim READ AND FOUND NOT TO BELONG is excluded from the brief, because
+    # the brief is what the assembler builds a page from and master's rule is
+    # that presence on a node is evidence it was ATTACHED, not that it belongs.
+    # Leaving them in and flagging them was the first design, and it was wrong
+    # twice over: they displaced usable claims from the cap (89 of the Nimitz
+    # brief's 272 slots), and it made correct assembly depend on every consumer
+    # remembering to filter. The count is reported in `belonging` below and the
+    # per-claim detail stays queryable in claim_ref_status, so nothing is hidden.
+    suspect_ids = {cid for cid, st in ref_status.items() if st == "suspect"}
+    excluded_suspect = sum(1 for r in rows if r[_COL_ID] in suspect_ids)
+    rows = [r for r in rows if r[_COL_ID] not in suspect_ids]
     claims: list[dict] = []
     ordered_pairs: list[tuple[str, str]] = []
     max_sources = MAX_SOURCES.get(node_type)
@@ -416,7 +439,7 @@ def build_entity_brief(
         MAX_CLAIMS,
         max_sources,
         focus,
-        importance=lambda r: _importance(r, node_id, corroborated),
+        importance=lambda r: _importance(r, node_id, corroborated, ref_status),
     ):
         (
             cid,
@@ -467,6 +490,12 @@ def build_entity_brief(
                 "attribution_mode": _attribution_mode(
                     origin_kind, claim_type, attestation
                 ),
+                # Whether this claim BELONGS on this page's node, as distinct
+                # from being ATTACHED to it. "unreviewed" is NOT "verified":
+                # a consumer asserting an unreviewed claim in its own voice is
+                # making a judgement and should say so, and a "suspect" claim
+                # must not be asserted at all. See database.claim_ref_status.
+                "attachment": ref_status.get(cid, "unreviewed"),
                 "node_refs": _claim_node_refs(conn, cid, slug_map),
                 "date": date,
                 "date_end": date_end,
@@ -524,6 +553,16 @@ def build_entity_brief(
             "claim_count_total": claim_count_total,
         },
         "generated": {"graph_version": _graph_version(conn)},
+        # Whether this node's claims BELONG on it, as distinct from being
+        # attached. UNREVIEWED IS NOT VERIFIED: it means nobody has checked, and
+        # a consumer asserting those claims in its own voice is making a
+        # judgement it should state. `suspect` claims are excluded from `claims`
+        # above; they remain in the graph and in claim_ref_status.
+        "belonging": {
+            "verified": sum(1 for st in ref_status.values() if st == "verified"),
+            "suspect_excluded": excluded_suspect,
+            "unreviewed": claim_count_total - len(ref_status),
+        },
         "related_nodes": related_nodes,
         "claims": claims,
     }
