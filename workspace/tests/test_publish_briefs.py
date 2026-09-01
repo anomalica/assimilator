@@ -222,3 +222,36 @@ def test_publishing_flips_the_marker(tmp_path):
     store = _store(tmp_path, {"a" * 64: "restricted"})
     published, _ = redact_brief(_brief("a" * 64), store)
     assert published["publication"]["status"] == "redacted"
+
+
+def test_a_published_brief_the_graph_moved_past_is_reported(tmp_path):
+    """The published directory was never pruned.
+
+    prune_retired_briefs runs during SYNTHESIS on the source directory, so a
+    merge or rename cleans up there and leaves the published copy standing - and
+    the assembler takes a brief by slug. Both failure modes are in the live
+    corpus: a page built for a retired node, and one entity getting two pages
+    because a brief sits at a slug the node no longer has.
+    """
+    from assimilator.publish_briefs import unbuildable_in
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(conn, Node(id="LIVE", node_type=NodeType.event, name="Kept Event"))
+    out = tmp_path / "published"
+    out.mkdir()
+    (out / "kept-event.yaml").write_text(
+        yaml.safe_dump({"page": {"node_id": "LIVE", "slug": "kept-event"}})
+    )
+    (out / "gone-event.yaml").write_text(
+        yaml.safe_dump({"page": {"node_id": "RETIRED", "slug": "gone-event"}})
+    )
+    (out / "old-name.yaml").write_text(
+        yaml.safe_dump({"page": {"node_id": "LIVE", "slug": "old-name"}})
+    )
+
+    found = {f["file"]: f["why"] for f in unbuildable_in(out, conn)}
+
+    assert "kept-event.yaml" not in found
+    assert found["gone-event.yaml"] == "node retired or absent"
+    assert "stale slug" in found["old-name.yaml"]

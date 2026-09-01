@@ -1441,6 +1441,9 @@ def doctor_cmd(ctx: click.Context, briefs: str | None, content: str | None) -> N
 @click.option(
     "--dry-run", is_flag=True, help="Report what would be withheld, write nothing."
 )
+@click.option(
+    "--prune", is_flag=True, help="Remove published briefs the graph has moved past"
+)
 @click.pass_context
 def publish_briefs_cmd(
     ctx: click.Context,
@@ -1448,6 +1451,7 @@ def publish_briefs_cmd(
     out: str | None,
     store: str | None,
     dry_run: bool,
+    prune: bool,
 ) -> None:
     """Write briefs for publication, with copyright excerpts redacted.
 
@@ -1518,6 +1522,24 @@ def publish_briefs_cmd(
     click.echo(f"  excerpts withheld on {stats['withheld_claims']} claims")
     for k, v in sorted(stats["by_status"].items(), key=lambda x: -x[1]):
         click.echo(f"   {k:22} {v}")
+    # A published brief the graph has moved past is a page waiting to be built
+    # wrongly. Reported every run; removed only when asked, since the output
+    # directory belongs to whoever consumes it.
+    from assimilator.publish_briefs import unbuildable_in
+
+    stale = unbuildable_in(out_dir, sqlite3.connect(ctx.obj["db_path"]))
+    if stale:
+        click.echo(f"\n{len(stale)} published brief(s) the graph has moved past:")
+        for item in stale[:10]:
+            click.echo(f"   {item['file']}  ({item['why']})")
+        if len(stale) > 10:
+            click.echo(f"   ... and {len(stale) - 10} more")
+        if prune:
+            for item in stale:
+                (out_dir / item["file"]).unlink()
+            click.echo(f"   removed {len(stale)}")
+        else:
+            click.echo("   re-run with --prune to remove them")
     unreadable = stats.get("unreadable") or []
     if unreadable:
         # Loud and non-zero: an unreadable brief silently dropped is an entity

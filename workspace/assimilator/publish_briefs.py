@@ -170,6 +170,56 @@ def redact_brief(brief: dict, store_dir: Path) -> tuple[dict, dict]:
     return out, counts
 
 
+def unbuildable_in(out_dir: Path, conn) -> list[dict]:
+    """Published briefs a consumer must not build from, and why.
+
+    The published directory was never pruned. prune_retired_briefs runs during
+    synthesis, on the SOURCE directory, so a merge or a rename cleans up there
+    and leaves the published copy standing - and the assembler takes a brief by
+    slug. Two ways that bites, both seen in the live corpus:
+
+    - the node is RETIRED or gone, so the brief builds a page for something that
+      no longer exists (kenneth-arnold-sighting and phoenix-lights, both merged
+      away the same morning the published copies stayed);
+    - the brief sits at a STALE SLUG while the node has another brief at its
+      current one, so one entity gets two pages. That is the Elizondo failure
+      exactly.
+
+    Identified from the graph rather than from a list of filenames, so it stays
+    true as the graph moves.
+    """
+    from assimilator.synthesise import build_slug_map, node_slug
+
+    live = {
+        row[0]: (row[1], row[2])
+        for row in conn.execute(
+            "SELECT id, name, metadata FROM nodes WHERE retired_at IS NULL"
+        )
+    }
+    slug_map = build_slug_map(conn)
+    if isinstance(slug_map, tuple):
+        slug_map = slug_map[0]
+    findings: list[dict] = []
+    for path in sorted(out_dir.glob("*.yaml")):
+        try:
+            doc = _load(path.read_text()) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        node_id = (doc.get("page") or {}).get("node_id")
+        if not node_id:
+            continue
+        if node_id not in live:
+            findings.append({"file": path.name, "why": "node retired or absent"})
+            continue
+        name, metadata = live[node_id]
+        current = slug_map.get(node_id) or node_slug(name, metadata)
+        if path.stem != current:
+            findings.append(
+                {"file": path.name, "why": f"stale slug; node is now {current}"}
+            )
+    return findings
+
+
 def publish_briefs(
     briefs_dir: Path, out_dir: Path, store_dir: Path
 ) -> dict[str, object]:
