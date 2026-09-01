@@ -436,3 +436,49 @@ def test_the_populated_node_wins_an_ambiguous_name():
     conn.commit()
 
     assert find_node_by_name(conn, "Robertson Panel").id == "zzz-populated"
+
+
+def test_an_acronym_inside_another_expansion_is_not_expanded():
+    """Expanding an acronym that sits inside another acronym's gloss nests one
+    expansion inside another and corrupts the name.
+
+    Two shapes, and bracket depth only catches the first:
+    - inside the brackets: "Helicopter Antisubmarine Squadron 6 (HS-6)" became
+      "... (Helicopter Anti-Submarine Squadron 6 (HS-6))";
+    - outside them but within the gloss itself: "Mutual UFO Network (MUFON)" is
+      entirely MUFON's expansion, so expanding its UFO rewrites the string the
+      glossary defines.
+
+    The existing guards cannot see either. They ask whether THIS acronym is
+    already expanded; here a DIFFERENT acronym's expansion is being damaged and
+    the one being substituted is genuinely unexpanded.
+    """
+    from assimilator.import_markdown import _apply_doc_terminology
+
+    expansions = {
+        "UFO": "Unidentified Flying Object (UFO)",
+        "MUFON": "Mutual UFO Network (MUFON)",
+        "HS-6": "Helicopter Anti-Submarine Squadron 6 (HS-6)",
+    }
+
+    for name in (
+        "Mutual UFO Network (MUFON)",
+        "Helicopter Antisubmarine Squadron 6 (HS-6)",
+    ):
+        out, _ = _apply_doc_terminology(name, set(), expansions, "organisation")
+        assert out == name, f"{name!r} was corrupted to {out!r}"
+
+
+def test_ordinary_expansion_still_happens():
+    """The fix must not stop the expander doing its job."""
+    from assimilator.import_markdown import _apply_doc_terminology
+
+    expansions = {"UFO": "Unidentified Flying Object (UFO)"}
+
+    out, _ = _apply_doc_terminology("UFO Witness", set(), expansions, "document")
+    assert out == "Unidentified Flying Object (UFO) Witness"
+
+    out, _ = _apply_doc_terminology(
+        "Mexico City UFO sightings (1999)", set(), expansions, "event"
+    )
+    assert out == "Mexico City Unidentified Flying Object (UFO) sightings (1999)"

@@ -95,6 +95,26 @@ def canonical_place_country(name: str) -> str:
     return f"{canonical},{rest}" if rest else canonical
 
 
+def _sub_outside_parens(pattern, repl, text: str) -> str:
+    """Regex substitution that skips matches inside a parenthetical."""
+    depth, result, i = 0, [], 0
+    while i < len(text):
+        char = text[i]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(0, depth - 1)
+        if depth == 0:
+            match = pattern.match(text, i)
+            if match:
+                result.append(repl(match))
+                i = match.end()
+                continue
+        result.append(char)
+        i += 1
+    return "".join(result)
+
+
 def normalise_node_name(name: str, node_type: str | None = None) -> str:
     """Apply deterministic acronym expansions the extraction model misses.
 
@@ -147,9 +167,16 @@ def normalise_node_name(name: str, node_type: str | None = None) -> str:
     for acro, full in _PROGRAMME_EXPANSIONS.items():
         if full in out or f"({acro})" in out:
             return out
-    # Rewrite each prefix-N occurrence with the expanded form. The lookup
-    # uses _SQUADRON_RE to match the bare designator.
-    out = _SQUADRON_RE.sub(_expand_squadron, out)
+    # Rewrite each prefix-N occurrence with the expanded form, but NEVER one
+    # already inside a parenthetical - there the designator is the short form
+    # the brackets exist to gloss, and expanding it nests one expansion inside
+    # another. "Helicopter Antisubmarine Squadron 6 (HS-6)" became "Helicopter
+    # Antisubmarine Squadron 6 (Helicopter Anti-Submarine Squadron 6 (HS-6))".
+    # The substring guard above cannot catch it: the source wrote
+    # "Antisubmarine" and our table says "Anti-Submarine", which is exactly the
+    # variant-wording miss the comment above describes - the guard was added for
+    # the programme acronyms and never extended to the squadron prefixes.
+    out = _sub_outside_parens(_SQUADRON_RE, _expand_squadron, out)
     # Programme acronyms: replace whole-word ACRONYM with "Full Name (ACRONYM)".
     for acro, full in _PROGRAMME_EXPANSIONS.items():
         out = re.sub(rf"\b{acro}\b", f"{full} ({acro})", out)

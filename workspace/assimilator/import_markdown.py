@@ -212,6 +212,55 @@ def _build_terminology_enforcers(terminology: dict | None):
     return codename_roots, expansions, _normalise_spelled_dates
 
 
+def _substitute_outside_parens(
+    name: str, acro: str, full_form: str, protected: "list[tuple[int, int]]" = ()
+) -> str:
+    """Expand an acronym only where it is NOT already inside a parenthetical.
+
+    An acronym inside brackets is almost always the short form of what the
+    brackets are glossing, so expanding it nests one expansion inside another:
+    "Helicopter Antisubmarine Squadron 6 (HS-6)" became "Helicopter
+    Antisubmarine Squadron 6 (Helicopter Anti-Submarine Squadron 6 (HS-6))",
+    and "Mutual UFO Network (MUFON)" became "Mutual Unidentified Flying Object
+    (UFO) Network (MUFON)" - MUFON's own expansion corrupted from the inside.
+
+    The existing guards cannot catch this. They ask whether THIS acronym is
+    already expanded; here it is a DIFFERENT acronym's expansion being damaged,
+    and the one being substituted is genuinely unexpanded.
+
+    `protected` additionally covers spans that are ANOTHER acronym's expansion
+    written out in full. "Mutual UFO Network (MUFON)" is entirely MUFON's own
+    expansion, and the UFO inside it sits outside the brackets - so bracket
+    depth alone does not save it, and expanding there rewrites the very string
+    the glossary defines.
+
+    Expansion outside the brackets is untouched, so "Mexico City UFO sightings"
+    still expands.
+    """
+    pattern = re.compile(rf"\b{re.escape(acro)}\b(?!-\d)")
+    # Walk the string once, tracking bracket depth, and substitute the first
+    # match that sits at depth zero and outside any protected span.
+    depth, result, i, done = 0, [], 0, False
+    while i < len(name):
+        char = name[i]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(0, depth - 1)
+        if not done and depth == 0:
+            match = pattern.match(name, i)
+            if match and any(a <= i < b for a, b in protected):
+                match = None
+            if match:
+                result.append(full_form)
+                i = match.end()
+                done = True
+                continue
+        result.append(char)
+        i += 1
+    return "".join(result)
+
+
 def _apply_doc_terminology(
     name: str, codenames: set[str], expansions: dict[str, str], node_type: str = ""
 ) -> tuple[str, str | None]:
@@ -257,7 +306,16 @@ def _apply_doc_terminology(
         # A trailing "(ACRO)" is the evidence of expansion whatever precedes it.
         if full_form in out or f"({acro})" in out:
             continue  # already expanded
-        out = re.sub(rf"\b{re.escape(acro)}\b(?!-\d)", full_form, out, count=1)
+        # Spans that are some OTHER acronym's expansion, written out in full.
+        protected = []
+        for other, other_full in expansions.items():
+            if other == acro or not other_full:
+                continue
+            start = out.find(other_full)
+            while start != -1:
+                protected.append((start, start + len(other_full)))
+                start = out.find(other_full, start + 1)
+        out = _substitute_outside_parens(out, acro, full_form, protected)
 
     # Normalise spelled-out months to ISO.
     out = _normalise_spelled_dates(out)
