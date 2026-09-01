@@ -18,7 +18,6 @@ from anomalica_common.digest.models import Node, NodeType
 from assimilator.database import init_db, insert_node
 
 from assimilator.publish_briefs import (
-    PUBLISHABLE_EXCERPT_STATUSES,
     copyright_status,
     publish_briefs,
     redact_brief,
@@ -50,19 +49,23 @@ def _brief(*claims) -> dict:
     }
 
 
-def test_a_restricted_source_has_its_excerpt_withheld_and_says_so(tmp_path):
-    """Silent removal is not acceptable: a reader must be able to tell "this
-    source is copyrighted" from "we have no excerpt". The first is a licence
-    boundary; the second would read as a gap in our evidence."""
+def test_a_restricted_source_keeps_its_attributed_quotation(tmp_path):
+    """The policy is quotation, not gating.
+
+    "Short attributed quotations are published in full... and are NOT capped,
+    truncated to a length limit, or gated" - source-types-and-copyright.md. What
+    warrants withholding is a full BODY or transcript, which this step never
+    touched. This module withheld restricted excerpts for a day; the page built
+    through it lost 29 of its 39 quotations, median length 105 characters.
+    """
     store = _store(tmp_path, {"a" * 64: "restricted"})
 
     out, counts = redact_brief(_brief("a" * 64), store)
 
     claim = out["claims"][0]
-    assert claim["original_excerpt"] is None
-    assert claim["excerpt_withheld"] == "restricted"
-    assert claim["content"] == "paraphrase 0", "our own paraphrase is unaffected"
-    assert counts == {"restricted": 1}
+    assert claim["original_excerpt"] == "VERBATIM SOURCE TEXT 0"
+    assert "excerpt_withheld" not in claim
+    assert counts == {"restricted": 1}, "status is still counted, just not acted on"
 
 
 @pytest.mark.parametrize("status", ["public_domain", "publicly_accessible"])
@@ -85,18 +88,20 @@ def test_a_record_the_store_cannot_resolve_is_withheld(tmp_path):
 
     out, counts = redact_brief(_brief("c" * 64), store)
 
-    assert out["claims"][0]["original_excerpt"] is None
-    assert out["claims"][0]["excerpt_withheld"] == "unknown"
+    # Still COUNTED as unknown - the status resolution is unchanged and still
+    # fails closed - but an unresolved record no longer costs the claim its
+    # attributed quotation.
     assert counts == {"unknown": 1}
+    assert out["claims"][0]["original_excerpt"] == "VERBATIM SOURCE TEXT 0"
 
 
-def test_a_record_with_no_copyright_block_is_withheld(tmp_path):
+def test_a_record_with_no_copyright_block_still_resolves_to_unknown(tmp_path):
     """Frontmatter present, copyright absent - the pre-field corpus."""
     store = _store(tmp_path, {"d" * 64: None})
 
-    out, _ = redact_brief(_brief("d" * 64), store)
+    _, counts = redact_brief(_brief("d" * 64), store)
 
-    assert out["claims"][0]["excerpt_withheld"] == "unknown"
+    assert counts == {"unknown": 1}
 
 
 def test_the_status_is_read_from_the_nested_key_not_a_flat_one(tmp_path):
@@ -112,9 +117,8 @@ def test_the_status_is_read_from_the_nested_key_not_a_flat_one(tmp_path):
     assert copyright_status(store, "sha256:" + "e" * 64) == "unknown"
 
 
-def test_one_restricted_source_does_not_redact_the_others(tmp_path):
-    """Redaction is per claim, by its own source. A mixed brief keeps everything
-    it is entitled to keep."""
+def test_a_mixed_brief_keeps_every_excerpt(tmp_path):
+    """No status withholds a claim excerpt."""
     store = _store(
         tmp_path,
         {
@@ -126,7 +130,7 @@ def test_one_restricted_source_does_not_redact_the_others(tmp_path):
 
     out, counts = redact_brief(_brief("a" * 64, "b" * 64, "c" * 64), store)
 
-    assert out["claims"][0]["original_excerpt"] is None
+    assert out["claims"][0]["original_excerpt"] == "VERBATIM SOURCE TEXT 0"
     assert out["claims"][1]["original_excerpt"] == "VERBATIM SOURCE TEXT 1"
     assert out["claims"][2]["original_excerpt"] == "VERBATIM SOURCE TEXT 2"
     assert counts == {"restricted": 1, "public_domain": 1, "publicly_accessible": 1}
@@ -146,20 +150,26 @@ def test_the_source_brief_on_disk_is_never_modified(tmp_path):
     on_disk = yaml.safe_load((briefs / "x.yaml").read_text())
     assert on_disk["claims"][0]["original_excerpt"] == "VERBATIM SOURCE TEXT 0"
     published = yaml.safe_load((tmp_path / "out" / "x.yaml").read_text())
-    assert published["claims"][0]["original_excerpt"] is None
+    assert published["claims"][0]["original_excerpt"] == "VERBATIM SOURCE TEXT 0"
     assert stats == {
         "briefs": 1,
-        "withheld_claims": 1,
+        "withheld_claims": 0,
         "by_status": {"restricted": 1},
         "unreadable": [],
     }
 
 
-def test_restricted_is_not_in_the_publishable_set():
-    """A guard against someone widening the set by editing the constant: this is
-    the CDN-leak boundary and it needs Mark's sign-off to move."""
-    assert "restricted" not in PUBLISHABLE_EXCERPT_STATUSES
-    assert "unknown" not in PUBLISHABLE_EXCERPT_STATUSES
+def test_no_status_withholds_a_claim_excerpt(tmp_path):
+    """The boundary is quote versus BODY, not one copyright status versus another.
+
+    A full body or transcript stays behind the proof-of-possession gate, which is
+    a different mechanism entirely and is not reached from here.
+    """
+    for status in ("restricted", "licensed", "unknown", "public_domain"):
+        (tmp_path / status).mkdir()
+        store = _store(tmp_path / status, {"a" * 64: status})
+        out, _ = redact_brief(_brief("a" * 64), store)
+        assert out["claims"][0]["original_excerpt"] == "VERBATIM SOURCE TEXT 0", status
 
 
 def test_a_record_stored_under_v1_still_resolves(tmp_path):
@@ -221,7 +231,7 @@ def test_a_source_brief_declares_itself_not_for_publication(tmp_path):
 def test_publishing_flips_the_marker(tmp_path):
     store = _store(tmp_path, {"a" * 64: "restricted"})
     published, _ = redact_brief(_brief("a" * 64), store)
-    assert published["publication"]["status"] == "redacted"
+    assert published["publication"]["status"] == "published"
 
 
 def test_a_published_brief_the_graph_moved_past_is_reported(tmp_path):

@@ -1439,7 +1439,7 @@ def doctor_cmd(ctx: click.Context, briefs: str | None, content: str | None) -> N
     help="Ingests store dir - the copyright AUTHORITY (default: ANOMALICA_INGESTS_DIR/store).",
 )
 @click.option(
-    "--dry-run", is_flag=True, help="Report what would be withheld, write nothing."
+    "--dry-run", is_flag=True, help="Report the source-status mix, write nothing."
 )
 @click.option(
     "--prune", is_flag=True, help="Remove published briefs the graph has moved past"
@@ -1459,13 +1459,15 @@ def publish_briefs_cmd(
     so publishing it beside the page makes "every assertion traces to a source"
     checkable rather than asserted.
 
-    Excerpts are withheld for any source that is not public_domain,
-    publicly_accessible or open_licence, INCLUDING any the store cannot resolve.
-    Withholding is marked on the claim, never silent: a reader must be able to
-    tell a licence boundary from a gap in our evidence.
+    CLAIM EXCERPTS ARE NOT WITHHELD BY COPYRIGHT STATUS. A claim excerpt is a
+    short attributed quotation, and the policy publishes those in full whatever
+    the source is; what stays gated is a full body or transcript, which this
+    command never touches. This step withheld them for a day and cost the first
+    page built through it 29 of its 39 quotations.
 
-    Copyright is read live from the ingests store, not from the digest's
-    snapshot. The snapshot is right for filtering; this decision is irreversible.
+    The source status is still resolved and reported, because the mix is worth
+    seeing and the workbench uses it. Copyright is read live from the ingests
+    store rather than the digest's snapshot.
     """
     import os
 
@@ -1488,7 +1490,7 @@ def publish_briefs_cmd(
         raise click.ClickException(
             f"ingests store not found at {store_dir} - refusing to publish without "
             "the copyright authority, because every record would read as unknown "
-            "and every excerpt would be withheld, which looks like success"
+            "and the reported status mix would be silently meaningless"
         )
 
     if dry_run:
@@ -1509,17 +1511,13 @@ def publish_briefs_cmd(
             n += 1
         click.echo(f"DRY RUN over {n} briefs. Claim excerpts by source status:")
         for k, v in sorted(totals.items(), key=lambda x: -x[1]):
-            mark = (
-                "published"
-                if k in {"public_domain", "publicly_accessible", "open_licence"}
-                else "WITHHELD"
-            )
-            click.echo(f"   {k:22} {v:6}  {mark}")
+            click.echo(f"   {k:22} {v:6}  published")
+        click.echo("  All published: a claim excerpt is a short attributed quotation.")
         return
 
     stats = publish_briefs(briefs_dir, out_dir, store_dir)
     click.echo(f"Wrote {stats['briefs']} briefs to {out_dir}")
-    click.echo(f"  excerpts withheld on {stats['withheld_claims']} claims")
+    click.echo("  claim excerpts are published in full - short attributed quotation")
     for k, v in sorted(stats["by_status"].items(), key=lambda x: -x[1]):
         click.echo(f"   {k:22} {v}")
     # A published brief the graph has moved past is a page waiting to be built

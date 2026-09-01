@@ -1,4 +1,41 @@
-"""Publishing briefs, with copyright redaction applied at the last step.
+"""Preparing briefs for publication.
+
+CLAIM EXCERPTS ARE NOT WITHHELD BY COPYRIGHT STATUS, and this file used to do
+exactly that. Recording why, because the mistake was reasonable-looking and was
+made twice in one day from opposite directions.
+
+The policy is explicit and predates all of it:
+
+    source-types-and-copyright.md  "Short attributed quotations are published in
+                                    full - as long as they need to be to convey
+                                    their point - and are NOT capped, truncated
+                                    to a length limit, or gated."
+                                   "The line is SUBSTANTIALITY, not length."
+                                   "Quote is not body - this policy does not
+                                    un-gate full bodies or transcripts."
+    editorial-style.md             "The platform does not artificially truncate
+                                    quotations." Japan's Copyright Act Article 32
+                                    with attribution under Article 48.
+
+So what warrants withholding is a full BODY or transcript, which lives behind the
+proof-of-possession gate and which this step never touched. A claim excerpt is a
+one- or two-sentence attributed quotation that substantiates the claim beside it.
+
+HOW THE REDACTION GOT BUILT: Mark was asked whether excerpts from the
+publicly_accessible records go public and answered "yes, always". That answer was
+about publicly_accessible ONLY. "So restricted stays redacted" was a component's
+inference from it, relayed as though it were part of the ruling, and implemented
+here. Mark never ruled that restricted excerpts are withheld - he had in fact
+reversed a corpus-wide strip of exactly this material.
+
+WHAT IT COST: the first page built through this step, Socorro, lost 29 of its 39
+excerpts - median length 105 characters, minimum 12. Measured across the 467
+published pages, 5,414 of 5,438 restricted-source references carry their quote;
+the 24 that do not are Socorro's. A claim with no quote beside it reads as
+unevidenced, so over-gating is not the free direction.
+
+This step remains the only path out of the internal brief directory, and it
+remains a control - for bodies, and for keeping the published set consistent.
 
 THIS IS A COPYRIGHT CONTROL, NOT A CACHE. The two brief directories are not two
 copies of the same data:
@@ -76,11 +113,12 @@ def _dump(obj) -> str:
     return dump_brief_yaml(obj)
 
 
-# Statuses whose verbatim text may be republished, per Mark's 2026-08-28 ruling.
-# Everything else - restricted, unrecognised, and ABSENT - is withheld. Absent is
-# the case that matters: it is every record the store does not resolve, and
-# reading no answer as permission is the failure this whole module exists to
-# prevent.
+# NO LONGER GATES ANYTHING. Kept because the workbench and the reporting path
+# still name these statuses, and because deleting the constant would erase the
+# record of what it used to mean: it was the set whose excerpts could be
+# published, and every other status had its excerpt withheld. That was wrong -
+# short attributed quotations publish whatever the source's status, and the
+# gate belongs on full bodies. See the module docstring.
 PUBLISHABLE_EXCERPT_STATUSES = frozenset(
     {"public_domain", "publicly_accessible", "open_licence"}
 )
@@ -149,24 +187,17 @@ def redact_brief(brief: dict, store_dir: Path) -> tuple[dict, dict]:
     licence boundary, the second would look like a gap in our evidence.
     """
     out = _load(_dump(brief))
-    # Flip the source directory's NOT-FOR-PUBLICATION marker. A brief that still
-    # reads "unredacted" has not been through this function, and a consumer can
-    # refuse it on that alone rather than having to know which directory it came
-    # from.
+    # Marks which directory this copy came from. Not a redaction claim - see the
+    # module docstring for why claim excerpts are no longer withheld.
     out["publication"] = {
-        "status": "redacted",
-        "note": "Excerpts withheld where the source's copyright status forbids redistribution.",
+        "status": "published",
+        "note": "Prepared for publication. Claim excerpts are short attributed quotations and are carried through; full bodies and transcripts are gated elsewhere.",
     }
     counts: dict[str, int] = {}
     for claim in out.get("claims") or []:
         provenance = claim.get("provenance") or {}
         status = copyright_status(store_dir, provenance.get("content_hash") or "")
         counts[status] = counts.get(status, 0) + 1
-        if status in PUBLISHABLE_EXCERPT_STATUSES:
-            continue
-        if claim.get("original_excerpt") is not None:
-            claim["original_excerpt"] = None
-            claim["excerpt_withheld"] = status
     return out, counts
 
 
@@ -227,7 +258,6 @@ def publish_briefs(
     out_dir.mkdir(parents=True, exist_ok=True)
     totals: dict[str, int] = {}
     written = 0
-    withheld_claims = 0
     # A brief this path cannot read is REPORTED, never passed over. Skipping it
     # silently drops an entity from the published record with nothing to show
     # why - the assembler hit exactly this shape in its own link index, where
@@ -247,13 +277,11 @@ def publish_briefs(
         published, counts = redact_brief(brief, store_dir)
         for status, n in counts.items():
             totals[status] = totals.get(status, 0) + n
-            if status not in PUBLISHABLE_EXCERPT_STATUSES:
-                withheld_claims += n
         (out_dir / path.name).write_text(_dump(published))
         written += 1
     return {
         "briefs": written,
-        "withheld_claims": withheld_claims,
+        "withheld_claims": 0,  # nothing is withheld; kept so callers do not break
         "by_status": totals,
         "unreadable": unreadable,
     }
