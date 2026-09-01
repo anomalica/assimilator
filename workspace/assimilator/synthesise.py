@@ -671,9 +671,22 @@ def build_entity_brief(
                 "truncated": {
                     "kept": len(claims),
                     "available": available,
+                    # NAME THE BINDING CONSTRAINT. Two different things cut a
+                    # brief and they mean different things to a consumer: a
+                    # token cut says the subject is too large for the model, a
+                    # source cut says we deliberately narrated from the closest
+                    # accounts. Reporting the token window for a source-capped
+                    # brief would send someone looking for a bigger model that
+                    # would change nothing.
                     "why": (
-                        f"the brief would not fit the {window:,}-token window of "
-                        "the stage that consumes it"
+                        f"the brief would not fit the {window:,}-token window "
+                        "of the stage that consumes it"
+                        if token_budget
+                        and sum(_claim_token_cost(r) for r in rows) > token_budget
+                        else (
+                            f"an event narrates from at most {max_sources} "
+                            "sources; claims from the others are not carried"
+                        )
                     ),
                 }
             }
