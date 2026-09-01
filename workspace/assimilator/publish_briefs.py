@@ -33,17 +33,18 @@ from pathlib import Path
 
 import yaml
 
+from assimilator.brief_yaml import dump as dump_brief_yaml
+
 # The C loader where libyaml is available, the Python one otherwise. Measured on
 # this corpus: 0.26s per brief in pure Python against 0.025s with libyaml, which
 # over 752 briefs is 3.2 minutes against 19 seconds - the difference between a
 # command that times out and one that runs. Falls back rather than requiring it,
 # because a publish path that cannot run without an optional C extension is worse
-# than a slow one.
+# than a slow one. The DUMPER lives in brief_yaml, which picks the same C
+# implementation and adds the hook-safe representer.
 try:  # pragma: no cover - depends on the libyaml build
-    from yaml import CSafeDumper as _Dumper
     from yaml import CSafeLoader as _Loader
 except ImportError:  # pragma: no cover
-    from yaml import SafeDumper as _Dumper
     from yaml import SafeLoader as _Loader
 
 
@@ -52,7 +53,7 @@ def _load(text: str):
 
 
 def _dump(obj) -> str:
-    return yaml.dump(obj, Dumper=_Dumper, sort_keys=False, allow_unicode=True)
+    return dump_brief_yaml(obj)
 
 
 # Statuses whose verbatim text may be republished, per Mark's 2026-08-28 ruling.

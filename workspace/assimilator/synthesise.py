@@ -26,6 +26,8 @@ from pathlib import Path
 
 import yaml
 
+from assimilator.brief_yaml import dump as dump_brief_yaml
+
 from anomalica_common.digest import attribution_mode as common_attribution_mode
 from anomalica_common.slug import node_slug
 from assimilator.database import get_independent_source_count
@@ -539,7 +541,7 @@ def entity_node_ids(conn: sqlite3.Connection) -> list[str]:
 def write_brief(brief: dict, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{brief['page']['slug']}.yaml"
-    path.write_text(yaml.safe_dump(brief, sort_keys=False, allow_unicode=True))
+    path.write_text(dump_brief_yaml(brief))
     return path
 
 
