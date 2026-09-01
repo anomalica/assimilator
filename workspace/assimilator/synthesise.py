@@ -192,8 +192,20 @@ def _spread_across_sources(
             queues,
             key=lambda q: (-(focus or {}).get(rows[q[0]][-1], 0.0), -len(q), q[0]),
         )
+        # The minimum is a TIEBREAKER, not a filter. It exists so a two-claim
+        # record scoring 100% focus cannot outrank a primary account - not to
+        # drop evidence when there is room. Applied as a filter it did exactly
+        # that: Rendlesham has 7 sources and a cap of 5, three clear the
+        # minimum, and the other four were discarded with two slots still free,
+        # losing 6 claims the node held. Substantial sources first, then the
+        # rest fill whatever the cap leaves.
         substantial = [q for q in ranked if len(q) >= MIN_SOURCE_CLAIMS]
-        keep = (substantial or ranked)[:max_sources]
+        keep = substantial[:max_sources]
+        if len(keep) < max_sources:
+            kept_ids = {q[0] for q in keep}
+            keep += [q for q in ranked if q[0] not in kept_ids][
+                : max_sources - len(keep)
+            ]
         queues = [by_first_index[q[0]] for q in sorted(keep, key=lambda q: q[0])]
     if sum(len(q) for q in queues) <= cap:
         return [rows[i] for i in sorted(i for q in queues for i in q)]

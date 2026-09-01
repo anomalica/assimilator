@@ -194,3 +194,37 @@ def test_unreviewed_is_not_reported_as_verified(tmp_path):
     by_id = {c["claim_id"]: c["attachment"] for c in brief["claims"]}
     assert by_id["c1"] == "verified"
     assert by_id["c3"] == "unreviewed"
+
+
+def test_a_small_source_is_kept_when_the_cap_has_room():
+    """MIN_SOURCE_CLAIMS is a tiebreaker, not a filter.
+
+    It exists so a two-claim record scoring 100% focus cannot outrank a primary
+    account. Applied as a filter it dropped every small source whenever ANY
+    source was substantial - even with slots free. Rendlesham has 7 sources and
+    a cap of 5, three cleared the minimum, and the other four were discarded
+    with two slots unused, losing 6 of the node's 49 claims.
+    """
+    # (id, ..., work_id) - only the last column matters to the spread.
+    rows = []
+    for work, n in (("big", 8), ("mid", 6), ("tiny_a", 2), ("tiny_b", 1)):
+        rows += [(f"{work}-{i}",) + (None,) * 19 + (work,) for i in range(n)]
+
+    kept = synthesise._spread_across_sources(rows, cap=100, max_sources=3)
+
+    works = {r[-1] for r in kept}
+    assert "big" in works and "mid" in works
+    assert "tiny_a" in works, "a slot was free and a real source was dropped"
+    assert "tiny_b" not in works, "the cap still binds at 3"
+
+
+def test_substantial_sources_still_rank_first():
+    """The tiebreaker must still do its job: a tiny source cannot displace one
+    that carries the account."""
+    rows = []
+    for work, n in (("big", 9), ("tiny", 1)):
+        rows += [(f"{work}-{i}",) + (None,) * 19 + (work,) for i in range(n)]
+
+    kept = synthesise._spread_across_sources(rows, cap=100, max_sources=1)
+
+    assert {r[-1] for r in kept} == {"big"}
