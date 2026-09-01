@@ -258,6 +258,42 @@ def ledger_path() -> Path:
     return base / "merges.yaml"
 
 
+def rename_proposals_dir() -> Path:
+    """Where a reviewer drops a proposed node rename.
+
+    A DIRECTORY rather than a database handle, at the workbench's request and
+    on its reasoning: its read-only connection is what stops it corrupting the
+    graph, and one writable table would be a precedent instead of a boundary.
+    It sits beside the curation ledgers because it is curation input, and the
+    ledger is what the rename ultimately writes to.
+    """
+    root = Path(__file__).resolve().parents[3]  # …/anomalica
+    base = Path(os.environ.get("ANOMALICA_CURATION_DIR", str(root / "curation")))
+    return base / "rename-proposals"
+
+
+def read_rename_proposals() -> list[dict]:
+    """Every proposal file, oldest first by filename.
+
+    A file that will not parse is REPORTED by the caller, never skipped: a
+    reviewer who asked for a change is owed an answer, and a proposal that
+    vanishes silently is indistinguishable from one nobody made.
+    """
+    directory = rename_proposals_dir()
+    if not directory.is_dir():
+        return []
+    out: list[dict] = []
+    for path in sorted(directory.glob("*.json")):
+        try:
+            doc = json.loads(path.read_text())
+        except (OSError, ValueError) as exc:
+            out.append({"_path": str(path), "_error": f"{type(exc).__name__}: {exc}"})
+            continue
+        doc["_path"] = str(path)
+        out.append(doc)
+    return out
+
+
 def _natural(conn: sqlite3.Connection, node_id: str) -> dict:
     name, node_type = _node(conn, node_id)
     return {

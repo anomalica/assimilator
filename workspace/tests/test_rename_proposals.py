@@ -60,3 +60,52 @@ def test_status_is_constrained():
     except sqlite3.IntegrityError:
         return
     raise AssertionError("an invalid status was accepted")
+
+
+def _drop(tmp_path, monkeypatch, *docs):
+    import json
+
+    from assimilator import merge
+
+    directory = tmp_path / "curation" / "rename-proposals"
+    directory.mkdir(parents=True)
+    for i, doc in enumerate(docs):
+        text = doc if isinstance(doc, str) else json.dumps(doc)
+        (directory / f"{i:02d}.json").write_text(text)
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    return merge
+
+
+def test_proposals_arrive_as_files_not_rows(tmp_path, monkeypatch):
+    """The workbench declined a writable handle for one table, and was right to:
+    its read-only connection is what stops it corrupting the graph, and one
+    writable table is a precedent where there is currently a boundary."""
+    merge = _drop(
+        tmp_path,
+        monkeypatch,
+        {
+            "id": "p1",
+            "node_id": "N",
+            "node_name_at_proposal": "alien abduction",
+            "proposed_name": "Alien abduction",
+        },
+    )
+    read = merge.read_rename_proposals()
+    assert len(read) == 1
+    assert read[0]["proposed_name"] == "Alien abduction"
+
+
+def test_an_unreadable_proposal_is_reported_not_skipped(tmp_path, monkeypatch):
+    """A proposal that vanishes silently is indistinguishable from one nobody
+    made, and the reviewer is owed an answer either way."""
+    merge = _drop(tmp_path, monkeypatch, "{ not json")
+    read = merge.read_rename_proposals()
+    assert len(read) == 1
+    assert "JSONDecodeError" in read[0]["_error"]
+
+
+def test_a_missing_directory_is_not_an_error(tmp_path, monkeypatch):
+    from assimilator import merge
+
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "nothing-here"))
+    assert merge.read_rename_proposals() == []

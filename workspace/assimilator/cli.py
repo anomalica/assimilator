@@ -1570,14 +1570,63 @@ def apply_renames_cmd(ctx: click.Context, dry_run: bool) -> None:
     """
     import uuid as _uuid
 
-    from assimilator.database import pending_renames, resolve_rename
-    from assimilator.merge import rename_node
+    from assimilator.database import resolve_rename
+    from assimilator.merge import read_rename_proposals, rename_node
 
     conn = sqlite3.connect(ctx.obj["db_path"])
     init_db(conn)
+    files = read_rename_proposals()
+    if not files:
+        click.echo("No rename proposals.")
+        return
+    # Ingest the drop directory into the table, skipping ones already recorded,
+    # so re-running is safe and the table is the record of what was done.
+    seen = {r[0] for r in conn.execute("SELECT id FROM rename_proposals").fetchall()}
+    unreadable = []
+    for doc in files:
+        if doc.get("_error"):
+            unreadable.append(f"{doc['_path']}: {doc['_error']}")
+            continue
+        pid = doc.get("id")
+        if not pid or pid in seen:
+            continue
+        missing = [
+            k
+            for k in ("node_id", "node_name_at_proposal", "proposed_name")
+            if not doc.get(k)
+        ]
+        if missing:
+            unreadable.append(f"{doc['_path']}: missing {', '.join(missing)}")
+            continue
+        conn.execute(
+            "INSERT INTO rename_proposals (id, node_id, node_name_at_proposal,"
+            " proposed_name, reason, proposed_by, proposed_at, status)"
+            " VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), 'pending')",
+            (
+                pid,
+                doc["node_id"],
+                doc["node_name_at_proposal"],
+                doc["proposed_name"],
+                doc.get("reason"),
+                doc.get("proposed_by"),
+                doc.get("proposed_at"),
+            ),
+        )
+    if unreadable:
+        # Loud, never skipped: a proposal that vanishes silently is
+        # indistinguishable from one nobody made.
+        click.echo(f"{len(unreadable)} proposal file(s) COULD NOT BE READ:", err=True)
+        for line in unreadable:
+            click.echo(f"   {line}", err=True)
+    from assimilator.database import pending_renames
+
     proposals = pending_renames(conn)
     if not proposals:
+        if not dry_run:
+            conn.commit()
         click.echo("No pending rename proposals.")
+        if unreadable:
+            raise SystemExit(1)
         return
     applied = lost = clashed = 0
     for p in proposals:
