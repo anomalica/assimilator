@@ -65,3 +65,19 @@ def dump(obj) -> str:
             width=_UNWRAPPED,
         )
     return yaml.dump(obj, Dumper=_BaseDumper, sort_keys=False, allow_unicode=True)
+
+
+# The `publication.status` vocabulary, and the ONLY values a brief may carry.
+# It is a contract with every consumer that reads a brief, so it lives in one
+# place rather than as string literals in two writers.
+#
+# Consumers should DENY the unsafe value rather than allow-list the safe ones.
+# This vocabulary changed once already - "redacted" became "published" when the
+# excerpt redaction was removed - and the assembler's gate was matching
+# {"redacted"}, so the entire corpus became unbuildable within the hour. The
+# asymmetry is the argument: wrongly blocking costs every page, wrongly passing
+# costs one brief from a directory nobody publishes from. Deny INTERNAL_ONLY,
+# warn on anything unrecognised, pass the rest.
+INTERNAL_ONLY = "unredacted"  # the internal audit copy; never build from it
+PUBLISHED = "published"  # the output of publish-briefs
+PUBLICATION_STATUSES = frozenset({INTERNAL_ONLY, PUBLISHED})

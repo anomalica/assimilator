@@ -26,6 +26,7 @@ from pathlib import Path
 
 import yaml
 
+from assimilator.brief_yaml import INTERNAL_ONLY
 from assimilator.brief_yaml import dump as dump_brief_yaml
 
 from anomalica_common.digest import attribution_mode as common_attribution_mode
@@ -563,7 +564,7 @@ def build_entity_brief(
         # side is systematically NEWER, which is exactly what makes that mistake
         # attractive. The flag is here so the file says so itself.
         "publication": {
-            "status": "unredacted",
+            "status": INTERNAL_ONLY,
             "warning": (
                 "Internal audit copy. Carries verbatim excerpts from sources we "
                 "may not redistribute. NOT FOR PUBLICATION - build only from the "

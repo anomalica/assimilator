@@ -50,3 +50,36 @@ def test_a_brief_without_newlines_keeps_the_readable_form():
 def test_contains_newline_walks_the_whole_structure():
     assert contains_newline({"a": [{"b": "x\ny"}]})
     assert not contains_newline({"a": [{"b": "x y"}], "c": 3, "d": None})
+
+
+def test_the_publication_vocabulary_is_fixed():
+    """A contract with every consumer that reads a brief.
+
+    It changed once already - "redacted" became "published" when the excerpt
+    redaction was removed - and a consumer allow-listing the old value found the
+    whole corpus unbuildable within the hour. Consumers should DENY
+    INTERNAL_ONLY rather than enumerate what is safe: wrongly blocking costs
+    every page, wrongly passing costs one brief from a directory nobody
+    publishes from.
+    """
+    from assimilator.brief_yaml import INTERNAL_ONLY, PUBLICATION_STATUSES, PUBLISHED
+
+    assert INTERNAL_ONLY == "unredacted"
+    assert PUBLISHED == "published"
+    assert PUBLICATION_STATUSES == {"unredacted", "published"}
+
+
+def test_both_writers_use_the_shared_vocabulary():
+    """Neither writer may invent its own string."""
+    import sqlite3
+
+    from anomalica_common.digest.models import Node, NodeType
+
+    from assimilator.brief_yaml import INTERNAL_ONLY
+    from assimilator.database import init_db, insert_node
+    from assimilator.synthesise import build_entity_brief
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(conn, Node(id="N", node_type=NodeType.event, name="An Event"))
+    assert build_entity_brief(conn, "N")["publication"]["status"] == INTERNAL_ONLY

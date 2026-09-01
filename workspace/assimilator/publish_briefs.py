@@ -90,6 +90,7 @@ from pathlib import Path
 
 import yaml
 
+from assimilator.brief_yaml import PUBLISHED
 from assimilator.brief_yaml import dump as dump_brief_yaml
 
 # The C loader where libyaml is available, the Python one otherwise. Measured on
@@ -190,7 +191,7 @@ def redact_brief(brief: dict, store_dir: Path) -> tuple[dict, dict]:
     # Marks which directory this copy came from. Not a redaction claim - see the
     # module docstring for why claim excerpts are no longer withheld.
     out["publication"] = {
-        "status": "published",
+        "status": PUBLISHED,
         "note": "Prepared for publication. Claim excerpts are short attributed quotations and are carried through; full bodies and transcripts are gated elsewhere.",
     }
     counts: dict[str, int] = {}
