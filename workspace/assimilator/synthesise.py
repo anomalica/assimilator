@@ -491,6 +491,14 @@ def build_entity_brief(
                 "attribution_mode": _attribution_mode(
                     origin_kind, claim_type, attestation
                 ),
+                # INTERNAL AUDIT SIGNAL, NOT READER-FACING. Do not render this
+                # or hedge prose on it: whether WE have checked a claim belongs
+                # is a fact about our process, not about the evidence, and a
+                # misattached claim is still correctly attributed to its source -
+                # it is simply in the wrong article, which no qualifier in the
+                # text can fix. The protection is the suspect EXCLUSION above,
+                # or nothing. (Settled with the assembler, 2026-09-01.)
+                #
                 # Whether this claim BELONGS on this page's node, as distinct
                 # from being ATTACHED to it. "unreviewed" is NOT "verified":
                 # a consumer asserting an unreviewed claim in its own voice is
