@@ -553,6 +553,24 @@ def build_entity_brief(
             "claim_count_total": claim_count_total,
         },
         "generated": {"graph_version": _graph_version(conn)},
+        # THIS DIRECTORY IS NOT A CACHE OF THE PUBLISHED ONE. The brief written
+        # here carries every original_excerpt verbatim, including from sources we
+        # may not redistribute; publish_briefs strips those by copyright status
+        # and the assembler puts an excerpt on a public page as a quote. So a
+        # consumer that reads briefs from HERE instead of the published directory
+        # publishes restricted source text - widening the access model, which is
+        # Mark's sign-off and is not reversible once it is on the CDN. The source
+        # side is systematically NEWER, which is exactly what makes that mistake
+        # attractive. The flag is here so the file says so itself.
+        "publication": {
+            "status": "unredacted",
+            "warning": (
+                "Internal audit copy. Carries verbatim excerpts from sources we "
+                "may not redistribute. NOT FOR PUBLICATION - build only from the "
+                "output of `assimilator publish-briefs`, which redacts by "
+                "copyright status."
+            ),
+        },
         # Whether this node's claims BELONG on it, as distinct from being
         # attached. UNREVIEWED IS NOT VERIFIED: it means nobody has checked, and
         # a consumer asserting those claims in its own voice is making a

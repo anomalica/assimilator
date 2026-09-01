@@ -1,5 +1,25 @@
 """Publishing briefs, with copyright redaction applied at the last step.
 
+THIS IS A COPYRIGHT CONTROL, NOT A CACHE. The two brief directories are not two
+copies of the same data:
+
+    ~/.local/share/assimilator/briefs   INTERNAL. Every excerpt verbatim.
+    <content>/briefs                    PUBLISHED. Excerpts redacted by status.
+
+The source side is the audit record and is systematically NEWER, because
+synthesise writes it and publishing is a separate step. That combination is a
+trap: a consumer that wants fresher briefs, or a field only the new ones carry,
+will reach for the source directory and by doing so put restricted source text
+on public pages - the assembler renders `original_excerpt` verbatim as a page
+quote. Widening the access model is Mark's explicit sign-off and is not
+reversible once it is on the CDN.
+
+The assembler met that fork on 2026-09-01, checked what publishing does before
+taking it, and stopped. Every brief now declares which side it is from
+(`publication.status`: unredacted | redacted) so the next consumer can refuse it
+without having to know the directory layout. If briefs here look stale, the fix
+is to run this command, never to read the other directory.
+
 A brief is the ADR 0010 audit record: the exact material the writer was given.
 Publishing it beside the page turns "every assertion traces to a source" from an
 assertion into something a reader can check. That is the project's whole premise
@@ -129,6 +149,14 @@ def redact_brief(brief: dict, store_dir: Path) -> tuple[dict, dict]:
     licence boundary, the second would look like a gap in our evidence.
     """
     out = _load(_dump(brief))
+    # Flip the source directory's NOT-FOR-PUBLICATION marker. A brief that still
+    # reads "unredacted" has not been through this function, and a consumer can
+    # refuse it on that alone rather than having to know which directory it came
+    # from.
+    out["publication"] = {
+        "status": "redacted",
+        "note": "Excerpts withheld where the source's copyright status forbids redistribution.",
+    }
     counts: dict[str, int] = {}
     for claim in out.get("claims") or []:
         provenance = claim.get("provenance") or {}

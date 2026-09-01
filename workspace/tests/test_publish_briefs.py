@@ -8,10 +8,14 @@ on the CDN in one irreversible deploy.
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pytest
 import yaml
+
+from anomalica_common.digest.models import Node, NodeType
+from assimilator.database import init_db, insert_node
 
 from assimilator.publish_briefs import (
     PUBLISHABLE_EXCERPT_STATUSES,
@@ -193,3 +197,28 @@ def test_an_unreadable_brief_is_reported_not_skipped(tmp_path):
     assert len(stats["unreadable"]) == 2
     assert any(u.startswith("broken.yaml") for u in stats["unreadable"])
     assert any("not a mapping" in u for u in stats["unreadable"])
+
+
+def test_a_source_brief_declares_itself_not_for_publication(tmp_path):
+    """The two brief directories are not two copies of the same data.
+
+    The source side carries every excerpt verbatim, including from sources we
+    may not redistribute, and it is systematically NEWER than the published one -
+    which is exactly what makes "just read the fresher directory" attractive.
+    The file says what it is so a consumer can refuse it without having to know
+    which directory it came from.
+    """
+    from assimilator.synthesise import build_entity_brief
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(conn, Node(id="N", node_type=NodeType.event, name="An Event"))
+    brief = build_entity_brief(conn, "N")
+    assert brief["publication"]["status"] == "unredacted"
+    assert "NOT FOR PUBLICATION" in brief["publication"]["warning"]
+
+
+def test_publishing_flips_the_marker(tmp_path):
+    store = _store(tmp_path, {"a" * 64: "restricted"})
+    published, _ = redact_brief(_brief("a" * 64), store)
+    assert published["publication"]["status"] == "redacted"
