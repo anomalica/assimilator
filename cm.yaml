@@ -3,7 +3,6 @@ names:
   image: anomalica-assimilator
   workspace: workspace
   user: nonroot
-
 stages:
   base:
     from: python:3.12-slim
@@ -26,7 +25,13 @@ stages:
             local_dir='/opt/models/qwen3-embedding')"
           - python -c "from huggingface_hub import snapshot_download; snapshot_download('cross-encoder/ms-marco-MiniLM-L-6-v2',
             local_dir='/opt/models/ms-marco-minilm')"
-
+      # A C compiler for Triton: torch 2.13 routes some eager CUDA ops (the
+      # rotary-embedding matmul the entity reranker hits) to Triton kernels it
+      # compiles at first use, and fails without one. Last so the layers above
+      # stay cached.
+      - apt-get:
+          install:
+            - gcc
   development:
     from: base
     runtime:
@@ -42,7 +47,6 @@ stages:
       - pip:
           install:
             - pytest
-
   production:
     from: base
     steps:
