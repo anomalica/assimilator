@@ -185,7 +185,14 @@ class EntityReranker:
         )
         batch = {k: v.to(self.device) for k, v in batch.items()}
         with torch.no_grad():
-            logits = self.model(**batch).logits[:, -1, :]
+            # Only the last position's logits are read, so only those are
+            # computed: the full tensor is batch x length x a 152k-token
+            # vocabulary, 1.8 GB at batch 32, and it was the out-of-memory.
+            try:
+                out = self.model(**batch, logits_to_keep=1)
+            except TypeError:  # an older transformers without the argument
+                out = self.model(**batch)
+            logits = out.logits[:, -1, :]
             pair = torch.stack([logits[:, self._no], logits[:, self._yes]], dim=1)
             return torch.log_softmax(pair.float(), dim=1)[:, 1].exp().tolist()
 
