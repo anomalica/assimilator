@@ -376,3 +376,37 @@ def test_an_unreadable_policy_cuts_nothing(monkeypatch):
 
     assert brief["page"]["claim_count"] == 50
     assert "truncated" not in brief
+
+
+def test_the_header_parse_reads_the_page_and_never_the_bulk(tmp_path):
+    """The scheduler needs page, generated and brief_hash from every brief on
+    every queue rebuild. Parsing 814 briefs whole for that was 105 seconds; the
+    header is under 2 KB. The cut is at the first bulk key, so a related node's
+    node_id - at the same indent as the page's - is never read as the page's,
+    and a fault in the body does not hide the header."""
+    path = tmp_path / "events" / "apollo-14.yaml"
+    path.parent.mkdir()
+    path.write_text(
+        "schema: anomalica/brief/1\n"
+        "brief_hash: abc\n"
+        "page:\n  kind: entity\n  node_id: ev-1\n  node_type: event\n"
+        "  slug: apollo-14\n"
+        "generated:\n  graph_version: 'v1'\n"
+        "related_nodes:\n- node_id: other-1\n  slug: other\n"
+        "claims:\n- claim_id: c1\n  content: 'unterminated\n"
+    )
+
+    header = synthesise.brief_header(path)
+
+    assert header["page"]["node_id"] == "ev-1"
+    assert header["generated"]["graph_version"] == "v1"
+    assert header["brief_hash"] == "abc"
+    assert "related_nodes" not in header and "claims" not in header
+    assert synthesise.brief_node_id(path) == "ev-1"
+
+
+def test_a_brief_with_no_readable_header_yields_nothing(tmp_path):
+    bad = tmp_path / "broken.yaml"
+    bad.write_text("{{{ not yaml")
+    assert synthesise.brief_header(bad) is None
+    assert synthesise.brief_node_id(bad) is None
