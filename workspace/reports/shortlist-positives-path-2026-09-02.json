@@ -1,0 +1,812 @@
+[
+  {
+    "a": "The Pentagon",
+    "b": "The Pentagon",
+    "types": ["organisation", "object"],
+    "rank": 2,
+    "rules": true,
+    "names_only": 0.9185,
+    "with_claims": 0.7727
+  },
+  {
+    "a": "Galileo Project",
+    "b": "Galileo Project",
+    "types": ["organisation", "project"],
+    "rank": 1,
+    "rules": true,
+    "names_only": 0.9996,
+    "with_claims": 0.9888
+  },
+  {
+    "a": "Unidentified Aerial Phenomena Task Force (UAPTF)",
+    "b": "Pentagon Unidentified Aerial Phenomena (UAP) Task Force",
+    "types": ["project", "organisation"],
+    "rank": 34,
+    "rules": false,
+    "names_only": 0.9674,
+    "with_claims": 0.9714
+  },
+  {
+    "a": "CIA",
+    "b": "Central Intelligence Agency (CIA)",
+    "types": ["organisation", "organisation"],
+    "rank": 7,
+    "rules": true,
+    "names_only": 0.9998,
+    "with_claims": 0.9801
+  },
+  {
+    "a": "Tom Wilson",
+    "b": "Thomas Wilson",
+    "types": ["person", "person"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9837,
+    "with_claims": 0.8012
+  },
+  {
+    "a": "Jim Mattis",
+    "b": "James Mattis",
+    "types": ["person", "person"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9862,
+    "with_claims": 0.9806
+  },
+  {
+    "a": "Lue Elizondo",
+    "b": "Luis Elizondo",
+    "types": ["person", "person"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.9856,
+    "with_claims": 0.8514
+  },
+  {
+    "a": "Lue Elizondo",
+    "b": "Lou Elizondo",
+    "types": ["person", "person"],
+    "rank": 15,
+    "rules": false,
+    "names_only": 0.9659,
+    "with_claims": 0.7675
+  },
+  {
+    "a": "Robert Monroe",
+    "b": "Bob Monroe",
+    "types": ["person", "person"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.2878,
+    "with_claims": 0.1004
+  },
+  {
+    "a": "Joseph McMoneagle",
+    "b": "Joe McMoneagle",
+    "types": ["person", "person"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.9975,
+    "with_claims": 0.9792
+  },
+  {
+    "a": "Hal Puthoff",
+    "b": "Harold E. Puthoff",
+    "types": ["person", "person"],
+    "rank": 4,
+    "rules": false,
+    "names_only": 0.9598,
+    "with_claims": 0.7913
+  },
+  {
+    "a": "David Fravor",
+    "b": "Dave Fravor",
+    "types": ["person", "person"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9937,
+    "with_claims": 0.988
+  },
+  {
+    "a": "Rob Weiss",
+    "b": "Robert Weiss",
+    "types": ["person", "person"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9912,
+    "with_claims": 0.9183
+  },
+  {
+    "a": "Will Miller",
+    "b": "Willard Miller",
+    "types": ["person", "person"],
+    "rank": 12,
+    "rules": false,
+    "names_only": 0.8741,
+    "with_claims": 0.5742
+  },
+  {
+    "a": "Michael Kostelnik",
+    "b": "Mike Kostelnik",
+    "types": ["person", "person"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.996,
+    "with_claims": 0.9907
+  },
+  {
+    "a": "James Lacatski",
+    "b": "Jim Lacatski",
+    "types": ["person", "person"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9938,
+    "with_claims": 0.9716
+  },
+  {
+    "a": "Chris Bledsoe",
+    "b": "Christopher Bledsoe",
+    "types": ["person", "person"],
+    "rank": null,
+    "rules": false,
+    "names_only": 0.9835,
+    "with_claims": 0.828
+  },
+  {
+    "a": "Dave Saunders",
+    "b": "David Saunders",
+    "types": ["person", "person"],
+    "rank": 4,
+    "rules": false,
+    "names_only": 0.9898,
+    "with_claims": 0.6016
+  },
+  {
+    "a": "Thomas Bearden",
+    "b": "Tom Bearden",
+    "types": ["person", "person"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.945,
+    "with_claims": 0.5015
+  },
+  {
+    "a": "Richard Gordon",
+    "b": "Dick Gordon",
+    "types": ["person", "person"],
+    "rank": 23,
+    "rules": false,
+    "names_only": 0.867,
+    "with_claims": 0.0534
+  },
+  {
+    "a": "Jeff Kripal",
+    "b": "Jeffrey Kripal",
+    "types": ["person", "person"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.9886,
+    "with_claims": 0.884
+  },
+  {
+    "a": "James Kunetka",
+    "b": "Jim Kunetka",
+    "types": ["person", "person"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9867,
+    "with_claims": 0.7193
+  },
+  {
+    "a": "Michael Griffin",
+    "b": "Mike Griffin",
+    "types": ["person", "person"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9736,
+    "with_claims": 0.8923
+  },
+  {
+    "a": "Gilbert Levin",
+    "b": "Gil Levin",
+    "types": ["person", "person"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9908,
+    "with_claims": 0.9871
+  },
+  {
+    "a": "Ronald Evans",
+    "b": "Ron Evans",
+    "types": ["person", "person"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9777,
+    "with_claims": 0.9336
+  },
+  {
+    "a": "Cable News Network (CNN)",
+    "b": "CNN",
+    "types": ["organisation", "organisation"],
+    "rank": 1,
+    "rules": true,
+    "names_only": 0.9917,
+    "with_claims": 0.9529
+  },
+  {
+    "a": "Islamic State (ISIS)",
+    "b": "ISIS",
+    "types": ["organisation", "organisation"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.9991,
+    "with_claims": 0.5275
+  },
+  {
+    "a": "American Broadcasting Company (ABC)",
+    "b": "ABC",
+    "types": ["organisation", "organisation"],
+    "rank": 1,
+    "rules": true,
+    "names_only": 0.997,
+    "with_claims": 0.5006
+  },
+  {
+    "a": "National Public Radio (NPR)",
+    "b": "NPR",
+    "types": ["organisation", "organisation"],
+    "rank": 3,
+    "rules": true,
+    "names_only": 0.9996,
+    "with_claims": 0.549
+  },
+  {
+    "a": "Office of the Under Secretary of Defense for Intelligence (OUSDI)",
+    "b": "Office of the Undersecretary of Defense for Intelligence (OUSDI)",
+    "types": ["organisation", "organisation"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9994,
+    "with_claims": 0.9971
+  },
+  {
+    "a": "Paris-Match",
+    "b": "Paris Match",
+    "types": ["organisation", "organisation"],
+    "rank": 3,
+    "rules": true,
+    "names_only": 0.9997,
+    "with_claims": 0.9911
+  },
+  {
+    "a": "Stargate",
+    "b": "Star Gate",
+    "types": ["project", "project"],
+    "rank": 7,
+    "rules": false,
+    "names_only": 0.9977,
+    "with_claims": 0.99
+  },
+  {
+    "a": "Advanced Aerospace Weapon Systems Applications Program (Advanced Aerospace Weapon System Applications Program (Advanced Aerospace Weapon Systems Applications Program (AAWSAP)))",
+    "b": "Advanced Aerospace Weapon System Applications Program (AAWSAP)",
+    "types": ["project", "project"],
+    "rank": 6,
+    "rules": false,
+    "names_only": 0.9997,
+    "with_claims": 0.9972
+  },
+  {
+    "a": "Advanced Aerospace Weapon Systems Applications Program (Advanced Aerospace Weapon System Applications Program (Advanced Aerospace Weapon Systems Applications Program (AAWSAP)))",
+    "b": "Advanced Aerospace Weapon System Applications Program",
+    "types": ["project", "matter"],
+    "rank": 8,
+    "rules": false,
+    "names_only": 0.8706,
+    "with_claims": 0.9931
+  },
+  {
+    "a": "Unidentified Aerial Phenomena Task Force (UAPTF)",
+    "b": "Unidentified Anomalous Phenomena (UAP) Task Force (Unidentified Aerial Phenomena Task Force (UAPTF))",
+    "types": ["project", "project"],
+    "rank": 4,
+    "rules": false,
+    "names_only": 0.9992,
+    "with_claims": 0.9978
+  },
+  {
+    "a": "Unidentified Aerial Phenomena Task Force (UAPTF)",
+    "b": "Unidentified Aerial Phenomena Task Force (Unidentified Anomalous Phenomena / Unidentified Aerial Phenomena (UAP) Task Force (UAPTF))",
+    "types": ["project", "project"],
+    "rank": 14,
+    "rules": false,
+    "names_only": 0.9997,
+    "with_claims": 0.9808
+  },
+  {
+    "a": "Unidentified Aerial Phenomena Task Force (UAPTF)",
+    "b": "Unidentified Aerospace Phenomena Task Force (Unidentified Aerial Phenomena (UAP) Task Force)",
+    "types": ["project", "project"],
+    "rank": 43,
+    "rules": false,
+    "names_only": 0.9972,
+    "with_claims": 0.9807
+  },
+  {
+    "a": "Unidentified Aerial Phenomena (Unidentified Aerial Phenomena / Unidentified Anomalous Phenomena (UAP))",
+    "b": "Unidentified Aerial Phenomena (UAP)",
+    "types": ["topic", "topic"],
+    "rank": 140,
+    "rules": false,
+    "names_only": 0.9997,
+    "with_claims": 0.714
+  },
+  {
+    "a": "Unidentified Aerial Phenomena (Unidentified Aerial Phenomena / Unidentified Anomalous Phenomena (UAP))",
+    "b": "Unidentified Anomalous Phenomena",
+    "types": ["topic", "concept"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.9959,
+    "with_claims": 0.9869
+  },
+  {
+    "a": "Advanced Aerospace Threat Identification Program (AATIP)",
+    "b": "Advanced Aerospace Threat Identification Program (AATIP)",
+    "types": ["project", "organisation"],
+    "rank": 8,
+    "rules": true,
+    "names_only": 0.9466,
+    "with_claims": 0.9924
+  },
+  {
+    "a": "All-domain Anomaly Resolution Office (AARO)",
+    "b": "All-Domain Anomaly Resolution Office (AARO)",
+    "types": ["organisation", "project"],
+    "rank": 5,
+    "rules": true,
+    "names_only": 0.9959,
+    "with_claims": 0.9772
+  },
+  {
+    "a": "All-domain Anomaly Resolution Office (AARO)",
+    "b": "All-domain Anomaly Resolution Office (All-Domain Anomaly Resolution Office (All-domain Anomaly Resolution Office (AARO)))",
+    "types": ["organisation", "project"],
+    "rank": 3,
+    "rules": false,
+    "names_only": 0.9954,
+    "with_claims": 0.9783
+  },
+  {
+    "a": "Remote Viewing (RV)'DO",
+    "b": "Remote Viewing",
+    "types": ["topic", "concept"],
+    "rank": 13,
+    "rules": false,
+    "names_only": 0.9774,
+    "with_claims": 0.7867
+  },
+  {
+    "a": "Remote Viewing (RV)'DO",
+    "b": "topic: remote viewing",
+    "types": ["topic", "topic"],
+    "rank": 5,
+    "rules": false,
+    "names_only": 0.9939,
+    "with_claims": 0.9705
+  },
+  {
+    "a": "anti-gravity propulsion",
+    "b": "Anti-Gravity Propulsion",
+    "types": ["topic", "concept"],
+    "rank": 1,
+    "rules": true,
+    "names_only": 0.9803,
+    "with_claims": 0.9547
+  },
+  {
+    "a": "topic: Atlantis",
+    "b": "Atlantis",
+    "types": ["topic", "topic"],
+    "rank": 10,
+    "rules": false,
+    "names_only": 0.9979,
+    "with_claims": 0.9681
+  },
+  {
+    "a": "telepathy",
+    "b": "topic: telepathy",
+    "types": ["topic", "topic"],
+    "rank": 40,
+    "rules": false,
+    "names_only": 0.9965,
+    "with_claims": 0.9903
+  },
+  {
+    "a": "entropy",
+    "b": "topic: entropy",
+    "types": ["topic", "topic"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9989,
+    "with_claims": 0.9623
+  },
+  {
+    "a": "topic: Buddhism",
+    "b": "Buddhism",
+    "types": ["topic", "topic"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9979,
+    "with_claims": 0.7088
+  },
+  {
+    "a": "topic: kundalini",
+    "b": "Kundalini",
+    "types": ["topic", "topic"],
+    "rank": 10,
+    "rules": false,
+    "names_only": 0.9985,
+    "with_claims": 0.9669
+  },
+  {
+    "a": "topic: chakras",
+    "b": "chakras",
+    "types": ["topic", "topic"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.9979,
+    "with_claims": 0.9817
+  },
+  {
+    "a": "topic: bilocation",
+    "b": "bilocation",
+    "types": ["topic", "topic"],
+    "rank": 12,
+    "rules": false,
+    "names_only": 0.9967,
+    "with_claims": 0.9838
+  },
+  {
+    "a": "To the Stars Academy of Arts and Science (TTSA)",
+    "b": "To The Stars Academy (TTSA)",
+    "types": ["organisation", "organisation"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9913,
+    "with_claims": 0.8506
+  },
+  {
+    "a": "alien abduction phenomenon",
+    "b": "alien abduction",
+    "types": ["topic", "topic"],
+    "rank": 38,
+    "rules": false,
+    "names_only": 0.9992,
+    "with_claims": 0.9972
+  },
+  {
+    "a": "Harold E. Puthoff",
+    "b": "Hal Puthoff",
+    "types": ["person", "person"],
+    "rank": 42,
+    "rules": false,
+    "names_only": 0.9621,
+    "with_claims": 0.9157
+  },
+  {
+    "a": "United States Department of Defense (DoD)",
+    "b": "Department of Defense (Department of Defence (DoD))",
+    "types": ["organisation", "organisation"],
+    "rank": 37,
+    "rules": false,
+    "names_only": 0.9864,
+    "with_claims": 0.456
+  },
+  {
+    "a": "Out-of-Body Experience (OBE)",
+    "b": "out-of-body experience (Out-of-Body Experience (OBE))",
+    "types": ["topic", "topic"],
+    "rank": 3,
+    "rules": false,
+    "names_only": 0.9993,
+    "with_claims": 0.9727
+  },
+  {
+    "a": "Anomalous Aerial Vehicle (AAV)",
+    "b": "anomalous aerial vehicle (Anomalous Aerial Vehicle (AAV))",
+    "types": ["topic", "topic"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9995,
+    "with_claims": 0.9952
+  },
+  {
+    "a": "Vatican",
+    "b": "Holy See (the Vatican)",
+    "types": ["organisation", "organisation"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.997,
+    "with_claims": 0.5347
+  },
+  {
+    "a": "Roswell incident (1947)",
+    "b": "1947 Roswell Unidentified Aerial Phenomena (UAP) crash",
+    "types": ["event", "event"],
+    "rank": 7,
+    "rules": false,
+    "names_only": 0.9884,
+    "with_claims": 0.8587
+  },
+  {
+    "a": "Roswell incident (1947)",
+    "b": "Roswell Unidentified Flying Object (UFO) crash",
+    "types": ["event", "event"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.7122,
+    "with_claims": 0.93
+  },
+  {
+    "a": "Roswell incident (1947)",
+    "b": "1947 Roswell incident",
+    "types": ["event", "event"],
+    "rank": 3,
+    "rules": false,
+    "names_only": 0.9995,
+    "with_claims": 0.9541
+  },
+  {
+    "a": "Roswell incident (1947)",
+    "b": "1947 Roswell crash and debris retrieval",
+    "types": ["event", "event"],
+    "rank": 4,
+    "rules": false,
+    "names_only": 0.9875,
+    "with_claims": 0.877
+  },
+  {
+    "a": "Roswell incident (1947)",
+    "b": "Roswell UAP Crash",
+    "types": ["event", "event"],
+    "rank": 2,
+    "rules": false,
+    "names_only": 0.6584,
+    "with_claims": 0.9309
+  },
+  {
+    "a": "Roswell incident (1947)",
+    "b": "Roswell UFO crash, 1947",
+    "types": ["event", "event"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9929,
+    "with_claims": 0.9855
+  },
+  {
+    "a": "USA, New Mexico, Roswell Army Air Force Base",
+    "b": "Roswell Army Air Field",
+    "types": ["place", "place"],
+    "rank": null,
+    "rules": false,
+    "names_only": 0.9241,
+    "with_claims": 0.913
+  },
+  {
+    "a": "UK, Suffolk, Rendlesham Forest",
+    "b": "United Kingdom, Suffolk, Rendlesham Forest",
+    "types": ["place", "place"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9992,
+    "with_claims": 0.9967
+  },
+  {
+    "a": "UK, Suffolk, Rendlesham Forest",
+    "b": "United Kingdom, England, Rendlesham Forest",
+    "types": ["place", "place"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9979,
+    "with_claims": 0.9783
+  },
+  {
+    "a": "USA, District of Columbia, Washington",
+    "b": "USA, Washington, D.C.",
+    "types": ["place", "place"],
+    "rank": 8,
+    "rules": false,
+    "names_only": 0.994,
+    "with_claims": 0.9352
+  },
+  {
+    "a": "USA, District of Columbia, Washington",
+    "b": "USA, District of Columbia",
+    "types": ["place", "place"],
+    "rank": 11,
+    "rules": false,
+    "names_only": 0.9971,
+    "with_claims": 0.7182
+  },
+  {
+    "a": "UK, England, RAF Lakenheath",
+    "b": "United Kingdom, England, Royal Air Force (RAF) Lakenheath",
+    "types": ["place", "place"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9995,
+    "with_claims": 0.9918
+  },
+  {
+    "a": "United States",
+    "b": "USA",
+    "types": ["place", "place"],
+    "rank": null,
+    "rules": false,
+    "names_only": 0.6151,
+    "with_claims": 0.1883
+  },
+  {
+    "a": "United Kingdom Ministry of Defence",
+    "b": "UK Ministry of Defence",
+    "types": ["organisation", "organisation"],
+    "rank": null,
+    "rules": false,
+    "names_only": 0.9993,
+    "with_claims": 0.9678
+  },
+  {
+    "a": "Canada Department of Transport",
+    "b": "Department of Transport (Canada)",
+    "types": ["organisation", "organisation"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9996,
+    "with_claims": 0.9685
+  },
+  {
+    "a": "1980 Rendlesham Forest incident",
+    "b": "RAF Woodbridge / Rendlesham Forest incident",
+    "types": ["event", "event"],
+    "rank": 13,
+    "rules": false,
+    "names_only": 0.9353,
+    "with_claims": 0.5523
+  },
+  {
+    "a": "UK",
+    "b": "Great Britain",
+    "types": ["place", "place"],
+    "rank": 3149,
+    "rules": false,
+    "names_only": 0.9937,
+    "with_claims": 0.288
+  },
+  {
+    "a": "USA",
+    "b": "United States of America",
+    "types": ["place", "place"],
+    "rank": null,
+    "rules": false,
+    "names_only": 0.9842,
+    "with_claims": 0.1098
+  },
+  {
+    "a": "extrasensory perception (ESP)",
+    "b": "extrasensory perception (Extrasensory Perception (ESP))",
+    "types": ["topic", "topic"],
+    "rank": 36,
+    "rules": false,
+    "names_only": 0.9991,
+    "with_claims": 0.9806
+  },
+  {
+    "a": "post-traumatic stress disorder (Post-Traumatic Stress Disorder (PTSD))",
+    "b": "post-traumatic stress disorder (PTSD)",
+    "types": ["topic", "topic"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9988,
+    "with_claims": 0.9804
+  },
+  {
+    "a": "electroencephalography (Electroencephalogram (EEG))",
+    "b": "electroencephalography (EEG)",
+    "types": ["topic", "topic"],
+    "rank": 15,
+    "rules": false,
+    "names_only": 0.9994,
+    "with_claims": 0.7561
+  },
+  {
+    "a": "Artificial intelligence (AI)",
+    "b": "Artificial intelligence",
+    "types": ["topic", "topic"],
+    "rank": 7,
+    "rules": true,
+    "names_only": 0.9979,
+    "with_claims": 0.8408
+  },
+  {
+    "a": "Near-death experience (NDE)",
+    "b": "Near-death experience",
+    "types": ["topic", "topic"],
+    "rank": 1,
+    "rules": true,
+    "names_only": 0.998,
+    "with_claims": 0.9936
+  },
+  {
+    "a": "Apollo 12",
+    "b": "Apollo 12",
+    "types": ["project", "event"],
+    "rank": 10,
+    "rules": true,
+    "names_only": 0.9815,
+    "with_claims": 0.6594
+  },
+  {
+    "a": "Apollo 13",
+    "b": "Apollo 13",
+    "types": ["project", "event"],
+    "rank": 1,
+    "rules": true,
+    "names_only": 0.9643,
+    "with_claims": 0.829
+  },
+  {
+    "a": "Apollo 14",
+    "b": "Apollo 14",
+    "types": ["project", "event"],
+    "rank": 4,
+    "rules": true,
+    "names_only": 0.9843,
+    "with_claims": 0.8707
+  },
+  {
+    "a": "Apollo 14",
+    "b": "Apollo 14 lunar landing mission",
+    "types": ["project", "event"],
+    "rank": 1,
+    "rules": false,
+    "names_only": 0.9857,
+    "with_claims": 0.9107
+  },
+  {
+    "a": "Apollo 15",
+    "b": "Apollo 15",
+    "types": ["project", "event"],
+    "rank": 14,
+    "rules": true,
+    "names_only": 0.9836,
+    "with_claims": 0.7425
+  },
+  {
+    "a": "Apollo 16",
+    "b": "Apollo 16",
+    "types": ["project", "event"],
+    "rank": 15,
+    "rules": true,
+    "names_only": 0.9848,
+    "with_claims": 0.8532
+  },
+  {
+    "a": "Apollo 17",
+    "b": "Apollo 17",
+    "types": ["project", "event"],
+    "rank": 9,
+    "rules": true,
+    "names_only": 0.9823,
+    "with_claims": 0.4637
+  },
+  {
+    "a": "Search for Extraterrestrial Intelligence (SETI)",
+    "b": "Search for Extraterrestrial Intelligence (SETI)",
+    "types": ["topic", "project"],
+    "rank": 10,
+    "rules": true,
+    "names_only": 0.9983,
+    "with_claims": 0.9787
+  }
+]
