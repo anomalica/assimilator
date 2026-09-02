@@ -410,3 +410,33 @@ def test_a_brief_with_no_readable_header_yields_nothing(tmp_path):
     bad.write_text("{{{ not yaml")
     assert synthesise.brief_header(bad) is None
     assert synthesise.brief_node_id(bad) is None
+
+
+def test_the_size_estimate_models_what_a_consumer_renders_not_the_file(tmp_path):
+    """The file holds about four characters of ids, hashes and provenance for
+    every character of claim text, and none of it reaches a model. Sized as
+    the file, the largest brief reads as over a window it fits with room to
+    spare, and the cut that would trigger drops evidence for nothing. The
+    estimate is claim text at the measured ratio plus a line of framing."""
+    from assimilator.brief_size import CHARS_PER_TOKEN
+
+    conn = _two_types_one_name(tmp_path)
+    brief = synthesise.build_entity_brief(conn, "ev-1")
+    text = sum(
+        len(c["content"] or "") + len(c["original_excerpt"] or "")
+        for c in brief["claims"]
+    )
+    expected = sum(
+        int(
+            (len(c["content"] or "") + len(c["original_excerpt"] or ""))
+            / CHARS_PER_TOKEN
+        )
+        + 1
+        + synthesise._CLAIM_OVERHEAD_TOKENS
+        for c in brief["claims"]
+    )
+
+    assert brief["size"]["tokens_estimated"] == expected
+    on_disk = len(synthesise.dump_brief_yaml(brief))
+    assert on_disk > 3 * text  # the file is mostly not claim text
+    assert brief["size"]["tokens_estimated"] < on_disk / CHARS_PER_TOKEN / 2
