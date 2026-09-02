@@ -23,6 +23,8 @@ import json
 import os
 import re
 import sqlite3
+
+import yaml
 from pathlib import Path
 
 
@@ -759,27 +761,40 @@ def brief_files(briefs_dir: Path) -> list[Path]:
     return sorted(briefs_dir.glob("*/*.yaml"))
 
 
-_HEAD_NODE_ID = re.compile(
-    r"^page:\n(?:[ \t]+.*\n)*?[ \t]+node_id:[ \t]*['\"]?([^'\"\s]+)", re.M
-)
+_BULK_START = re.compile(r"^(related_nodes|claims):", re.M)
 
 
-def brief_node_id(path: Path) -> str | None:
-    """The page.node_id a brief file carries, read from its head.
+def brief_header(path: Path) -> dict | None:
+    """The brief parsed WITHOUT its bulk: everything above related_nodes and
+    claims - schema, brief_hash, page, generated, size, publication, belonging.
 
-    The page block is the first thing in every brief, so the id sits in the
-    first few kilobytes. Parsing a 300 KB brief whole to read one field made a
-    sweep of the corpus take minutes, and a YAML fault anywhere in the body
-    hid the id entirely - so a corrupt stale brief was never pruned. A file
-    whose head does not carry an id yields None and is left alone.
+    Enough for anything asking which node a brief is for, what graph state it
+    reflects, or what its hash is. Parsing each brief whole for those three
+    fields cost the scheduler 105 of its 131 seconds per queue rebuild over 814
+    briefs (measured 2026-09-02); a header is under 2 KB. The cut is at the
+    first bulk key at column 0, so a related node's fields, which sit at the
+    same indent as the page's, can never be read as the page's. None when the
+    file cannot be read or its header is not a mapping: such a file is left
+    for a human, never deleted or rewritten blind.
     """
     try:
         with path.open("rb") as f:
-            head = f.read(4096).decode("utf-8", errors="ignore")
-    except OSError:
+            raw = f.read(16384)
+        text = raw.decode("utf-8", errors="ignore")
+        m = _BULK_START.search(text)
+        if m is None and len(raw) == 16384:
+            text = path.read_text(errors="ignore")
+            m = _BULK_START.search(text)
+        doc = yaml.safe_load(text[: m.start()] if m else text)
+    except (OSError, yaml.YAMLError):
         return None
-    m = _HEAD_NODE_ID.search(head)
-    return m.group(1) if m else None
+    return doc if isinstance(doc, dict) else None
+
+
+def brief_node_id(path: Path) -> str | None:
+    """The page.node_id a brief file carries, or None."""
+    node_id = ((brief_header(path) or {}).get("page") or {}).get("node_id")
+    return str(node_id) if node_id else None
 
 
 def write_brief(brief: dict, out_dir: Path) -> Path:

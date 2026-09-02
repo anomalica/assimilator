@@ -639,19 +639,20 @@ def enumerate_review_queue(
 
 
 def _load_briefs(briefs_dir: Path | None) -> list[dict]:
-    """Read the emitted briefs once (their page identity + brief_hash). Shared by
-    the synthesise and assemble enumerators so the briefs dir is scanned once."""
-    from assimilator.synthesise import brief_files
+    """The emitted briefs' HEADERS (page identity, graph_version, brief_hash),
+    read once and shared by the synthesise and assemble enumerators.
+
+    Headers only: the enumerators need three fields, and parsing every brief
+    whole to get them was 105 of the 131 seconds a queue rebuild took."""
+    from assimilator.synthesise import brief_files, brief_header
 
     out: list[dict] = []
     if briefs_dir is None or not briefs_dir.is_dir():
         return out
     for bf in brief_files(briefs_dir):
-        try:
-            brief = yaml.safe_load(bf.read_text()) or {}
-        except (OSError, yaml.YAMLError):
-            continue
-        out.append(brief)
+        header = brief_header(bf)
+        if header:
+            out.append(header)
     return out
 
 
