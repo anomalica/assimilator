@@ -5,6 +5,7 @@ import sqlite3
 
 from anomalica_common.digest.models import Claim, Node, NodeType, Record
 from assimilator import merge_pipeline as mp
+from assimilator import verify_band
 from assimilator.database import init_db, insert_claim, insert_node, insert_record
 
 
@@ -89,6 +90,7 @@ def test_dry_run_plans_and_calls_nothing(monkeypatch, tmp_path, capsys):
         plan["to_score"] >= 1 and plan["to_verify"] == 0 and plan["verify_calls"] == 0
     )
     assert plan["cached_context_tokens"] == 0 and plan["notional_usd"] == 0
+    assert plan["cached_tokens_per_call"] == verify_band.CONTEXT_TOKENS_PER_CALL
     assert not (tmp_path / "scores.jsonl").exists()
 
 
