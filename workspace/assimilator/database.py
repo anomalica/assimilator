@@ -106,6 +106,25 @@ CREATE TABLE IF NOT EXISTS aliases (
     PRIMARY KEY (alias, node_id)
 );
 
+-- EXPERIMENTAL (2026-09-03). Two records judged to refer to the same specific
+-- subject - one incident, operation, programme, document or investigation -
+-- by a model reading both claim lists (relate.py). Derived and rebuildable,
+-- like corroborations and page_proposals: nothing in the graph depends on it.
+-- Unrelated verdicts are stored too, so a pair is judged once and precision
+-- can be measured later. record_a < record_b.
+CREATE TABLE IF NOT EXISTS record_relations (
+    record_a TEXT NOT NULL,
+    record_b TEXT NOT NULL,
+    verdict TEXT NOT NULL CHECK (verdict IN ('same_subject', 'possibly_related', 'unrelated')),
+    shared_subject TEXT,
+    reason TEXT,
+    links TEXT,
+    model TEXT,
+    prompt_sha TEXT,
+    judged_at TEXT NOT NULL,
+    PRIMARY KEY (record_a, record_b)
+);
+
 CREATE TABLE IF NOT EXISTS corroborations (
     claim_a TEXT NOT NULL REFERENCES claims(id),
     claim_b TEXT NOT NULL REFERENCES claims(id),

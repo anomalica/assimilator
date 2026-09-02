@@ -1563,6 +1563,116 @@ def publish_briefs_cmd(
         raise SystemExit(1)
 
 
+@main.command("relate")
+@click.option(
+    "--limit", default=0, help="Judge at most this many pairs (0 = all shortlisted)."
+)
+@click.option(
+    "--record",
+    "record_ref",
+    default=None,
+    help="Only pairs involving this record (id or content-hash prefix).",
+)
+@click.option(
+    "--model",
+    default=None,
+    help="Judge model, resolved through the policy's relate stage (default: its first permitted).",
+)
+@click.option(
+    "--force", is_flag=True, help="Re-judge pairs already in record_relations."
+)
+@click.option(
+    "--show",
+    is_flag=True,
+    help="List the same_subject and possibly_related pairs and stop.",
+)
+@click.option("--dry-run", is_flag=True, help="Shortlist and count; call nothing.")
+@click.pass_context
+def relate_cmd(ctx, limit, record_ref, model, force, show, dry_run):
+    """EXPERIMENTAL. Judge whether pairs of records refer to the same specific
+    subject; store the verdicts in record_relations for a reviewer.
+
+    Shortlist: each claim's 20 nearest claims in other records, hits counted per
+    record, the top 15 records per record. Judge: a strict prompt reading both
+    claim lists, Haiku on the subscription through the policy's relate stage.
+    Nothing merges or links automatically; not part of rebuild or the scheduler.
+    """
+    from assimilator.embeddings import init_vec
+    from assimilator.relate import (
+        STAGE,
+        judge_pairs,
+        judged,
+        load_claim_vectors,
+        related,
+        resolve_record,
+        shortlist,
+    )
+
+    conn = _connect(ctx.obj["db_path"])
+    if show:
+        rows = related(conn)
+        click.echo(f"{len(rows)} related pair(s) (EXPERIMENTAL):")
+        for ra, ta, rb, tb, verdict, subject, m, at in rows:
+            click.echo(
+                f"  {verdict:17} {subject or ''}\n      {ta[:70]} [{ra[:8]}]\n      {tb[:70]} [{rb[:8]}]  ({m}, {at[:10]})"
+            )
+        conn.close()
+        return
+    init_vec(conn)
+    only = None
+    if record_ref:
+        rid = resolve_record(conn, record_ref)
+        if rid is None:
+            raise click.ClickException(f"no record matches {record_ref!r}")
+        only = {rid}
+    ids, recs, vectors = load_claim_vectors(conn)
+    pairs = shortlist(ids, recs, vectors, only=only)
+    done = judged(conn)
+    todo = sorted(
+        ((p, e) for p, e in pairs.items() if force or p not in done),
+        key=lambda pe: -(pe[1]["hits_ab"] + pe[1]["hits_ba"]),
+    )
+    if limit:
+        todo = todo[:limit]
+    click.echo(
+        f"shortlist: {len(pairs)} record pair(s) from {len(ids)} embedded claims; already judged {len(done)}; to judge {len(todo)}"
+    )
+    if dry_run or not todo:
+        conn.close()
+        return
+    from anomalica_common import model_policy as mp
+    from anomalica_common.llm import (
+        _call,
+        _parse_json,
+        get_usage,
+        reset_usage,
+        resolve_use_api,
+    )
+
+    try:
+        policy = mp.load()
+        model_id = policy.check(STAGE, model) if model else policy.choose(STAGE)
+    except mp.PolicyRefusal as refusal:
+        raise click.ClickException(
+            f"policy: {refusal} (the relate stage must exist and list the model)"
+        ) from refusal
+    reset_usage()
+    counts = judge_pairs(
+        conn,
+        todo,
+        model_id,
+        resolve_use_api("ASSIMILATOR_USE_API"),
+        _call,
+        _parse_json,
+        click.echo,
+    )
+    click.echo(f"judged: {counts}")
+    import json
+
+    click.echo("usage: " + json.dumps(get_usage()))
+    conn.close()
+
+
 @main.command("apply-renames")
 @click.option(
     "--dry-run", is_flag=True, help="Report what would be applied, change nothing."
