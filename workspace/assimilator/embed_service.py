@@ -41,6 +41,7 @@ from assimilator.embeddings import (
     embed_text,
     serialise_f32,
 )
+from assimilator.data_dir import data_dir
 
 DEFAULT_PORT = 8077
 MAX_BODY_BYTES = 32 * 1024 * 1024
@@ -65,7 +66,7 @@ def default_cache_path() -> Path:
     override = os.environ.get("ANOMALICA_TEXT_EMBEDDINGS_DB")
     if override:
         return Path(override)
-    return Path.home() / ".local/share/assimilator/text-embeddings.db"
+    return data_dir() / "text-embeddings.db"
 
 
 def text_hash(text: str) -> str:

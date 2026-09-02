@@ -43,6 +43,7 @@ from assimilator.matching import (
     fuzzy_name_similarity,
     name_equivalence_key,
 )
+from assimilator.data_dir import data_dir
 
 
 def _claim_counts(conn: sqlite3.Connection) -> dict[str, int]:
@@ -226,7 +227,7 @@ def default_runs_path() -> Path:
     return Path(
         os.environ.get(
             "ASSIMILATOR_RERANK_RUNS",
-            str(Path.home() / ".local" / "share" / "assimilator" / "rerank-runs.jsonl"),
+            str(data_dir() / "rerank-runs.jsonl"),
         )
     )
 
@@ -248,13 +249,7 @@ def default_candidates_path() -> Path:
     return Path(
         os.environ.get(
             "ANOMALICA_MERGE_CANDIDATES",
-            str(
-                Path.home()
-                / ".local"
-                / "share"
-                / "assimilator"
-                / "merge-candidates.json"
-            ),
+            str(data_dir() / "merge-candidates.json"),
         )
     )
 
@@ -292,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
 
     default_db = os.environ.get(
         "ASSIMILATOR_DB",
-        str(Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"),
+        str(data_dir() / "knowledge.db"),
     )
     p = argparse.ArgumentParser(
         prog="assimilator.propose_merges",

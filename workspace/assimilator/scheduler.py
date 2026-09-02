@@ -40,6 +40,7 @@ import yaml
 from assimilator.digest_files import canonical_digests
 
 from assimilator.embed_batches import BUCKETS, pending_by_bucket
+from assimilator.data_dir import data_dir
 
 # --- Lanes, job types, statuses (aligned to workbench src/lib/schedule.ts) ---
 
@@ -492,7 +493,7 @@ def _default_briefs_dir() -> Path:
     return Path(
         os.environ.get(
             "ANOMALICA_BRIEFS_DIR",
-            str(Path.home() / ".local" / "share" / "assimilator" / "briefs"),
+            str(data_dir() / "briefs"),
         )
     )
 
@@ -1016,13 +1017,7 @@ def default_queue_path() -> Path:
     return Path(
         os.environ.get(
             "SCHEDULER_QUEUE_PATH",
-            str(
-                Path.home()
-                / ".local"
-                / "share"
-                / "assimilator"
-                / "scheduler-queue.json"
-            ),
+            str(data_dir() / "scheduler-queue.json"),
         )
     )
 
@@ -1102,7 +1097,7 @@ def main(argv: list[str] | None = None) -> int:
 
     default_db = os.environ.get(
         "ASSIMILATOR_DB",
-        str(Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"),
+        str(data_dir() / "knowledge.db"),
     )
     parser = argparse.ArgumentParser(
         prog="assimilator.scheduler",

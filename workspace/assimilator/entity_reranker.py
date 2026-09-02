@@ -26,6 +26,7 @@ import os
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
+from assimilator.data_dir import data_dir
 
 # The model id is the policy's vocabulary (model-policy.yaml, stage `rerank`);
 # the weights live outside the image under the assimilator data directory.
@@ -36,7 +37,7 @@ _WEIGHTS_DIR = {DEFAULT_MODEL_ID: "qwen3-reranker-0.6b"}
 MODELS_ROOT = Path(
     os.environ.get(
         "ASSIMILATOR_MODELS_DIR",
-        str(Path.home() / ".local" / "share" / "assimilator" / "models"),
+        str(data_dir() / "models"),
     )
 )
 

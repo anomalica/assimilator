@@ -23,8 +23,9 @@ from assimilator.embeddings import (
 from assimilator.import_markdown import import_extraction
 from assimilator.scoring import score_claim, tier_label
 from assimilator.digest_files import canonical_digests
+from assimilator.data_dir import data_dir
 
-DEFAULT_DB = Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"
+DEFAULT_DB = data_dir() / "knowledge.db"
 
 
 # A full assimilate takes minutes and an hourly timer now runs one, so any manual

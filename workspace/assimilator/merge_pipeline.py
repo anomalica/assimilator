@@ -25,6 +25,7 @@ from pathlib import Path
 from assimilator import verify_band
 from assimilator.entity_reranker import Entity, entity_from_graph
 from assimilator.shortlist import K_NEIGHBOURS, shortlist
+from assimilator.data_dir import data_dir
 
 EXIT_OK = 0
 EXIT_NOTHING = 10
@@ -40,11 +41,7 @@ CLAIMS_BATCH = 16
 
 
 def _data(name: str, env: str) -> Path:
-    return Path(
-        os.environ.get(
-            env, str(Path.home() / ".local" / "share" / "assimilator" / name)
-        )
-    )
+    return Path(os.environ.get(env, str(data_dir() / name)))
 
 
 def scores_path() -> Path:
@@ -388,9 +385,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "--db",
-        default=os.environ.get(
-            "ASSIMILATOR_DB", str(Path.home() / ".local/share/assimilator/knowledge.db")
-        ),
+        default=os.environ.get("ASSIMILATOR_DB", str(data_dir() / "knowledge.db")),
     )
     p.add_argument(
         "--dry-run", action="store_true", help="print PLAN_JSON, call nothing"

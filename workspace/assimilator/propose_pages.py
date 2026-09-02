@@ -36,6 +36,7 @@ from assimilator.database import init_db
 from assimilator.merge import _natural, _node, _resolve_natural
 from assimilator.independence import independence_for_nodes
 from assimilator.page_gate import page_gate_rows
+from assimilator.data_dir import data_dir
 
 STATUS_PROPOSED = "proposed"
 
@@ -212,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
 
     default_db = os.environ.get(
         "ASSIMILATOR_DB",
-        str(Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"),
+        str(data_dir() / "knowledge.db"),
     )
     p = argparse.ArgumentParser(
         prog="assimilator.propose_pages",

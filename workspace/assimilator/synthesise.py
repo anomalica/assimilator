@@ -37,6 +37,7 @@ from anomalica_common.slug import node_slug, section_for
 from assimilator.database import get_independent_source_count
 from assimilator.database import claim_ref_statuses
 from assimilator.propose_pages import proposed_node_ids
+from assimilator.data_dir import data_dir
 
 SCHEMA = "anomalica/brief/1"
 
@@ -859,7 +860,7 @@ def default_briefs_dir() -> Path:
     return Path(
         os.environ.get(
             "ANOMALICA_BRIEFS_DIR",
-            str(Path.home() / ".local" / "share" / "assimilator" / "briefs"),
+            str(data_dir() / "briefs"),
         )
     )
 
@@ -970,7 +971,7 @@ def main(argv: list[str] | None = None) -> int:
 
     default_db = os.environ.get(
         "ASSIMILATOR_DB",
-        str(Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"),
+        str(data_dir() / "knowledge.db"),
     )
     parser = argparse.ArgumentParser(
         prog="assimilator.synthesise",

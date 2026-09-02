@@ -35,6 +35,7 @@ import yaml
 from assimilator.embed_batches import forget_embeddings
 from assimilator.database import init_db
 from assimilator.matching import match_node
+from assimilator.data_dir import data_dir
 
 
 def _now() -> str:
@@ -713,7 +714,7 @@ def main(argv: list[str] | None = None) -> int:
 
     default_db = os.environ.get(
         "ASSIMILATOR_DB",
-        str(Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"),
+        str(data_dir() / "knowledge.db"),
     )
     p = argparse.ArgumentParser(
         prog="assimilator.merge",

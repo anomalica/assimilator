@@ -38,6 +38,7 @@ from assimilator.matching import (
 )
 from anomalica_common.digest import claim_hash
 from anomalica_common.digest.models import Claim, Node, ProvenanceChain, Record
+from assimilator.data_dir import data_dir
 
 
 # Patterns that mark a node name as unusable:
@@ -592,13 +593,7 @@ def manual_candidates_path() -> Path:
     return Path(
         os.environ.get(
             "ANOMALICA_MERGE_CANDIDATES_MANUAL",
-            str(
-                Path.home()
-                / ".local"
-                / "share"
-                / "assimilator"
-                / "merge-candidates-manual.json"
-            ),
+            str(data_dir() / "merge-candidates-manual.json"),
         )
     )
 
@@ -1255,7 +1250,7 @@ def main(argv: list[str] | None = None) -> int:
 
     default_db = os.environ.get(
         "ASSIMILATOR_DB",
-        str(Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"),
+        str(data_dir() / "knowledge.db"),
     )
     parser = argparse.ArgumentParser(
         prog="assimilator.import_markdown",

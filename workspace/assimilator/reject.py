@@ -13,10 +13,10 @@ from __future__ import annotations
 import os
 import sqlite3
 import uuid
-from pathlib import Path
 
 from assimilator.database import init_db
 from assimilator.merge import _node, _now, reject_nodes, un_reject
+from assimilator.data_dir import data_dir
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> int:
 
     default_db = os.environ.get(
         "ASSIMILATOR_DB",
-        str(Path.home() / ".local" / "share" / "assimilator" / "knowledge.db"),
+        str(data_dir() / "knowledge.db"),
     )
     p = argparse.ArgumentParser(
         prog="assimilator.reject",

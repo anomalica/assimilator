@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 from assimilator.entity_reranker import entity_from_graph
+from assimilator.data_dir import data_dir
 
 STAGE = "consolidate"
 DEFAULT_MODEL = "claude-haiku-4-5"
@@ -188,15 +189,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "--db",
-        default=os.environ.get(
-            "ASSIMILATOR_DB", str(Path.home() / ".local/share/assimilator/knowledge.db")
-        ),
+        default=os.environ.get("ASSIMILATOR_DB", str(data_dir() / "knowledge.db")),
     )
     p.add_argument(
         "--out",
-        default=str(
-            Path.home() / ".local/share/assimilator/verify-band-verdicts.jsonl"
-        ),
+        default=str(data_dir() / "verify-band-verdicts.jsonl"),
     )
     p.add_argument(
         "--top",
