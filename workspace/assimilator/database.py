@@ -122,6 +122,12 @@ CREATE TABLE IF NOT EXISTS record_relations (
     model TEXT,
     prompt_sha TEXT,
     judged_at TEXT NOT NULL,
+    -- A positive verdict is re-judged once in a fresh batch and kept only if
+    -- reproduced; first_verdict is the first pass, confirm_verdict the second,
+    -- confirmed 1/0 (NULL = not yet confirmed or never positive).
+    first_verdict TEXT,
+    confirm_verdict TEXT,
+    confirmed INTEGER,
     PRIMARY KEY (record_a, record_b)
 );
 
@@ -368,6 +374,21 @@ def init_db(conn: sqlite3.Connection) -> None:
         ):
             if column not in cols:
                 conn.execute(f"ALTER TABLE claims ADD COLUMN {column} {kind}")
+    relations_exist = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='record_relations'"
+    ).fetchone()
+    if relations_exist:
+        rcols = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(record_relations)").fetchall()
+        }
+        for column, kind in (
+            ("first_verdict", "TEXT"),
+            ("confirm_verdict", "TEXT"),
+            ("confirmed", "INTEGER"),
+        ):
+            if column not in rcols:
+                conn.execute(f"ALTER TABLE record_relations ADD COLUMN {column} {kind}")
     # Work-identity migration: which WORK a record manifests. Backfilled to the
     # record's own id (one record, one work) so a pre-existing database counts
     # sources exactly as it did before the column existed - the guard lands as a

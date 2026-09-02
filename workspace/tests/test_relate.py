@@ -1,4 +1,4 @@
-"""EXPERIMENTAL relate pass: a claim-neighbour shortlist and a strict judge, stored."""
+"""EXPERIMENTAL relate pass: a claim-neighbour shortlist, a batched strict judge, a confirm round."""
 
 import json
 import sqlite3
@@ -61,7 +61,7 @@ def test_shortlist_pairs_records_by_claim_neighbourhood_and_never_itself():
     )
 
 
-def test_render_cuts_a_big_side_to_the_claims_that_took_part():
+def test_render_numbers_pairs_and_cuts_a_big_side_to_the_claims_that_took_part():
     conn = _graph()
     for i in range(2, relate.MAX_SIDE + 5):
         insert_claim(
@@ -76,37 +76,48 @@ def test_render_cuts_a_big_side_to_the_claims_that_took_part():
         )
     conn.commit()
     prompt = relate.render(
-        conn, "ra", "rb", {"claims_a": {"ra-0"}, "claims_b": {"rb-0"}}
+        conn,
+        [
+            (("ra", "rb"), {"claims_a": {"ra-0"}, "claims_b": {"rb-0"}}),
+            (("ra", "rc"), None),
+        ],
     )
+    assert prompt.startswith("You are comparing the extracted claims")
+    assert "PAIR 1\nRECORD A:" in prompt and "PAIR 2\nRECORD A:" in prompt
     assert "[rb-0] (testimony) the operation lured" in prompt
     assert "filler" not in prompt  # the big side is cut to its neighbours
     assert "[ra-1]" in prompt  # the small side is sent whole
-    assert prompt.startswith("You are comparing the extracted claims")
 
 
 def test_verdicts_are_stored_including_unrelated_and_not_rejudged():
     conn = _graph()
-    replies = iter(
-        [
-            {
-                "verdict": "possibly_related",
-                "shared_subject": "December 2025 ODNI operation",
-                "reason": "A says orbs at a range; B says the operation lured objects.",
-                "links": [{"a": "ra-0", "b": "rb-0", "relation": "same_subject"}],
-            },
-            {
-                "verdict": "unrelated",
-                "shared_subject": "",
-                "reason": "Nothing pins them.",
-                "links": [],
-            },
-        ]
-    )
     calls = []
 
     def call(prompt, text, model, schema=None, use_api=None):
         calls.append(prompt)
-        return json.dumps(next(replies))
+        assert "PAIR 1" in prompt and "PAIR 2" in prompt  # both pairs in one call
+        return json.dumps(
+            {
+                "decisions": [
+                    {
+                        "pair_id": 1,
+                        "verdict": "possibly_related",
+                        "shared_subject": "December 2025 ODNI operation",
+                        "reason": "A says orbs at a range; B says the operation lured objects.",
+                        "links": [
+                            {"a": "ra-0", "b": "rb-0", "relation": "same_subject"}
+                        ],
+                    },
+                    {
+                        "pair_id": 2,
+                        "verdict": "unrelated",
+                        "shared_subject": "",
+                        "reason": "Nothing pins them.",
+                        "links": [],
+                    },
+                ]
+            }
+        )
 
     pairs = [
         (("ra", "rb"), {"claims_a": set(), "claims_b": set()}),
@@ -119,10 +130,15 @@ def test_verdicts_are_stored_including_unrelated_and_not_rejudged():
         counts["possibly_related"] == 1
         and counts["unrelated"] == 1
         and counts["errors"] == 0
+        and counts["calls"] == 1
     )
     assert relate.judged(conn) == {("ra", "rb"), ("ra", "rc")}
     rows = relate.related(conn)
-    assert len(rows) == 1 and rows[0][5] == "December 2025 ODNI operation"
+    assert (
+        len(rows) == 1
+        and rows[0][5] == "December 2025 ODNI operation"
+        and rows[0][8] is None
+    )
     links = json.loads(
         conn.execute(
             "SELECT links FROM record_relations WHERE record_a='ra' AND record_b='rb'"
@@ -139,9 +155,88 @@ def test_a_verdict_outside_the_vocabulary_is_an_error_not_a_row():
         "m",
         False,
         lambda *a, **k: json.dumps(
-            {"verdict": "maybe", "shared_subject": "", "reason": "", "links": []}
+            {
+                "decisions": [
+                    {
+                        "pair_id": 1,
+                        "verdict": "maybe",
+                        "shared_subject": "",
+                        "reason": "",
+                        "links": [],
+                    }
+                ]
+            }
         ),
         json.loads,
         lambda *_: None,
     )
     assert counts["errors"] == 1 and relate.judged(conn) == set()
+
+
+def test_a_positive_survives_only_if_a_fresh_batch_reproduces_it():
+    conn = _graph()
+    first = {
+        "verdict": "possibly_related",
+        "shared_subject": "the operation",
+        "reason": "r",
+        "links": [],
+    }
+    relate.store(conn, "ra", "rb", first, "m", "p1")
+    relate.store(conn, "ra", "rc", first, "m", "p2")
+    relate.store(
+        conn,
+        "rb",
+        "rc",
+        {"verdict": "unrelated", "shared_subject": "", "reason": "n", "links": []},
+        "m",
+        "p3",
+    )
+    assert relate.positives_to_confirm(conn) == [("ra", "rb"), ("ra", "rc")]
+
+    def call(prompt, text, model, schema=None, use_api=None):
+        # Whatever the order, ra~rb is reproduced and ra~rc is not.
+        decisions = []
+        for n, block in enumerate(prompt.split("PAIR ")[1:], 1):
+            verdict = (
+                "unrelated"
+                if ("[rc-0]" in block and "[rb-0]" not in block)
+                else "same_subject"
+            )
+            decisions.append(
+                {
+                    "pair_id": n,
+                    "verdict": verdict,
+                    "shared_subject": "x" if verdict != "unrelated" else "",
+                    "reason": "",
+                    "links": [],
+                }
+            )
+        return json.dumps({"decisions": decisions})
+
+    counts = relate.confirm_pairs(
+        conn,
+        [("ra", "rb"), ("ra", "rc")],
+        [(("rb", "rc"), {})],
+        {},
+        "m",
+        False,
+        call,
+        json.loads,
+        lambda *_: None,
+    )
+    assert counts == {"confirmed": 1, "failed": 1, "errors": 0, "calls": 1}
+    rows = {
+        (r[0], r[1]): r
+        for r in conn.execute(
+            "SELECT record_a, record_b, verdict, first_verdict, confirm_verdict, confirmed, reason FROM record_relations"
+        )
+    }
+    assert rows[("ra", "rb")][2:6] == (
+        "possibly_related",
+        "possibly_related",
+        "same_subject",
+        1,
+    )
+    assert rows[("ra", "rc")][2:6] == ("unrelated", "possibly_related", "unrelated", 0)
+    assert rows[("ra", "rc")][6].startswith("failed confirmation:")
+    assert relate.positives_to_confirm(conn) == []

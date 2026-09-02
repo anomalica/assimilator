@@ -13,16 +13,22 @@ more records on the same incident that nothing had linked
 So: a shortlist of record pairs from claim neighbourhoods, and a STRICT judge
 (the wording that gave zero false positives on nine pairs; the looser one gave
 four) that names the shared specific subject and the claim pairs carrying it.
-Verdicts, including "unrelated", go to record_relations - derived, rebuildable,
-nothing depends on it. Not wired into rebuild or the scheduler; a human
-confirms or rejects in the workbench later. Cleared by Mark 2026-09-03 as an
-experiment.
+Several pairs go in one call - a comparison set steadies the judge's boundary,
+and the CLI's own context (about 108,000 cached tokens a call) dwarfs any
+prompt - and every positive is re-judged once beside different neighbours and
+kept only if reproduced, because with one pair per call the boundary between
+unrelated and possibly_related moved between runs on the same records.
+Verdicts, including "unrelated" and failed confirmations, go to
+record_relations - derived, rebuildable, nothing depends on it. Not wired into
+rebuild or the scheduler; a human confirms or rejects in the workbench later.
+Cleared by Mark 2026-09-03 as an experiment.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import random
 import sqlite3
 import time
 from collections import defaultdict
@@ -32,12 +38,14 @@ DEFAULT_MODEL = "claude-haiku-4-5"
 K_NEIGHBOURS = 20
 TOP_RECORDS = 15
 MAX_SIDE = (
-    150  # a side above this sends only the claims that neighboured the other record
+    80  # a side above this sends only the claims that neighboured the other record
 )
+PAIRS_PER_CALL = 6  # several pairs side by side give the judge a comparison set
 
-# The strict wording, verbatim from judge3.py. Every word of the exclusion list
-# earned its place: without it the judge returned "the Trump administration's
-# UAP efforts" for four pairs that share nothing but a period.
+# The strict wording, verbatim from judge3.py, followed by the batching rule.
+# Every word of the exclusion list earned its place: without it the judge
+# returned "the Trump administration's UAP efforts" for four pairs that share
+# nothing but a period.
 PROMPT = """You are comparing the extracted claims of two source records from a reference corpus on anomalous phenomena.
 
 Question: do the two records refer to the SAME SPECIFIC THING - one identifiable incident, operation, programme, document or investigation, pinned by a place, a date, an official identity, or distinctive described particulars that BOTH records carry?
@@ -50,6 +58,12 @@ Not a shared subject: the same speaker or outlet, the same period or administrat
 
 Give the shared specific thing as one short noun phrase with its date or place (empty if unrelated), a two-sentence reason that quotes the pinning particular from each side, and up to 6 claim-id pairs that carry the connection.
 
+Judge each numbered pair below on its own; the pairs have nothing to do with one another. Return JSON only: {{"decisions": [{{"pair_id": 1, "verdict": ..., "shared_subject": ..., "reason": ..., "links": [...]}}, ...]}} with one decision per pair, in order.
+
+{PAIRS}
+"""
+
+PAIR_BLOCK = """PAIR {n}
 RECORD A:
 {A}
 
@@ -57,9 +71,10 @@ RECORD B:
 {B}
 """
 
-SCHEMA = {
+_DECISION = {
     "type": "object",
     "properties": {
+        "pair_id": {"type": "integer"},
         "verdict": {
             "type": "string",
             "enum": ["same_subject", "possibly_related", "unrelated"],
@@ -82,7 +97,12 @@ SCHEMA = {
             },
         },
     },
-    "required": ["verdict", "shared_subject", "reason", "links"],
+    "required": ["pair_id", "verdict", "shared_subject", "reason", "links"],
+}
+SCHEMA = {
+    "type": "object",
+    "properties": {"decisions": {"type": "array", "items": _DECISION}},
+    "required": ["decisions"],
 }
 
 VERDICTS = ("same_subject", "possibly_related", "unrelated")
@@ -170,7 +190,8 @@ def claim_lines(
     conn: sqlite3.Connection, record_id: str, keep: set[str] | None
 ) -> list[str]:
     rows = conn.execute(
-        "SELECT id, claim_type, content FROM claims WHERE record_id = ? ORDER BY location_in_record, rowid",
+        "SELECT id, claim_type, content FROM claims WHERE record_id = ? "
+        "ORDER BY location_in_record, rowid",
         (record_id,),
     ).fetchall()
     if len(rows) > MAX_SIDE and keep:
@@ -178,12 +199,26 @@ def claim_lines(
     return [f"[{r[0][:8]}] ({r[1]}) {(r[2] or '').strip()}" for r in rows]
 
 
-def render(conn: sqlite3.Connection, a: str, b: str, entry: dict | None = None) -> str:
-    ka = (entry or {}).get("claims_a")
-    kb = (entry or {}).get("claims_b")
-    return PROMPT.format(
-        A="\n".join(claim_lines(conn, a, ka)), B="\n".join(claim_lines(conn, b, kb))
-    )
+def render(
+    conn: sqlite3.Connection, batch: list[tuple[tuple[str, str], dict | None]]
+) -> str:
+    """One prompt for a batch of pairs, numbered from 1."""
+    blocks = []
+    for n, ((a, b), entry) in enumerate(batch, 1):
+        ka = (entry or {}).get("claims_a")
+        kb = (entry or {}).get("claims_b")
+        blocks.append(
+            PAIR_BLOCK.format(
+                n=n,
+                A="\n".join(claim_lines(conn, a, ka)),
+                B="\n".join(claim_lines(conn, b, kb)),
+            )
+        )
+    return PROMPT.format(PAIRS="\n".join(blocks))
+
+
+def batches(items: list, size: int = PAIRS_PER_CALL) -> list[list]:
+    return [items[i : i + size] for i in range(0, len(items), size)]
 
 
 def judged(conn: sqlite3.Connection) -> set[tuple[str, str]]:
@@ -196,12 +231,14 @@ def judged(conn: sqlite3.Connection) -> set[tuple[str, str]]:
 def store(
     conn: sqlite3.Connection, a: str, b: str, result: dict, model: str, prompt: str
 ) -> None:
+    """A first-pass verdict. Replaces any earlier row for the pair."""
     verdict = result.get("verdict")
     if verdict not in VERDICTS:
         raise ValueError(f"verdict {verdict!r} is not one of {VERDICTS}")
     conn.execute(
         "INSERT OR REPLACE INTO record_relations (record_a, record_b, verdict, shared_subject, "
-        "reason, links, model, prompt_sha, judged_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "reason, links, model, prompt_sha, judged_at, first_verdict, confirm_verdict, confirmed) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)",
         (
             a,
             b,
@@ -212,9 +249,45 @@ def store(
             model,
             hashlib.sha256(prompt.encode()).hexdigest(),
             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            verdict,
         ),
     )
     conn.commit()
+
+
+def store_confirmation(conn: sqlite3.Connection, a: str, b: str, result: dict) -> bool:
+    """The second verdict on a positive pair. A positive survives only if the
+    second pass is positive too (same_subject or possibly_related both count);
+    otherwise the pair becomes unrelated, both verdicts kept."""
+    verdict = result.get("verdict")
+    if verdict not in VERDICTS:
+        raise ValueError(f"verdict {verdict!r} is not one of {VERDICTS}")
+    confirmed = verdict != "unrelated"
+    if confirmed:
+        conn.execute(
+            "UPDATE record_relations SET confirm_verdict = ?, confirmed = 1 "
+            "WHERE record_a = ? AND record_b = ?",
+            (verdict, a, b),
+        )
+    else:
+        conn.execute(
+            "UPDATE record_relations SET confirm_verdict = ?, confirmed = 0, verdict = 'unrelated', "
+            "reason = 'failed confirmation: ' || COALESCE(reason, '') "
+            "WHERE record_a = ? AND record_b = ?",
+            (verdict, a, b),
+        )
+    conn.commit()
+    return confirmed
+
+
+def _decisions(
+    conn, batch, model: str, use_api, call, parse
+) -> tuple[str, dict[int, dict]]:
+    prompt = render(conn, batch)
+    data = parse(call(prompt, "", model, schema=SCHEMA, use_api=use_api))
+    return prompt, {
+        d.get("pair_id"): d for d in data.get("decisions", []) if isinstance(d, dict)
+    }
 
 
 def judge_pairs(
@@ -225,32 +298,105 @@ def judge_pairs(
     call,
     parse,
     log=print,
+    per_call: int = PAIRS_PER_CALL,
 ) -> dict:
-    """One call per pair; each verdict stored as it lands, so an interrupted run
-    keeps what it judged and a re-run skips it."""
+    """First pass, several pairs per call; each verdict stored as it lands, so
+    an interrupted run keeps what it judged and a re-run skips it."""
     counts = {v: 0 for v in VERDICTS}
     counts["errors"] = 0
-    for (a, b), entry in pairs:
-        prompt = render(conn, a, b, entry)
+    counts["calls"] = 0
+    for batch in batches(pairs, per_call):
         t0 = time.time()
         try:
-            result = parse(call(prompt, "", model, schema=SCHEMA, use_api=use_api))
-            store(conn, a, b, result, model, prompt)
+            prompt, by_id = _decisions(conn, batch, model, use_api, call, parse)
         except Exception as exc:  # noqa: BLE001 - one bad reply must not stop the pass
-            counts["errors"] += 1
-            log(f"  {a[:8]} ~ {b[:8]}: error {exc}")
+            counts["errors"] += len(batch)
+            log(f"  batch of {len(batch)}: error {exc}")
             continue
-        counts[result["verdict"]] += 1
-        log(
-            f"  {a[:8]} ~ {b[:8]}: {result['verdict']} {result.get('shared_subject') or ''} ({time.time() - t0:.0f}s)"
-        )
+        counts["calls"] += 1
+        for n, ((a, b), _entry) in enumerate(batch, 1):
+            d = by_id.get(n)
+            try:
+                if d is None:
+                    raise ValueError("no decision for this pair")
+                store(conn, a, b, d, model, prompt)
+            except Exception as exc:  # noqa: BLE001
+                counts["errors"] += 1
+                log(f"  {a[:8]} ~ {b[:8]}: error {exc}")
+                continue
+            counts[d["verdict"]] += 1
+            log(
+                f"  {a[:8]} ~ {b[:8]}: {d['verdict']} {d.get('shared_subject') or ''} "
+                f"({time.time() - t0:.0f}s for the batch)"
+            )
+    return counts
+
+
+def positives_to_confirm(
+    conn: sqlite3.Connection, only: set[str] | None = None
+) -> list[tuple[str, str]]:
+    rows = conn.execute(
+        "SELECT record_a, record_b FROM record_relations "
+        "WHERE verdict != 'unrelated' AND confirmed IS NULL"
+    ).fetchall()
+    return [(a, b) for a, b in rows if only is None or a in only or b in only]
+
+
+def confirm_pairs(
+    conn: sqlite3.Connection,
+    positives: list[tuple[str, str]],
+    fillers: list[tuple[tuple[str, str], dict]],
+    entries: dict,
+    model: str,
+    use_api,
+    call,
+    parse,
+    log=print,
+    per_call: int = PAIRS_PER_CALL,
+) -> dict:
+    """Second pass on positives, each in a fresh batch: at most two positives
+    per call, padded with pairs that were NOT their first-pass neighbours, so
+    the comparison set differs. Both verdicts are kept; a positive survives
+    only if reproduced."""
+    counts = {"confirmed": 0, "failed": 0, "errors": 0, "calls": 0}
+    rnd = random.Random(0)
+    for i in range(0, len(positives), 2):
+        group = positives[i : i + 2]
+        pad = [f for f in fillers if f[0] not in group]
+        rnd.shuffle(pad)
+        batch = [(p, entries.get(p)) for p in group] + pad[
+            : max(0, per_call - len(group))
+        ]
+        rnd.shuffle(batch)
+        try:
+            _prompt, by_id = _decisions(conn, batch, model, use_api, call, parse)
+        except Exception as exc:  # noqa: BLE001
+            counts["errors"] += len(group)
+            log(f"  confirm batch: error {exc}")
+            continue
+        counts["calls"] += 1
+        for n, (pair, _e) in enumerate(batch, 1):
+            if pair not in group:
+                continue
+            d = by_id.get(n)
+            if d is None or d.get("verdict") not in VERDICTS:
+                counts["errors"] += 1
+                continue
+            ok = store_confirmation(conn, pair[0], pair[1], d)
+            counts["confirmed" if ok else "failed"] += 1
+            log(
+                f"  {pair[0][:8]} ~ {pair[1][:8]}: {'confirmed' if ok else 'FAILED confirmation'} "
+                f"({d['verdict']} {d.get('shared_subject') or ''})"
+            )
     return counts
 
 
 def related(conn: sqlite3.Connection) -> list[tuple]:
     return conn.execute(
-        "SELECT r.record_a, ra.title, r.record_b, rb.title, r.verdict, r.shared_subject, r.model, r.judged_at "
-        "FROM record_relations r JOIN records ra ON ra.id = r.record_a JOIN records rb ON rb.id = r.record_b "
+        "SELECT r.record_a, ra.title, r.record_b, rb.title, r.verdict, r.shared_subject, "
+        "r.model, r.judged_at, r.confirmed "
+        "FROM record_relations r JOIN records ra ON ra.id = r.record_a "
+        "JOIN records rb ON rb.id = r.record_b "
         "WHERE r.verdict != 'unrelated' ORDER BY r.verdict, r.shared_subject"
     ).fetchall()
 

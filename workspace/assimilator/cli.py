@@ -1587,22 +1587,41 @@ def publish_briefs_cmd(
     help="List the same_subject and possibly_related pairs and stop.",
 )
 @click.option("--dry-run", is_flag=True, help="Shortlist and count; call nothing.")
+@click.option(
+    "--confirm",
+    "confirm_only",
+    is_flag=True,
+    help="Only the confirm round: re-judge unconfirmed positive verdicts in fresh batches.",
+)
+@click.option(
+    "--per-call",
+    default=6,
+    help="Pairs per model call (several give the judge a comparison set).",
+)
 @click.pass_context
-def relate_cmd(ctx, limit, record_ref, model, force, show, dry_run):
+def relate_cmd(
+    ctx, limit, record_ref, model, force, show, dry_run, confirm_only, per_call
+):
     """EXPERIMENTAL. Judge whether pairs of records refer to the same specific
     subject; store the verdicts in record_relations for a reviewer.
 
     Shortlist: each claim's 20 nearest claims in other records, hits counted per
     record, the top 15 records per record. Judge: a strict prompt reading both
-    claim lists, Haiku on the subscription through the policy's relate stage.
-    Nothing merges or links automatically; not part of rebuild or the scheduler.
+    claim lists, several pairs per call, Haiku on the subscription through the
+    policy's relate stage; every positive verdict is re-judged once beside
+    different neighbours and kept only if reproduced. Nothing merges or links
+    automatically; not part of rebuild or the scheduler.
     """
+    import json
+
     from assimilator.embeddings import init_vec
     from assimilator.relate import (
         STAGE,
+        confirm_pairs,
         judge_pairs,
         judged,
         load_claim_vectors,
+        positives_to_confirm,
         related,
         resolve_record,
         shortlist,
@@ -1612,9 +1631,13 @@ def relate_cmd(ctx, limit, record_ref, model, force, show, dry_run):
     if show:
         rows = related(conn)
         click.echo(f"{len(rows)} related pair(s) (EXPERIMENTAL):")
-        for ra, ta, rb, tb, verdict, subject, m, at in rows:
+        for ra, ta, rb, tb, verdict, subject, m, at, confirmed in rows:
+            state = {1: "confirmed", 0: "failed confirmation", None: "unconfirmed"}[
+                confirmed
+            ]
             click.echo(
-                f"  {verdict:17} {subject or ''}\n      {ta[:70]} [{ra[:8]}]\n      {tb[:70]} [{rb[:8]}]  ({m}, {at[:10]})"
+                f"  {verdict:17} {subject or ''}  [{state}]\n"
+                f"      {ta[:70]} [{ra[:8]}]\n      {tb[:70]} [{rb[:8]}]  ({m}, {at[:10]})"
             )
         conn.close()
         return
@@ -1634,10 +1657,15 @@ def relate_cmd(ctx, limit, record_ref, model, force, show, dry_run):
     )
     if limit:
         todo = todo[:limit]
+    if confirm_only:
+        todo = []
+    positives = positives_to_confirm(conn, only)
     click.echo(
-        f"shortlist: {len(pairs)} record pair(s) from {len(ids)} embedded claims; already judged {len(done)}; to judge {len(todo)}"
+        f"shortlist: {len(pairs)} record pair(s) from {len(ids)} embedded claims; "
+        f"already judged {len(done)}; to judge {len(todo)} in {-(-len(todo) // per_call)} call(s); "
+        f"positives awaiting confirmation {len(positives)}"
     )
-    if dry_run or not todo:
+    if dry_run or (not todo and not positives):
         conn.close()
         return
     from anomalica_common import model_policy as mp
@@ -1657,18 +1685,33 @@ def relate_cmd(ctx, limit, record_ref, model, force, show, dry_run):
             f"policy: {refusal} (the relate stage must exist and list the model)"
         ) from refusal
     reset_usage()
-    counts = judge_pairs(
-        conn,
-        todo,
-        model_id,
-        resolve_use_api("ASSIMILATOR_USE_API"),
-        _call,
-        _parse_json,
-        click.echo,
-    )
-    click.echo(f"judged: {counts}")
-    import json
-
+    use_api = resolve_use_api("ASSIMILATOR_USE_API")
+    if todo:
+        counts = judge_pairs(
+            conn, todo, model_id, use_api, _call, _parse_json, click.echo, per_call
+        )
+        click.echo(f"judged: {counts}")
+    positives = positives_to_confirm(conn, only)
+    if positives:
+        # Fillers for the confirm batches: judged pairs from the same shortlist
+        # that are not themselves awaiting confirmation, so a positive is
+        # re-read beside different neighbours.
+        fillers = [
+            (p, e) for p, e in pairs.items() if p in judged(conn) and p not in positives
+        ]
+        ccounts = confirm_pairs(
+            conn,
+            positives,
+            fillers,
+            pairs,
+            model_id,
+            use_api,
+            _call,
+            _parse_json,
+            click.echo,
+            per_call,
+        )
+        click.echo(f"confirmed: {ccounts}")
     click.echo("usage: " + json.dumps(get_usage()))
     conn.close()
 
