@@ -36,10 +36,10 @@ def test_exact_match():
 def test_alias_match():
     conn = _db()
     node = insert_node(conn, Node(node_type=NodeType.person, name="David Fravor"))
-    insert_alias(conn, "Fravor", node.id)
+    insert_alias(conn, "Commander David Fravor", node.id)
     conn.commit()
 
-    result = match_node(conn, "Fravor", "person")
+    result = match_node(conn, "Commander David Fravor", "person")
     assert result is not None
     assert result[0] == node.id
 
@@ -1134,3 +1134,103 @@ class TestShortAcronymSuffix:
         assert name_equivalence_key("Artificial intelligence") == name_equivalence_key(
             "Artificial intelligence (AI)"
         )
+
+
+# --- Record-scoped person names ---
+
+
+def _record_with(conn, record_id, node, name_in_claim):
+    """A record whose one claim references `node`, so the record 'knows' it."""
+    from anomalica_common.digest.models import Claim, Record
+    from assimilator.database import insert_claim, insert_record
+
+    if not conn.execute("SELECT 1 FROM records WHERE id = ?", (record_id,)).fetchone():
+        insert_record(conn, Record(id=record_id, title=record_id))
+    insert_claim(
+        conn,
+        Claim(
+            id=f"{record_id}-{node.id}",
+            content=f"{name_in_claim} said something",
+            claim_type="testimony",
+            record_id=record_id,
+            node_references=[node.id],
+        ),
+    )
+
+
+def test_a_bare_given_name_is_record_scoped():
+    from assimilator.matching import is_record_scoped_person_name
+
+    for name in ("Chris", "Mrs. M.", "Mrs. Markham", "John D.", "Dr. X (physician)"):
+        assert is_record_scoped_person_name(name), name
+    for name in ("K. Day", "Tim Taylor", "Plato", "Elizabeth I", "David Fravor Jr."):
+        assert not is_record_scoped_person_name(name), name
+
+
+def test_a_bare_given_name_never_matches_across_records():
+    conn = _db()
+    chris = insert_node(conn, Node(node_type=NodeType.person, name="Chris"))
+    _record_with(conn, "book", chris, "Chris")
+    conn.commit()
+    # Another record's "Chris" is somebody else: no match, a fresh node is minted.
+    assert match_node(conn, "Chris", "person") is None
+    assert match_node(conn, "Chris", "person", record_id="video") is None
+    # The same record's "Chris" is the node it already uses.
+    assert match_node(conn, "Chris", "person", record_id="book") == (chris.id, "record")
+
+
+def test_an_initial_surname_never_fuzzy_matches_another_initial():
+    conn = _db()
+    insert_node(conn, Node(node_type=NodeType.person, name="Mrs. M."))
+    conn.commit()
+    assert match_node(conn, "Mrs. Z.", "person") is None
+    assert match_node(conn, "Mrs. Markham", "person") is None
+
+
+def test_a_full_name_is_not_filed_under_a_bare_surname():
+    conn = _db()
+    insert_node(conn, Node(node_type=NodeType.person, name="Taylor"))
+    conn.commit()
+    # "tim taylor" vs "taylor" scores exactly the fuzzy threshold; the bare
+    # surname is record-scoped and so never a candidate.
+    assert match_node(conn, "Tim Taylor", "person") is None
+
+
+def test_a_surname_resolves_within_the_record_that_declares_the_person():
+    conn = _db()
+    fravor = insert_node(conn, Node(node_type=NodeType.person, name="David Fravor"))
+    _record_with(conn, "podcast", fravor, "David Fravor")
+    conn.commit()
+    assert match_node(conn, "Fravor", "person", record_id="podcast") == (
+        fravor.id,
+        "record",
+    )
+    assert match_node(conn, "Fravor", "person", record_id="other") is None
+    # Two Fravors in one record: a bare surname is nobody.
+    alex = insert_node(conn, Node(node_type=NodeType.person, name="Alex Fravor"))
+    _record_with(conn, "podcast2", fravor, "David Fravor")
+    _record_with(conn, "podcast2", alex, "Alex Fravor")
+    conn.commit()
+    assert match_node(conn, "Fravor", "person", record_id="podcast2") is None
+
+
+def test_an_untyped_bare_name_can_still_reach_a_non_person():
+    conn = _db()
+    insert_node(conn, Node(node_type=NodeType.person, name="Chad"))
+    place = insert_node(conn, Node(node_type=NodeType.place, name="Chad"))
+    conn.commit()
+    assert match_node(conn, "Chad") == (place.id, "exact")
+
+
+def test_the_fuller_person_name_wins():
+    from assimilator.matching import is_fuller_person_name
+
+    assert is_fuller_person_name("Kevin Day", "K. Day")
+    assert is_fuller_person_name("Harold E. Puthoff", "Hal Puthoff")
+    assert is_fuller_person_name("Kevin R. Day", "Kevin Day")
+    assert not is_fuller_person_name("K. R. Day", "Kevin Day")
+    assert not is_fuller_person_name("Dave Fravor", "David Fravor")
+    assert not is_fuller_person_name("Kevin Day", "Kevin Day")
+    # A description that fuzzy-matches a name is not a fuller name.
+    assert not is_fuller_person_name("Lionel Browning's wife", "Lionel Browning")
+    assert not is_fuller_person_name("Lionel Browning the elder", "Lionel Browning")

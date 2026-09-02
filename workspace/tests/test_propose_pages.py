@@ -20,19 +20,21 @@ from assimilator.propose_pages import (
 def _graph():
     conn = sqlite3.connect(":memory:")
     init_db(conn)
-    for rid in ("r1", "r2"):
+    for rid in ("r1", "r2", "r3"):
         insert_record(conn, Record(id=rid, title=rid))
-    # Two page-worthy people (3 claims / 2 sources each) and one thin node.
-    insert_node(conn, Node(id="alpha", node_type="person", name="Alpha"))
-    insert_node(conn, Node(id="beta", node_type="person", name="Beta"))
-    insert_node(conn, Node(id="thin", node_type="person", name="Thin"))
-    for nid in ("alpha", "beta"):
-        for i, rid in enumerate(["r1", "r1", "r2"]):
+    # Two page-worthy people (9 claims from 3 works, second work carrying 3, every
+    # claim about them) and one thin node.
+    insert_node(conn, Node(id="alpha", node_type="person", name="Alpha Person"))
+    insert_node(conn, Node(id="beta", node_type="person", name="Beta Person"))
+    insert_node(conn, Node(id="thin", node_type="person", name="Thin Person"))
+    spread = ["r1"] * 4 + ["r2"] * 3 + ["r3"] * 2
+    for nid, name in (("alpha", "Alpha Person"), ("beta", "Beta Person")):
+        for i, rid in enumerate(spread):
             insert_claim(
                 conn,
                 Claim(
                     id=f"{nid}-c{i}",
-                    content="x",
+                    content=f"{name} said {i}",
                     claim_type="testimony",
                     record_id=rid,
                     node_references=[nid],
@@ -42,7 +44,7 @@ def _graph():
         conn,
         Claim(
             id="t1",
-            content="x",
+            content="Thin Person said x",
             claim_type="testimony",
             record_id="r1",
             node_references=["thin"],
@@ -88,7 +90,7 @@ def test_veto_is_durable_in_the_ledger(tmp_path, monkeypatch):
     veto_pages(conn, ["beta"], reason=None, veto_id="v1", created_by="op@x")
     entries = read_vetoes()
     assert entries[0]["op"] == "veto"
-    assert entries[0]["nodes"][0]["name"] == "Beta"
+    assert entries[0]["nodes"][0]["name"] == "Beta Person"
 
 
 def test_replay_repopulates_veto_table_by_natural_identity(tmp_path, monkeypatch):
