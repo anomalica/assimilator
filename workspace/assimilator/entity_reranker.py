@@ -73,8 +73,8 @@ _PREFIX = (
 )
 _SUFFIX = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
 
-CLAIMS_PER_ENTITY = 3
-CLAIM_CHARS = 240
+CLAIMS_PER_ENTITY = 5
+CLAIM_CHARS = 200
 
 
 @dataclass
@@ -95,23 +95,36 @@ class Entity:
         return "\n".join(lines)
 
 
+def profile_claims(
+    conn: sqlite3.Connection, node_id: str, n: int = CLAIMS_PER_ENTITY
+) -> list[str]:
+    """The claims that stand for a node: its n LONGEST, ties broken by
+    claim_hash. A function of the node's claim SET, never of storage order.
+
+    The profile used to be the first n claims by rowid. A re-import that
+    rewrites claims reorders rows, and on 2026-09-02 that alone moved the
+    shortlist's recall of identical human-merged pairs from 169 to 134 of 178
+    between an afternoon and an evening run. Longest first because length
+    carries the identifying detail; the hash because two runs over one graph
+    must pick the same claims, and rowid is not part of the graph's content.
+    """
+    rows = conn.execute(
+        "SELECT c.content, COALESCE(c.claim_hash, c.id) FROM claim_node_refs r "
+        "JOIN claims c ON c.id = r.claim_id WHERE r.node_id = ?",
+        (node_id,),
+    ).fetchall()
+    rows.sort(key=lambda r: (-len(r[0] or ""), r[1]))
+    return [(r[0] or "")[:CLAIM_CHARS] for r in rows[:n]]
+
+
 def entity_from_graph(conn: sqlite3.Connection, node_id: str) -> Entity | None:
-    """A node with its first few claims, in a stable order (by rowid, so two
-    runs over one graph score identically)."""
+    """A node with its profile claims (profile_claims)."""
     row = conn.execute(
         "SELECT name, node_type FROM nodes WHERE id = ?", (node_id,)
     ).fetchone()
     if row is None:
         return None
-    claims = [
-        r[0]
-        for r in conn.execute(
-            "SELECT c.content FROM claim_node_refs r JOIN claims c ON c.id = r.claim_id "
-            "WHERE r.node_id = ? ORDER BY c.rowid LIMIT ?",
-            (node_id, CLAIMS_PER_ENTITY),
-        )
-    ]
-    return Entity(name=row[0], node_type=row[1], claims=claims)
+    return Entity(name=row[0], node_type=row[1], claims=profile_claims(conn, node_id))
 
 
 def pair_prompt(a: Entity, b: Entity) -> str:
