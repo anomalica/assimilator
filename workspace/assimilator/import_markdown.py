@@ -24,6 +24,7 @@ from assimilator.database import (
     insert_node,
     insert_record,
     update_claim_chain,
+    update_claim_entailment,
     update_claim_hash,
 )
 from assimilator.matching import is_a_description, match_node, normalise_node_name
@@ -545,6 +546,31 @@ def _lookup_ingest_metadata(
     return None, None
 
 
+_ENTAILMENT_LABELS = frozenset({"entails", "neutral", "contradicts"})
+
+
+def _entailment_block(block: object) -> dict | None:
+    """The digester's per-claim entailment block, validated, or None.
+
+    Shape (pinned with the digester 2026-09-02): {label: entails|neutral|
+    contradicts, score: probability of THAT label in [0, 1], model: id}.
+    Premise is the excerpt, hypothesis the claim text. An absent block means
+    not assessed; a present but malformed one is also stored as not assessed
+    and COUNTED by the caller, so a digester regression shows in the import
+    summary instead of arriving as a quiet run of nulls.
+    """
+    if not isinstance(block, dict):
+        return None
+    label, score, model = block.get("label"), block.get("score"), block.get("model")
+    if label not in _ENTAILMENT_LABELS or not isinstance(model, str) or not model:
+        return None
+    if isinstance(score, bool) or not isinstance(score, (int, float)):
+        return None
+    if not 0.0 <= float(score) <= 1.0:
+        return None
+    return {"label": label, "score": float(score), "model": model}
+
+
 def import_extraction(
     conn: sqlite3.Connection,
     parsed: dict,
@@ -578,6 +604,8 @@ def import_extraction(
         "claims_carried": 0,
         "claims_deleted": 0,
         "claims_rejected": 0,
+        "claims_assessed": 0,
+        "entailment_malformed": 0,
         "record_id": None,
     }
 
@@ -846,7 +874,7 @@ def import_extraction(
     else:
         claims = parsed["domain_claims"]
 
-    resolved_claims: list[tuple[Claim, str]] = []
+    resolved_claims: list[tuple[Claim, str, dict | None]] = []
     for claim_def in claims:
         # Resolve node references by name
         ref_ids = []
@@ -944,13 +972,18 @@ def import_extraction(
             node_ids=ref_ids,
             original_excerpt=claim.original_excerpt,
         )
-        resolved_claims.append((claim, chash))
+        entailment = _entailment_block(claim_def.get("entailment"))
+        if claim_def.get("entailment") is not None and entailment is None:
+            counts["entailment_malformed"] += 1
+        if entailment:
+            counts["claims_assessed"] += 1
+        resolved_claims.append((claim, chash, entailment))
 
     # Reconcile against the record's prior claims (empty for a first import).
     prior = get_record_claim_hashes(conn, record.id) if existing_record else {}
     carried: list[tuple] = []
     to_insert: list[tuple] = []
-    for claim, chash in resolved_claims:
+    for claim, chash, entailment in resolved_claims:
         pool = prior.get(chash)
         if pool:
             # Carry forward: an identical claim already exists for this record;
@@ -962,9 +995,10 @@ def import_extraction(
             # their digests carried a chain on 87% of them.
             claim_id, _created = pool.pop()
             update_claim_chain(conn, claim_id, claim.provenance_chain)
+            update_claim_entailment(conn, claim_id, entailment)
             carried.append((claim, chash))
         else:
-            to_insert.append((claim, chash))
+            to_insert.append((claim, chash, entailment))
 
     # DELETE BEFORE INSERT. A claim keeps its uuid across a re-emission while its
     # HASH moves whenever node resolution changes underneath it - a rename, a
@@ -977,8 +1011,8 @@ def import_extraction(
         for claim_id, _created in leftover:
             delete_claim(conn, claim_id)
             counts["claims_deleted"] += 1
-    for claim, chash in to_insert:
-        insert_claim(conn, claim, claim_hash=chash)
+    for claim, chash, entailment in to_insert:
+        insert_claim(conn, claim, claim_hash=chash, entailment=entailment)
         counts["claims_created"] += 1
     counts["claims_carried"] += len(carried)
 

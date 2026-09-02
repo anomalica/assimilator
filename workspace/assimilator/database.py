@@ -77,7 +77,16 @@ CREATE TABLE IF NOT EXISTS claims (
     -- independence treats such claims conservatively rather than as independent.
     origin_kind TEXT,
     origin TEXT,
-    relay TEXT   -- JSON array, ordered origin -> speaker
+    relay TEXT,  -- JSON array, ordered origin -> speaker
+    -- The digester's entailment check: does the source excerpt (premise) support
+    -- the claim as written (hypothesis)? label entails|neutral|contradicts, score
+    -- = the probability of THAT label, model = the checker. NULL label means not
+    -- assessed - a digest that predates the check, or a claim with no excerpt -
+    -- never neutral. Stored and surfaced; the evidence score that will use it is
+    -- not defined yet (Mark's), so nothing weights or hides a claim on it.
+    entailment_label TEXT,
+    entailment_score REAL,
+    entailment_model TEXT
 );
 
 CREATE TABLE IF NOT EXISTS claim_node_refs (
@@ -321,6 +330,15 @@ def init_db(conn: sqlite3.Connection) -> None:
         for column in ("origin_kind", "origin", "relay"):
             if column not in cols:
                 conn.execute(f"ALTER TABLE claims ADD COLUMN {column} TEXT")
+        # Entailment migration: existing rows read as not assessed until the
+        # digester's backfill is imported.
+        for column, kind in (
+            ("entailment_label", "TEXT"),
+            ("entailment_score", "REAL"),
+            ("entailment_model", "TEXT"),
+        ):
+            if column not in cols:
+                conn.execute(f"ALTER TABLE claims ADD COLUMN {column} {kind}")
     # Work-identity migration: which WORK a record manifests. Backfilled to the
     # record's own id (one record, one work) so a pre-existing database counts
     # sources exactly as it did before the column existed - the guard lands as a
@@ -482,17 +500,20 @@ def insert_claim(
     claim: Claim,
     claim_hash: str | None = None,
     created_at: str | None = None,
+    entailment: dict | None = None,
 ) -> Claim:
     # created_at is overridable so a carried-forward claim keeps its original
     # timestamp across a re-import (the row is rewritten, not first-seen).
     now = created_at or _now()
     metadata_json = json.dumps(claim.metadata) if claim.metadata else None
     chain = claim.provenance_chain
+    ent = entailment or {}
     conn.execute(
         "INSERT INTO claims (id, content, original_excerpt, claim_type, attestation, record_id, speaker_id, "
         "location_in_record, date, date_end, claim_hash, confidence, metadata, created_at, claim_role, "
-        "origin_kind, origin, relay) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "origin_kind, origin, relay, entailment_label, entailment_score, "
+        "entailment_model) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             claim.id,
             claim.content,
@@ -512,6 +533,9 @@ def insert_claim(
             chain.origin_kind.value if chain else None,
             chain.origin if chain else None,
             json.dumps(chain.relay) if chain else None,
+            ent.get("label"),
+            ent.get("score"),
+            ent.get("model"),
         ),
     )
     for node_id in claim.node_references:
@@ -553,6 +577,20 @@ def delete_claim(conn: sqlite3.Connection, claim_id: str) -> None:
     # without this the stamp and the vector outlive the claim: 4,640 orphan claim
     # stamps had accumulated, and their vectors were still in the search index.
     forget_embeddings(conn, "claim", claim_id)
+
+
+def update_claim_entailment(
+    conn: sqlite3.Connection, claim_id: str, entailment: dict | None
+) -> None:
+    """Refresh a claim's entailment on re-import. Like the provenance chain it
+    lies outside claim_hash, so a carried-forward claim would otherwise keep a
+    stale or absent value for as long as its wording stood."""
+    ent = entailment or {}
+    conn.execute(
+        "UPDATE claims SET entailment_label = ?, entailment_score = ?, "
+        "entailment_model = ? WHERE id = ?",
+        (ent.get("label"), ent.get("score"), ent.get("model"), claim_id),
+    )
 
 
 def update_claim_chain(
@@ -713,7 +751,30 @@ def get_stats(conn: sqlite3.Connection) -> dict:
         "SELECT node_type, COUNT(*) FROM nodes WHERE retired_at IS NULL GROUP BY node_type"
     ).fetchall()
     stats["by_type"] = {row[0]: row[1] for row in type_counts}
+    stats["entailment"] = entailment_counts(conn)
     return stats
+
+
+def entailment_counts(conn: sqlite3.Connection) -> dict:
+    """How many claims the digester's entailment check has assessed and how
+    the labels fall. Counts only: the entailed fraction is shown, never yet
+    weighted - the evidence score it will feed is not defined."""
+    labels = dict(
+        conn.execute(
+            "SELECT COALESCE(entailment_label, 'unassessed'), COUNT(*) FROM claims "
+            "GROUP BY 1"
+        ).fetchall()
+    )
+    assessed = sum(v for k, v in labels.items() if k != "unassessed")
+    entails = labels.get("entails", 0)
+    return {
+        "assessed": assessed,
+        "unassessed": labels.get("unassessed", 0),
+        "entails": entails,
+        "neutral": labels.get("neutral", 0),
+        "contradicts": labels.get("contradicts", 0),
+        "entailed_fraction": round(entails / assessed, 3) if assessed else None,
+    }
 
 
 def _get_claim_refs(conn: sqlite3.Connection, claim_id: str) -> list[str]:

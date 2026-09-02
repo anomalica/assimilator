@@ -107,6 +107,7 @@ _COL_CONTENT = 1
 _COL_EXCERPT = 2
 _COL_ATTESTATION = 4
 _COL_SPEAKER_ID = 9
+_COL_ENTAILMENT = 21  # label; score and model follow
 
 # Attestation ranked by evidential weight. Measured across the corpus: first_hand
 # 16,794, second_hand 6,479, third_hand 431, absent 7,362 - so this discriminates
@@ -128,6 +129,18 @@ def _claim_token_cost(row) -> int:
     """
     text = (row[_COL_CONTENT] or "") + (row[_COL_EXCERPT] or "")
     return estimate_tokens(text) + _CLAIM_OVERHEAD_TOKENS
+
+
+def _entailment_summary(rows) -> dict:
+    labels = [r[_COL_ENTAILMENT] for r in rows if r[_COL_ENTAILMENT]]
+    counts = {k: labels.count(k) for k in ("entails", "neutral", "contradicts")}
+    n = len(labels)
+    return {
+        "assessed": n,
+        "unassessed": len(rows) - n,
+        **counts,
+        "entailed_fraction": round(counts["entails"] / n, 3) if n else None,
+    }
 
 
 def _importance(
@@ -498,7 +511,8 @@ def build_entity_brief(
                c.attestation, c.location_in_record, c.date, c.date_end, c.claim_hash,
                c.speaker_id, sp.name,
                c.record_id, r.title, r.date, r.reference, r.content_hash, r.friendly_name,
-               c.origin_kind, c.origin, c.relay, COALESCE(r.work_id, c.record_id)
+               c.origin_kind, c.origin, c.relay, COALESCE(r.work_id, c.record_id),
+               c.entailment_label, c.entailment_score, c.entailment_model
         FROM claims c
         LEFT JOIN records r ON r.id = c.record_id
         LEFT JOIN nodes sp ON sp.id = c.speaker_id
@@ -566,6 +580,9 @@ def build_entity_brief(
             origin,
             relay,
             _work_id,  # selection key for _spread_across_sources; not emitted
+            _ent_label,  # entailment; the dict reads these by _COL_ENTAILMENT
+            _ent_score,
+            _ent_model,
         ) = row
         claims.append(
             {
@@ -607,6 +624,20 @@ def build_entity_brief(
                 # making a judgement and should say so, and a "suspect" claim
                 # must not be asserted at all. See database.claim_ref_status.
                 "attachment": ref_status.get(cid, "unreviewed"),
+                # The digester's check that the excerpt supports the claim as
+                # written. Absent when not assessed, as in the digest. Shown,
+                # not weighted: the evidence score's definition is Mark's.
+                **(
+                    {
+                        "entailment": {
+                            "label": row[_COL_ENTAILMENT],
+                            "score": row[_COL_ENTAILMENT + 1],
+                            "model": row[_COL_ENTAILMENT + 2],
+                        }
+                    }
+                    if row[_COL_ENTAILMENT]
+                    else {}
+                ),
                 "node_refs": _claim_node_refs(conn, cid, slug_map),
                 "date": date,
                 "date_end": date_end,
@@ -675,6 +706,11 @@ def build_entity_brief(
             "tokens_estimated": sum(_claim_token_cost(r) for r in selected_rows),
             "sized_against": window or None,
         },
+        # The entailment check summarised for the page: of the claims carried,
+        # how many were assessed and how the labels fall. The entailed fraction
+        # is the first component of the evidence score - which is not defined
+        # yet, so it is shown here and weights nothing.
+        "entailment": _entailment_summary(selected_rows),
         # SAY SO WHEN THE BRIEF IS NOT ALL OF IT. A claim cut here cannot appear
         # in the article, cannot be cited, and left unsaid nothing downstream
         # can tell it ever existed - a page built from a quarter of the evidence

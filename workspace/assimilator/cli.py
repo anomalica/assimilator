@@ -246,6 +246,16 @@ def stats(ctx: click.Context) -> None:
     click.echo(f"Claim-node references: {s['claim_node_refs']}")
     click.echo(f"Aliases: {s['aliases']}")
     click.echo(f"Corroborations: {s['corroborations']}")
+    e = s.get("entailment") or {}
+    if e.get("assessed"):
+        click.echo(
+            f"Entailment: {e['assessed']} of {s['claims']} claims assessed - "
+            f"entails {e['entails']}, neutral {e['neutral']}, contradicts "
+            f"{e['contradicts']} (entailed fraction {e['entailed_fraction']}; "
+            "shown, not weighted)"
+        )
+    else:
+        click.echo("Entailment: no claim assessed yet")
     if s.get("by_type"):
         click.echo("\nBy type:")
         for node_type, count in sorted(s["by_type"].items()):
