@@ -317,3 +317,22 @@ def test_absent_run_kind_is_unknown_not_production():
     import_extraction(conn, _parsed([_claim("c1", "First.")]))
     meta = conn.execute("SELECT metadata FROM records").fetchone()[0] or "{}"
     assert "run_kind" not in meta
+
+
+def test_a_record_renamed_by_a_redigest_is_the_same_record():
+    """The digester refreshes record blocks from the record's frontmatter and may
+    change a title while keeping the id. Found by title, that read as a NEW record
+    and collided on the primary key; the entailment backfill stopped at digest 18
+    of 108 on "Project Serpo" becoming its interview title."""
+    conn = _conn()
+    first = _parsed([_claim("c1", "Held radar 12 min.")])
+    import_extraction(conn, first)
+
+    renamed = _parsed([_claim("c1", "Held radar 12 min.")])
+    renamed["frontmatter"]["record_title"] = "Interview with the radar operator"
+    counts = import_extraction(conn, renamed)
+
+    rows = conn.execute("SELECT id, title FROM records").fetchall()
+    assert len(rows) == 1
+    assert rows[0][1] == "Interview with the radar operator"
+    assert counts["claims_carried"] == 1
