@@ -232,3 +232,14 @@ Cost: the morning state embedded cold in 2,671 s (10,795 profiles at 4 a second)
 the current state in 132 s, because an unchanged profile is a cache hit at the
 endpoint. That is the property the profile needed: re-embedding after an import
 costs exactly the nodes whose claims changed.
+
+
+# Status, 2026-09-03 07:30
+
+The flag is on in production: the scheduler's "rerank" job runs `propose_merges --rerank`
+on Mark's GPU lane after each graph change, and the workbench shows the model's score
+with the rules' score beside it, machine entries in score order, human proposals first.
+First scheduled run: 157 clusters, 375 pairs, 20 minutes end to end (the rules pass is
+19 of them), 1.9 GB peak on the card. The shortlist-plus-verify chain ("merge-shortlist")
+is a second scheduled job; its first 500 verdicts (247 same, 253 different, about nine in
+ten of the sampled "same" right) are in the reviewer's queue with the model's reasons.
