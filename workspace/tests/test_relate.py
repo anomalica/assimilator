@@ -148,6 +148,38 @@ def test_verdicts_are_stored_including_unrelated_and_not_rejudged():
         ).fetchone()[0]
     )
     assert links[0]["relation"] == "same_subject"
+    assert (
+        links[0]["a"] == "ra-0" and links[0]["b"] == "rb-0"
+    )  # full ids, resolved from the prefixes shown
+
+
+def test_links_are_stored_with_full_claim_ids():
+    conn = _graph()
+    long_ids = {}
+    for rid, n in (("ra", "0123456789abcdef-a"), ("rb", "fedcba9876543210-b")):
+        insert_claim(
+            conn,
+            Claim(
+                id=n,
+                content="x",
+                claim_type="testimony",
+                record_id=rid,
+                location_in_record="9999",
+            ),
+        )
+        long_ids[rid] = n
+    conn.commit()
+    out = relate.full_claim_ids(
+        conn,
+        "ra",
+        "rb",
+        [
+            {"a": "01234567", "b": "fedcba98", "relation": "same_fact"},
+            {"a": "nope0000", "b": "ra-0", "relation": "same_subject"},
+        ],
+    )
+    assert out[0]["a"] == long_ids["ra"] and out[0]["b"] == long_ids["rb"]
+    assert out[1]["a"] == "nope0000" and out[1]["b"] == "ra-0"
 
 
 def test_a_verdict_outside_the_vocabulary_is_an_error_not_a_row():

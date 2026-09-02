@@ -228,6 +228,29 @@ def judged(conn: sqlite3.Connection) -> set[tuple[str, str]]:
     }
 
 
+def full_claim_ids(conn: sqlite3.Connection, a: str, b: str, links: list) -> list[dict]:
+    """The judge names claims by the 8-character prefix the prompt shows; the
+    stored links carry the full ids, so a reader of record_relations needs no
+    prefix resolution. A prefix that matches no claim of the pair is kept as
+    given rather than dropped."""
+    by_prefix: dict[str, str] = {}
+    for rid in (a, b):
+        for (cid,) in conn.execute("SELECT id FROM claims WHERE record_id = ?", (rid,)):
+            by_prefix.setdefault(cid[:8], cid)
+    out = []
+    for link in links or []:
+        if not isinstance(link, dict):
+            continue
+        out.append(
+            {
+                **link,
+                "a": by_prefix.get(str(link.get("a", ""))[:8], link.get("a")),
+                "b": by_prefix.get(str(link.get("b", ""))[:8], link.get("b")),
+            }
+        )
+    return out
+
+
 def store(
     conn: sqlite3.Connection, a: str, b: str, result: dict, model: str, prompt: str
 ) -> None:
@@ -245,7 +268,10 @@ def store(
             verdict,
             (result.get("shared_subject") or "").strip() or None,
             (result.get("reason") or "").strip() or None,
-            json.dumps(result.get("links") or [], ensure_ascii=False),
+            json.dumps(
+                full_claim_ids(conn, a, b, result.get("links") or []),
+                ensure_ascii=False,
+            ),
             model,
             hashlib.sha256(prompt.encode()).hexdigest(),
             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
