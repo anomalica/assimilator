@@ -169,8 +169,9 @@ def propose(conn: sqlite3.Connection, computed_at: str | None = None) -> list[di
         conn.execute(
             "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
             "source_count, independent_source_count, top_source_claims, "
-            "second_source_claims, unscored_claims, status, computed_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "second_source_claims, unscored_claims, subject_claims, status, "
+            "computed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 r["node_id"],
                 r["node_type"],
@@ -181,6 +182,7 @@ def propose(conn: sqlite3.Connection, computed_at: str | None = None) -> list[di
                 r["top_source_claims"],
                 r["second_source_claims"],
                 r.get("unscored_claims"),
+                r.get("subject_claims"),
                 STATUS_PROPOSED,
                 computed_at,
             ),
