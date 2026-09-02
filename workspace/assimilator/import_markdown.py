@@ -27,7 +27,12 @@ from assimilator.database import (
     update_claim_entailment,
     update_claim_hash,
 )
-from assimilator.matching import is_a_description, match_node, normalise_node_name
+from assimilator.matching import (
+    is_a_description,
+    is_fuller_person_name,
+    match_node,
+    normalise_node_name,
+)
 from anomalica_common.digest import claim_hash
 from anomalica_common.digest.models import Claim, Node, ProvenanceChain, Record
 
@@ -753,7 +758,7 @@ def import_extraction(
         # Try to find existing node across all databases
         found = False
         for lookup_conn in all_conns:
-            m = match_node(lookup_conn, name, node_type)
+            m = match_node(lookup_conn, name, node_type, record_id=record.id)
             if m:
                 node_id = m[0]
                 lookup_id = node_id
@@ -797,6 +802,18 @@ def import_extraction(
                     )
                 else:
                     log(f"  Existing node: {name} ({node_type}) [{node_id[:8]}]")
+                # The fuller spelling of a person wins the canonical name, whatever
+                # order the records arrived in: "Kevin Day" over "K. Day", not the
+                # reverse. Derived, not curated - a rebuild replays the imports and
+                # reaches the same name - so no ledger entry. The shorter form
+                # stays as an alias, so it still resolves.
+                if node_type == "person" and is_fuller_person_name(name, existing_name):
+                    conn.execute(
+                        "UPDATE nodes SET name = ? WHERE id = ?", (name, node_id)
+                    )
+                    insert_alias(conn, existing_name, node_id)
+                    node_name_to_id[existing_name] = node_id
+                    log(f"  Promoted: {existing_name} -> {name} [{node_id[:8]}]")
 
                 counts["nodes_matched"] += 1
                 found = True
@@ -889,7 +906,7 @@ def import_extraction(
                 ref_ids.append(node_name_to_id[ref_name])
             else:
                 for lookup_conn in all_conns:
-                    ref_match = match_node(lookup_conn, ref_name)
+                    ref_match = match_node(lookup_conn, ref_name, record_id=record.id)
                     if ref_match:
                         local_id = _materialise_locally(conn, lookup_conn, ref_match[0])
                         ref_ids.append(local_id)
@@ -904,7 +921,9 @@ def import_extraction(
                 speaker_id = node_name_to_id[speaker_name]
             else:
                 for lookup_conn in all_conns:
-                    speaker_match = match_node(lookup_conn, speaker_name, "person")
+                    speaker_match = match_node(
+                        lookup_conn, speaker_name, "person", record_id=record.id
+                    )
                     if speaker_match:
                         speaker_id = _materialise_locally(
                             conn, lookup_conn, speaker_match[0]

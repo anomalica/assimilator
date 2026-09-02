@@ -9,6 +9,7 @@ Combines three strategies in order of preference:
 
 from __future__ import annotations
 
+import functools
 import re
 import sqlite3
 import unicodedata
@@ -759,6 +760,278 @@ def is_nickname_of(name: str, other: str) -> bool:
     return _first_names_are_the_same_person(a[0], b[0])
 
 
+# --- Record-scoped person names ---
+#
+# A person name that carries no family name identifies somebody only within the
+# record that uses it. "Chris" in a book about mediumship and "Chris" on a drone
+# video are two people; "Mrs. M." in one memoir and "Mrs. Z." in another are two
+# more. The matcher treated every one of them as a global identity: the exact
+# tier joined the two Chrises (48 claims on one node, 42 of them about a dead man
+# and 6 about a cameraman), and the fuzzy tier folded four anonymised women from
+# four books into "Mrs. M." (Levenshtein puts "mrs. z." at 0.83 of "mrs. m.",
+# and "M." is an initial of "Markham"). Fuller names then lost to shorter ones
+# on arrival order: "Tim Taylor" became an alias of a "Taylor" that got there
+# first at exactly the 0.75 threshold.
+#
+# So a name with no family name is RECORD-SCOPED: it resolves only to the node
+# already holding that record's claims under the same name, never across
+# records, and it is never a page (page_gate). Mononyms of historical and
+# mythological figures are the documented exception - "Plato" is one person
+# across six sources - and are listed rather than inferred, because the
+# inference that failed here was precisely "one token, one identity".
+
+_HONORIFICS = frozenset(
+    {
+        "mr",
+        "mrs",
+        "ms",
+        "miss",
+        "mx",
+        "dr",
+        "prof",
+        "professor",
+        "sir",
+        "dame",
+        "lady",
+        "lord",
+        "rev",
+        "reverend",
+        "fr",
+        "father",
+        "sister",
+        "brother",
+        "saint",
+        "st",
+        "capt",
+        "captain",
+        "cdr",
+        "cmdr",
+        "commander",
+        "col",
+        "colonel",
+        "gen",
+        "general",
+        "lt",
+        "lieutenant",
+        "maj",
+        "major",
+        "sgt",
+        "sergeant",
+        "adm",
+        "admiral",
+        "pvt",
+        "private",
+        "senator",
+        "president",
+        "judge",
+        "agent",
+        "officer",
+    }
+)
+_NAME_SUFFIXES = frozenset({"jr", "sr", "phd", "md", "esq"})
+_ROMAN_NUMERAL_RE = re.compile(r"^[ivx]{1,4}$")
+_INITIAL_RE = re.compile(r"^[a-z](?:\.[a-z])*$")
+_MONONYMS = frozenset(
+    {
+        "abraham",
+        "aristotle",
+        "buddha",
+        "confucius",
+        "enoch",
+        "ezekiel",
+        "hermes",
+        "homer",
+        "ishtar",
+        "isaiah",
+        "jesus",
+        "lucretius",
+        "moses",
+        "muhammad",
+        "nostradamus",
+        "plato",
+        "pythagoras",
+        "socrates",
+        "zoroaster",
+    }
+)
+
+
+def person_name_tokens(name: str) -> list[str]:
+    """Lowercased name tokens with parentheticals, honorifics and suffixes gone.
+
+    >>> person_name_tokens("Dr. K. Day Jr. (Navy pilot)")
+    ['k', 'day']
+    >>> person_name_tokens("Mrs. Markham")
+    ['markham']
+    >>> person_name_tokens("Eisenhower, Dwight D.")
+    ['dwight', 'd', 'eisenhower']
+    """
+    base = _PARENS_GROUP_RE.sub(" ", name.lower())
+    # Surname-first input ("Eisenhower, Dwight D.") is put back in natural
+    # order, so the family name is the last token whichever way it was written.
+    if "," in base:
+        family, _, given = base.partition(",")
+        base = f"{given} {family}"
+
+    def _split(text: str) -> list[str]:
+        return [
+            t
+            for t in (_TOKEN_PUNCT_RE.sub("", w) for w in re.split(r"[\s/,]+", text))
+            if t
+        ]
+
+    tokens = _split(base)
+    while tokens and tokens[0] in _HONORIFICS:
+        tokens.pop(0)
+    while tokens and tokens[-1] in _NAME_SUFFIXES:
+        tokens.pop()
+    return tokens
+
+
+def _is_initial(token: str) -> bool:
+    return bool(_INITIAL_RE.match(token))
+
+
+@functools.lru_cache(maxsize=65536)
+def is_record_scoped_person_name(name: str) -> bool:
+    """Whether a person name identifies somebody only within its own record.
+
+    True when no family name is present: a bare given name ("Chris", "Sally
+    (Budd Hopkins abductee)"), an honorific plus one token ("Mrs. Markham",
+    "Dr. X"), or a name whose family name is an initial ("Mrs. M.", "John D.").
+    A listed mononym ("Plato") and a regnal name ("Elizabeth I") are global.
+
+    >>> is_record_scoped_person_name("Chris")
+    True
+    >>> is_record_scoped_person_name("Mrs. M.")
+    True
+    >>> is_record_scoped_person_name("K. Day")
+    False
+    >>> is_record_scoped_person_name("Plato")
+    False
+    >>> is_record_scoped_person_name("Elizabeth I")
+    False
+    """
+    tokens = person_name_tokens(name)
+    if not tokens:
+        return True
+    regnal = len(tokens) > 1 and _ROMAN_NUMERAL_RE.match(tokens[-1]) is not None
+    if regnal:
+        return False
+    if len(tokens) == 1:
+        return tokens[0] not in _MONONYMS
+    return _is_initial(tokens[-1])
+
+
+def _person_tokens_compatible(a: str, b: str) -> bool:
+    return (
+        a == b or _initials_compatible(a, b) or _first_names_are_the_same_person(a, b)
+    )
+
+
+def is_fuller_person_name(name: str, existing: str) -> bool:
+    """Whether `name` says everything `existing` says about a person, and more.
+
+    The graph keeps the first spelling it met as the canonical name and files
+    later ones as aliases, so a node named "K. Day" stays "K. Day" after "Kevin
+    Day" arrives. This is the test for promoting the newcomer: every existing
+    token has a counterpart in order (equal, an initial of it, or its short
+    form), the newcomer carries more tokens, and it does not trade spelled-out
+    names for initials ("Kevin Day" is not bettered by "K. R. Day").
+
+    >>> is_fuller_person_name("Kevin Day", "K. Day")
+    True
+    >>> is_fuller_person_name("Harold E. Puthoff", "Hal Puthoff")
+    True
+    >>> is_fuller_person_name("K. R. Day", "Kevin Day")
+    False
+    >>> is_fuller_person_name("Dave Fravor", "David Fravor")
+    False
+    >>> is_fuller_person_name("Lionel Browning's wife", "Lionel Browning")
+    False
+    """
+    # Only a NAME can be the fuller name: every word capitalised, no possessive.
+    # "Lionel Browning's wife" fuzzy-matches Lionel Browning and has more tokens,
+    # and is a description of somebody else.
+    bare = _PARENS_GROUP_RE.sub(" ", name)
+    if re.search(r"['’]s\b", bare):
+        return False
+    words = [w for w in re.split(r"[\s/,]+", bare) if any(ch.isalpha() for ch in w)]
+    if any(w[0].isalpha() and w[0].islower() for w in words):
+        return False
+    new, old = person_name_tokens(name), person_name_tokens(existing)
+    if len(new) < len(old) or not old:
+        return False
+    spelled_new = sum(1 for t in new if not _is_initial(t))
+    spelled_old = sum(1 for t in old if not _is_initial(t))
+    if spelled_new < spelled_old:
+        return False
+    if len(new) == len(old) and spelled_new == spelled_old:
+        return False
+    if is_record_scoped_person_name(name):
+        return False
+    i = 0
+    for token in old:
+        while i < len(new) and not _person_tokens_compatible(token, new[i]):
+            i += 1
+        if i == len(new):
+            return False
+        i += 1
+    return True
+
+
+def same_record_person(
+    conn: sqlite3.Connection, name: str, record_id: str
+) -> str | None:
+    """The person this record already knows by this name, if any.
+
+    A record-scoped name resolves only among the people THIS record declares or
+    quotes: by exact name or alias first (a re-digest or reconcile must land on
+    the node the earlier import minted, or every pass would mint another
+    "Chris"), then - for a single token - by surname or given name when exactly
+    one of the record's people carries it ("Fravor" in a record that declares
+    "David Fravor" is that man; in a record with two Fravors it is nobody).
+    """
+    people = conn.execute(
+        """
+        SELECT DISTINCT n.id, n.name FROM nodes n
+         WHERE n.retired_at IS NULL AND n.node_type = 'person'
+           AND (EXISTS (SELECT 1 FROM record_nodes rn
+                         WHERE rn.node_id = n.id AND rn.record_id = ?)
+             OR EXISTS (SELECT 1 FROM claims c
+                         WHERE c.speaker_id = n.id AND c.record_id = ?)
+             OR EXISTS (SELECT 1 FROM claim_node_refs r JOIN claims c ON c.id = r.claim_id
+                         WHERE r.node_id = n.id AND c.record_id = ?))
+        """,
+        (record_id, record_id, record_id),
+    ).fetchall()
+    if not people:
+        return None
+    for node_id, node_name in people:
+        if node_name == name:
+            return node_id
+    ids = [p[0] for p in people]
+    marks = ",".join("?" * len(ids))
+    row = conn.execute(
+        f"SELECT node_id FROM aliases WHERE alias = ? AND node_id IN ({marks})",
+        (name, *ids),
+    ).fetchone()
+    if row:
+        return row[0]
+    tokens = person_name_tokens(name)
+    if len(tokens) != 1 or _is_initial(tokens[0]):
+        return None
+    token = tokens[0]
+    carriers = [
+        node_id
+        for node_id, node_name in people
+        if (lambda t: len(t) >= 2 and token in (t[0], t[-1]))(
+            person_name_tokens(node_name)
+        )
+    ]
+    return carriers[0] if len(carriers) == 1 else None
+
+
 _TRAILING_ACRONYM = re.compile(r"\(([A-Za-z0-9./-]{2,10})\)\s*$")
 
 
@@ -818,12 +1091,13 @@ def match_node(
     conn: sqlite3.Connection,
     name: str,
     node_type: str | None = None,
+    record_id: str | None = None,
 ) -> tuple[str, str] | None:
     """Try to match a name to an existing node.
 
     Returns (node_id, match_method) or None if no match found.
     match_method is one of: "exact", "alias", "acronym", "punctuation",
-    "nickname", "fuzzy".
+    "nickname", "fuzzy", "record".
 
     A DESCRIPTION NEVER MATCHES ANYTHING. It is record-scoped, so there is no
     node it could correctly resolve to - and the fuzzy tier will happily find one
@@ -832,18 +1106,44 @@ def match_node(
     been written to replace, silently re-creating the refs the rewrite removed.
     The check lives HERE rather than at each call site because refs, speakers and
     node minting are three paths and guarding one of them is how that happened.
+
+    A PERSON NAME WITHOUT A FAMILY NAME MATCHES ONLY WITHIN ITS RECORD (see
+    is_record_scoped_person_name): given `record_id` it resolves to the node that
+    record already uses under that exact name, otherwise to nothing, and no
+    person node bearing such a name is ever a candidate for another name - so
+    "Tim Taylor" cannot be filed under a "Taylor" that arrived first.
     """
     if is_a_description(name):
         return None
+    scoped = node_type in (None, "person") and is_record_scoped_person_name(name)
+    if scoped:
+        if record_id:
+            same = same_record_person(conn, name, record_id)
+            if same:
+                return same, "record"
+        if node_type == "person":
+            return None
+
     # 1. Exact name match
     exact = find_node_by_name(conn, name, node_type)
-    if exact:
+    if exact and not (scoped and exact.node_type == "person"):
         return exact.id, "exact"
 
     # 2. Acronym-suffix normalisation: X <-> X (ACRONYM) collapse to the same
     # node. Avoids duplicate organisation/concept nodes for "Defense
     # Intelligence Agency" and "Defense Intelligence Agency (DIA)".
-    candidates_all = get_nodes(conn, node_type=node_type)
+    candidates_all = [
+        c
+        for c in get_nodes(conn, node_type=node_type)
+        if not (c.node_type == "person" and is_record_scoped_person_name(c.name))
+    ]
+    if scoped:
+        # An untyped reference that reads as a bare given name: the person
+        # tier is closed to it, but an organisation or place of that exact
+        # name is still a legitimate target.
+        for candidate in candidates_all:
+            if candidate.name == name:
+                return candidate.id, "exact"
     key = name_equivalence_key(name)
     for candidate in candidates_all:
         if name_equivalence_key(candidate.name) == key and candidate.name != name:
