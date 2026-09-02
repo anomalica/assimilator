@@ -92,7 +92,16 @@ MIN_SOURCE_CLAIMS = 5
 # Column offsets into the claim rows selected below, named because the tuple is
 # long and an importance key that silently reads the wrong field would rank on
 # nonsense while looking like it worked.
-_CLAIM_OVERHEAD_TOKENS = 180
+# What a consumer RENDERS around a claim's text - an attribution, a date, a
+# record title - not what the YAML carries around it. The file holds about 1,190
+# characters of ids, hashes, slugs and provenance per claim (measured 2026-09-02
+# over seven briefs, 441 tokens at 2.7), and none of it reaches a model: the
+# assembler renders each claim as prose and its prompt for the largest brief
+# came to 286,000 tokens against a 3.6 MB file. Sized as the file, that brief
+# reads as over the window it fits in with room to spare. Sized as rendered,
+# claim text at 2.7 characters per token plus this framing is within a few
+# percent of the measured prompt.
+_CLAIM_OVERHEAD_TOKENS = 20
 _COL_ID = 0
 _COL_CONTENT = 1
 _COL_EXCERPT = 2
@@ -109,12 +118,13 @@ _ATTESTATION_RANK = {"first_hand": 3, "second_hand": 2, "third_hand": 1}
 
 
 def _claim_token_cost(row) -> int:
-    """Token cost of one claim row, from the fields that reach the brief.
+    """Token cost of one claim row, as a consumer RENDERS it.
 
-    Content and excerpt are the bulk; the rest is a near-constant of ids,
-    slugs and provenance keys, measured at roughly 180 tokens per claim across
-    the corpus and added flat rather than reconstructed, because building the
-    dict twice to weigh it would double the work of synthesis.
+    Content and excerpt are the bulk; the framing a writer puts around them is
+    a near-constant added flat. This is deliberately not the YAML's size - see
+    _CLAIM_OVERHEAD_TOKENS - because the window the brief must fit is the one
+    the rendered prompt goes into, and the file is nearly five times larger
+    than what any consumer sends.
     """
     text = (row[_COL_CONTENT] or "") + (row[_COL_EXCERPT] or "")
     return estimate_tokens(text) + _CLAIM_OVERHEAD_TOKENS
@@ -654,9 +664,11 @@ def build_entity_brief(
             "claim_count_total": claim_count_total,
         },
         "generated": {"graph_version": _graph_version(conn)},
-        # How big this brief is, so a consumer can pick a model that HOLDS it
-        # rather than guessing. `tokens` is an estimate - see brief_size - and
-        # deliberately errs high, because overflowing a context window is a
+        # How big this brief is AS A CONSUMER RENDERS IT (claim text plus a
+        # line of framing per claim - see _claim_token_cost), so a consumer can
+        # pick a model that holds it rather than guessing. Not the file's size:
+        # the YAML around each claim never reaches a model. An estimate - see
+        # brief_size - erring high, because overflowing a context window is a
         # silent failure at the provider while an oversized model merely costs.
         "size": {
             "claims": len(claims),

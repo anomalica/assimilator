@@ -10,14 +10,23 @@ existed.
 
 Two things replace it. The brief is sized in TOKENS against the window of the
 stage that consumes it, and if it still has to be cut it says so.
+
+WHAT IS SIZED is the claim material a consumer renders - content and excerpt,
+plus a line of framing per claim - and not the YAML file. The file carries
+about 1,190 characters of ids, hashes, slugs and provenance around every claim,
+nearly four times the claim text, and none of it reaches a model. The largest
+brief is 3.6 MB on disk and renders to roughly 286,000 tokens; sized as a file
+it would read as over a window it fits in with room to spare, and the cut it
+would trigger would drop evidence for nothing.
 """
 
 from __future__ import annotations
 
-# Measured over 12 real briefs with cl100k: mean 2.80 characters per token,
-# range 2.71 to 3.10. NOT the usual 4 - a brief is YAML dense with identifiers,
-# hashes and punctuation, which tokenise far more finely than prose, and
-# assuming 4 understates a large brief's real size by about 30%.
+# Measured over 12 real briefs with cl100k: mean 2.80 characters per token on
+# the YAML, range 2.71 to 3.10; the assembler fitted 2.6 on its rendered prose
+# against real usage on the Claude path. NOT the usual 4 - claim text is dense
+# with names, dates and quotation, and assuming 4 understates a large brief's
+# real size by about 30%.
 #
 # The conservative end of the measured range is used deliberately. Fewer
 # characters per token means MORE estimated tokens, so the error runs towards
