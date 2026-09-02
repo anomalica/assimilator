@@ -30,16 +30,24 @@ strength on that case is untested here.
 
 ## Numbers
 
-| scorer | AUC | at a cut: precision / recall (tp, fp) |
-|---|---|---|
-| current rules | 0.716 | >=0.75: 0.97 / 0.44 (78, 2) |
-| reranker, with claims | 0.867 | >=0.5: 0.67 / 0.93 (166, 83); >=0.9: 0.67 / 0.63 (113, 56) |
-| reranker, names only | 0.980 | >=0.9: 0.91 / 0.96 (171, 17); >=0.7: 0.80 / 0.98 |
+CORRECTION (2026-09-02, 23:30): the 178 positives are 178 distinct node-id pairs but
+only 90 distinct NAME pairs. Replayed merges mint the same victim again on every
+rebuild, so `node_merges` holds 37 rows for "The Pentagon" ~ "The Pentagon", 30 for
+the UAPTF pair and 24 for "Galileo Project" - three pairs were half the positive set,
+and every figure first reported was computed per row. The table below is one row per
+name pair. AUC barely moves (rank-based; the repeats were well scored); the absolute
+recall and precision figures do, and the earlier ones are withdrawn.
 
-- Recall. 100 of the 178 human-merged pairs are invisible to the rules (cross-type, or
+| scorer | AUC | at a cut: precision / recall (tp, fp), over 90 positives |
+|---|---|---|
+| current rules | 0.603 | >=0.75: 0.90 / 0.21 (19, 2) |
+| reranker, with claims | 0.867 | >=0.5: 0.48 / 0.87 (78, 83); >=0.9: 0.52 / 0.68 (61, 56) |
+| reranker, names only | 0.981 | >=0.9: 0.83 / 0.92 (83, 17); >=0.7: 0.66 / 0.97 |
+
+- Recall. 71 of the 90 human-merged pairs are invisible to the rules (cross-type, or
   fuzzy below 0.75: `USA` / `United States of America`, `UK, Suffolk, Rendlesham Forest` /
   `United Kingdom, England, Rendlesham Forest`, `UK Ministry of Defence` / `United Kingdom
-  Ministry of Defence`). The reranker scores 80 of those 100 at >=0.9 with claims, and
+  Ministry of Defence`). The reranker scores 51 of those 71 at >=0.9 with claims, and
   finds every country-spelling pair at 0.95-1.00 in both conditions.
 - Precision, with claims. The failures are RELATIVES AND CO-WITNESSES: 48 of 269
   same-surname pairs score >=0.9 (Vickie / Colby Landrum, Karl / Mary Strieber, Jacinta /
@@ -50,7 +58,8 @@ strength on that case is untested here.
   are spelling, acronym and country-form variants, and these negatives differ by forename.
   Names only is blind to a duplicate whose names share no word, which is the case the
   claims exist for.
-- Same-type pairs only (the rules' own ground): AUC rules 0.546, reranker 0.867.
+- Same-type pairs only (the rules' own ground): 72 positives, AUC rules 0.546, reranker
+  0.867. (All 88 duplicate rows were cross-type, so this line is unchanged.)
 - Known-bad cases. Harry / Garry Reid: correctly apart (0.04 with claims, 0.29 names
   only; the rules do not surface it either). Atlant / Atlantis (persons, the one human
   rejection): WRONGLY together at 0.989 in both conditions - the rules surface it too
@@ -85,13 +94,13 @@ Files: `~/.local/share/assimilator/merge-candidates.json` (rules order, fresh) a
 
 ## Verdict
 
-As a RANKER of what the rules surface: it wins. Same-type AUC 0.867 against 0.546, and
+As a RANKER of what the rules surface: it wins. Same-type AUC 0.867 against 0.546 (90 distinct pairs), and
 on today's queue it moves the fuzzy rule's junk to the bottom and its under-scored true
 duplicates to the top. Ship behind the flag; default off until the workbench shows
 `rule_score` beside it so a reviewer can see both.
 
 As a CANDIDATE SOURCE: it cannot be one yet. Scoring is 0.14 s per pair on the GPU;
-the graph has 3,200 live nodes and five million pairs. It finds 80 of the 100 duplicates
+the graph has 3,200 live nodes and five million pairs. It finds 51 of the 71 duplicates
 the rules miss only when something puts them in front of it - a blocking or embedding
 shortlist, which does not exist in the code today (the `--verify` pass the module
 docstring describes was never built).
