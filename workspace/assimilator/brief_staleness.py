@@ -54,10 +54,16 @@ def _current_claims(conn: sqlite3.Connection, node_id: str) -> dict[str, str]:
 
 
 def staleness_manifest(conn: sqlite3.Connection, briefs_dir: Path) -> dict:
-    """Per-page drift for every brief on disk, as one timestamped snapshot."""
+    """Per-page drift for every brief on disk, as one timestamped snapshot.
+
+    Keyed by the page reference "<section>/<slug>" - the brief's path under the
+    briefs directory, minus the suffix - because a slug alone is not a page: an
+    event and a project of one name share it."""
+    from assimilator.synthesise import brief_files
+
     pages: dict[str, dict] = {}
     missing_node = 0
-    for path in sorted(briefs_dir.glob("*.yaml")):
+    for path in brief_files(briefs_dir):
         try:
             brief = _load(path.read_text())
         except (OSError, Exception):  # noqa: BLE001 - a bad file must not stop the sweep
@@ -87,8 +93,9 @@ def staleness_manifest(conn: sqlite3.Connection, briefs_dir: Path) -> dict:
             "SELECT retired_at FROM nodes WHERE id = ?", (node_id,)
         ).fetchone()
         node_state = "absent" if row is None else ("retired" if row[0] else "live")
-        pages[slug] = {
+        pages[f"{path.parent.name}/{path.stem}"] = {
             "node_id": node_id,
+            "slug": slug,
             "node_state": node_state,
             "title": page.get("title"),
             "brief_hash": brief.get("brief_hash"),

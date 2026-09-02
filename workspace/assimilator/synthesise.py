@@ -21,17 +21,17 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sqlite3
 from pathlib import Path
 
-import yaml
 
 from assimilator.brief_size import budget_for, consuming_window, estimate_tokens
 from assimilator.brief_yaml import INTERNAL_ONLY
 from assimilator.brief_yaml import dump as dump_brief_yaml
 
 from anomalica_common.digest import attribution_mode as common_attribution_mode
-from anomalica_common.slug import node_slug
+from anomalica_common.slug import node_slug, section_for
 from assimilator.database import get_independent_source_count
 from assimilator.database import claim_ref_statuses
 from assimilator.propose_pages import proposed_node_ids
@@ -735,9 +735,57 @@ def entity_node_ids(conn: sqlite3.Connection) -> list[str]:
     return proposed_node_ids(conn)
 
 
+def brief_relpath(node_type: str, slug: str) -> Path:
+    """Where a page's brief lives under a briefs directory: <section>/<slug>.yaml.
+
+    A page's identity is the PAIR /<section>/<slug> (anomalica_common.slug.
+    page_path) - the slug is disambiguated only within a node type, so an event
+    and a project of one name share a slug and do not share a URL. The brief
+    file was keyed on the slug alone, so those two pages had ONE file: whichever
+    node wrote last owned it, the scheduler matched the other node's id against
+    it, found a foreign brief, re-emitted, and the pair alternated on every pass
+    (Apollo 14, SETI - 2026-09-02). The path now carries the same two halves as
+    the page it feeds, mirroring content/pages/<section>/<slug>.<lang>.md, and a
+    brief REFERENCE is "<section>/<slug>" - which the assembler's load_brief
+    resolves as a direct path.
+    """
+    return Path(section_for(node_type)) / f"{slug}.yaml"
+
+
+def brief_files(briefs_dir: Path) -> list[Path]:
+    """Every brief under a briefs directory, in a stable order. Only the
+    sectioned layout: a file directly in the root is the pre-section layout and
+    is pruned, never read."""
+    return sorted(briefs_dir.glob("*/*.yaml"))
+
+
+_HEAD_NODE_ID = re.compile(
+    r"^page:\n(?:[ \t]+.*\n)*?[ \t]+node_id:[ \t]*['\"]?([^'\"\s]+)", re.M
+)
+
+
+def brief_node_id(path: Path) -> str | None:
+    """The page.node_id a brief file carries, read from its head.
+
+    The page block is the first thing in every brief, so the id sits in the
+    first few kilobytes. Parsing a 300 KB brief whole to read one field made a
+    sweep of the corpus take minutes, and a YAML fault anywhere in the body
+    hid the id entirely - so a corrupt stale brief was never pruned. A file
+    whose head does not carry an id yields None and is left alone.
+    """
+    try:
+        with path.open("rb") as f:
+            head = f.read(4096).decode("utf-8", errors="ignore")
+    except OSError:
+        return None
+    m = _HEAD_NODE_ID.search(head)
+    return m.group(1) if m else None
+
+
 def write_brief(brief: dict, out_dir: Path) -> Path:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"{brief['page']['slug']}.yaml"
+    page = brief["page"]
+    path = out_dir / brief_relpath(page["node_type"], page["slug"])
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dump_brief_yaml(brief))
     return path
 
@@ -752,9 +800,12 @@ def default_briefs_dir() -> Path:
 
 
 def prune_retired_briefs(
-    conn: sqlite3.Connection, out_dir: Path, slug_map: dict | None = None
+    conn: sqlite3.Connection,
+    out_dir: Path,
+    slug_map: dict | None = None,
+    node_ids: set[str] | None = None,
 ) -> list[str]:
-    """Delete briefs whose node no longer exists or has been retired.
+    """Delete briefs whose node no longer exists, is retired, or has moved.
 
     Emission only ever WRITES, so a brief outlives the node it describes. A merge
     retires its victims and their briefs stay on disk pointing at a node that is
@@ -773,28 +824,48 @@ def prune_retired_briefs(
     retired, so the check above cannot see it; a node must have exactly one
     brief, and the one at its current slug is that brief.
 
-    Only RETIRED, ABSENT, or STALE-SLUG briefs are pruned. A brief for a live
-    node at its correct slug that is merely unproposed today is left alone - the
+    The PATH strands a brief the same way. A brief lives at <section>/<slug>.yaml
+    (brief_relpath); a file anywhere else for a live node - the pre-section flat
+    layout, or a section the node no longer publishes under - is removed on the
+    same rule: a node has exactly one brief, and the one at its current path is
+    that brief.
+
+    Only RETIRED, ABSENT, or MOVED briefs are pruned. A brief for a live node at
+    its correct path that is merely unproposed today is left alone - the
     proposal set moves with thresholds, and deleting on that basis would churn.
+
+    slug_map must be the GLOBAL map (build_slug_map): a partial one would make a
+    same-type collision loser look stranded at its own disambiguated slug. It is
+    built here when not supplied. node_ids restricts the sweep to the briefs of
+    those nodes, for the per-node emit.
     """
-    live = {r[0] for r in conn.execute("SELECT id FROM nodes WHERE retired_at IS NULL")}
+    live = {
+        r[0]: (r[1], r[2], r[3])
+        for r in conn.execute(
+            "SELECT id, node_type, name, metadata FROM nodes WHERE retired_at IS NULL"
+        )
+    }
+    if not slug_map:
+        slug_map, _ = build_slug_map(conn)
     removed: list[str] = []
-    for path in sorted(out_dir.glob("*.yaml")):
-        try:
-            doc = yaml.safe_load(path.read_text()) or {}
-        except yaml.YAMLError:
-            continue  # unreadable: leave it for a human, never delete blind
-        node_id = (doc.get("page") or {}).get("node_id")
+    for path in sorted(out_dir.glob("*.yaml")) + brief_files(out_dir):
+        node_id = brief_node_id(path)
         if not node_id:
+            continue  # no readable identity: leave it for a human, never delete blind
+        if node_ids is not None and node_id not in node_ids:
             continue
+        rel = path.relative_to(out_dir)
         if node_id not in live:
             path.unlink()
-            removed.append(path.name)
+            removed.append(str(rel))
             continue
-        current = (slug_map or {}).get(node_id)
-        if current and path.stem != current:
-            path.unlink()  # stranded by a rename; the node's brief is at `current`
-            removed.append(path.name)
+        node_type, name, metadata = live[node_id]
+        current = brief_relpath(
+            node_type, slug_map.get(node_id) or node_slug(name, metadata)
+        )
+        if rel != current:
+            path.unlink()  # stranded by a rename, a retype, or the old flat layout
+            removed.append(str(rel))
     return removed
 
 
@@ -849,11 +920,17 @@ def main(argv: list[str] | None = None) -> int:
     conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
     try:
         if args.node:
-            brief = build_entity_brief(conn, args.node)
+            # The global map, not the per-node canonical slug: a same-type
+            # collision loser emitted alone would otherwise land on the base
+            # slug and overwrite the winner's brief.
+            slug_map, _ = build_slug_map(conn)
+            brief = build_entity_brief(conn, args.node, slug_map)
             if brief is None:
                 print(f"No such node: {args.node}")
                 return 1
             print(f"Wrote {write_brief(brief, out_dir)}")
+            for name in prune_retired_briefs(conn, out_dir, slug_map, {args.node}):
+                print(f"Pruned {name} - the node's brief moved")
         else:
             result = emit_all(conn, out_dir, on_progress=print)
             print(f"Emitted {result['written']} briefs to {out_dir}")

@@ -641,10 +641,12 @@ def enumerate_review_queue(
 def _load_briefs(briefs_dir: Path | None) -> list[dict]:
     """Read the emitted briefs once (their page identity + brief_hash). Shared by
     the synthesise and assemble enumerators so the briefs dir is scanned once."""
+    from assimilator.synthesise import brief_files
+
     out: list[dict] = []
     if briefs_dir is None or not briefs_dir.is_dir():
         return out
-    for bf in sorted(briefs_dir.glob("*.yaml")):
+    for bf in brief_files(briefs_dir):
         try:
             brief = yaml.safe_load(bf.read_text()) or {}
         except (OSError, yaml.YAMLError):
@@ -716,11 +718,12 @@ def enumerate_synthesise_jobs(
 
 
 def _article_brief_hashes(content_dir: Path | None) -> tuple[set[str], set[str]]:
-    """(brief_hashes, slugs) for every assembled article.
+    """(brief_hashes, page refs) for every assembled article.
 
-    The hashes are each article's built_from freeze. The slugs say which pages
-    EXIST at all, which is what separates "never written" from "out of date" -
-    without them a rebuild is indistinguishable from a first build.
+    The hashes are each article's built_from freeze. The refs - "<section>/<slug>",
+    the two halves of a page's identity - say which pages EXIST at all, which is
+    what separates "never written" from "out of date"; without them a rebuild is
+    indistinguishable from a first build.
     """
     out: set[str] = set()
     slugs: set[str] = set()
@@ -738,7 +741,7 @@ def _article_brief_hashes(content_dir: Path | None) -> tuple[set[str], set[str]]
             fm = yaml.safe_load(parts[1]) or {}
         except yaml.YAMLError:
             continue
-        slugs.add(md.name.split(".", 1)[0])
+        slugs.add(f"{md.parent.name}/{md.name.split('.', 1)[0]}")
         built = fm.get("built_from") or {}
         if isinstance(built, dict) and built.get("brief_hash"):
             out.add(built["brief_hash"])
@@ -755,26 +758,34 @@ def enumerate_assemble_jobs(briefs: list[dict], content_dir: Path | None) -> lis
     different decision from a page that has never existed - one costs allowance to
     refresh something already readable, the other puts a missing page on the site -
     and calling both "never_done" hid that. On 2026-08-21, 28 of the 29 published
-    pages with briefs were stale rather than absent."""
-    assembled, existing_slugs = _article_brief_hashes(content_dir)
+    pages with briefs were stale rather than absent.
+
+    The id's tail is the brief REFERENCE, "<section>/<slug>": the runner hands it
+    to the assembler as-is and the assembler resolves it as a path under the
+    briefs directory. A slug alone named two pages where an event and a project
+    share a name (Apollo 14), so two jobs carried one id."""
+    from anomalica_common.slug import section_for
+
+    assembled, existing_pages = _article_brief_hashes(content_dir)
     jobs: list[Job] = []
     for brief in briefs:
         brief_hash = brief.get("brief_hash")
         page = brief.get("page") or {}
         if not brief_hash or brief_hash in assembled:
             continue
+        ref = (
+            f"{section_for(page.get('node_type') or '')}/{page['slug']}"
+            if page.get("slug")
+            else brief_hash[:12]
+        )
         jobs.append(
             Job(
-                id=f"assemble:{page.get('slug') or brief_hash[:12]}",
+                id=f"assemble:{ref}",
                 type="assemble",
                 lane=LANE_CLAUDE,
                 target=Target(kind="page", label=page.get("title") or "page"),
                 status=STATUS_ELIGIBLE,
-                trigger=(
-                    "stale_brief"
-                    if (page.get("slug") or "") in existing_slugs
-                    else "never_done"
-                ),
+                trigger="stale_brief" if ref in existing_pages else "never_done",
                 drivers=[Driver("claims", str(page.get("claim_count", "?")))],
             )
         )

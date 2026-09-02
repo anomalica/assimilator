@@ -1472,7 +1472,7 @@ def publish_briefs_cmd(
     import os
 
     from assimilator.publish_briefs import publish_briefs
-    from assimilator.synthesise import default_briefs_dir
+    from assimilator.synthesise import brief_files, default_briefs_dir
 
     briefs_dir = Path(briefs) if briefs else default_briefs_dir()
     store_dir = (
@@ -1498,7 +1498,7 @@ def publish_briefs_cmd(
 
         totals: dict[str, int] = {}
         n = 0
-        for path in sorted(briefs_dir.glob("*.yaml")):
+        for path in brief_files(briefs_dir):
             try:
                 brief = _load(path.read_text())
             except Exception:

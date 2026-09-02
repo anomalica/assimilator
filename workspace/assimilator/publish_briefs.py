@@ -213,41 +213,46 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
     - the node is RETIRED or gone, so the brief builds a page for something that
       no longer exists (kenneth-arnold-sighting and phoenix-lights, both merged
       away the same morning the published copies stayed);
-    - the brief sits at a STALE SLUG while the node has another brief at its
+    - the brief sits at a STALE PATH while the node has another brief at its
       current one, so one entity gets two pages. That is the Elizondo failure
-      exactly.
+      exactly. The path is <section>/<slug>.yaml (synthesise.brief_relpath), so
+      a rename, a retype, or a file left in the pre-section flat layout all
+      strand a brief the same way.
 
     Identified from the graph rather than from a list of filenames, so it stays
-    true as the graph moves.
+    true as the graph moves. `file` is the path relative to out_dir.
     """
-    from assimilator.synthesise import build_slug_map, node_slug
+    from assimilator.synthesise import (
+        brief_files,
+        brief_node_id,
+        brief_relpath,
+        build_slug_map,
+        node_slug,
+    )
 
     live = {
-        row[0]: (row[1], row[2])
+        row[0]: (row[1], row[2], row[3])
         for row in conn.execute(
-            "SELECT id, name, metadata FROM nodes WHERE retired_at IS NULL"
+            "SELECT id, node_type, name, metadata FROM nodes WHERE retired_at IS NULL"
         )
     }
-    slug_map = build_slug_map(conn)
-    if isinstance(slug_map, tuple):
-        slug_map = slug_map[0]
+    slug_map, _collisions = build_slug_map(conn)
     findings: list[dict] = []
-    for path in sorted(out_dir.glob("*.yaml")):
-        try:
-            doc = _load(path.read_text()) or {}
-        except (OSError, yaml.YAMLError):
-            continue
-        node_id = (doc.get("page") or {}).get("node_id")
+    for path in sorted(out_dir.glob("*.yaml")) + brief_files(out_dir):
+        node_id = brief_node_id(path)
         if not node_id:
             continue
+        rel = str(path.relative_to(out_dir))
         if node_id not in live:
-            findings.append({"file": path.name, "why": "node retired or absent"})
+            findings.append({"file": rel, "why": "node retired or absent"})
             continue
-        name, metadata = live[node_id]
-        current = slug_map.get(node_id) or node_slug(name, metadata)
-        if path.stem != current:
+        node_type, name, metadata = live[node_id]
+        current = brief_relpath(
+            node_type, slug_map.get(node_id) or node_slug(name, metadata)
+        )
+        if path.relative_to(out_dir) != current:
             findings.append(
-                {"file": path.name, "why": f"stale slug; node is now {current}"}
+                {"file": rel, "why": f"stale path; the node's brief is now {current}"}
             )
     return findings
 
@@ -255,7 +260,10 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
 def publish_briefs(
     briefs_dir: Path, out_dir: Path, store_dir: Path
 ) -> dict[str, object]:
-    """Write every brief to out_dir with excerpts redacted where required."""
+    """Write every brief to out_dir, at the same <section>/<slug>.yaml path it
+    holds in briefs_dir."""
+    from assimilator.synthesise import brief_files
+
     out_dir.mkdir(parents=True, exist_ok=True)
     totals: dict[str, int] = {}
     written = 0
@@ -266,19 +274,22 @@ def publish_briefs(
     # no output said so. Continue past the bad file so one brief cannot stop a
     # publish, but return the failures so the caller can fail loudly.
     unreadable: list[str] = []
-    for path in sorted(briefs_dir.glob("*.yaml")):
+    for path in brief_files(briefs_dir):
+        rel = path.relative_to(briefs_dir)
         try:
             brief = _load(path.read_text())
         except (OSError, yaml.YAMLError) as exc:
-            unreadable.append(f"{path.name}: {type(exc).__name__}")
+            unreadable.append(f"{rel}: {type(exc).__name__}")
             continue
         if not isinstance(brief, dict):
-            unreadable.append(f"{path.name}: not a mapping")
+            unreadable.append(f"{rel}: not a mapping")
             continue
         published, counts = redact_brief(brief, store_dir)
         for status, n in counts.items():
             totals[status] = totals.get(status, 0) + n
-        (out_dir / path.name).write_text(_dump(published))
+        dest = out_dir / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(_dump(published))
         written += 1
     return {
         "briefs": written,

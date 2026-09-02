@@ -37,14 +37,18 @@ _BUILT_FROM = re.compile(r"built_from:\s*\n\s*brief_hash:\s*(\S+)")
 
 
 def _briefs(briefs_dir: Path) -> dict[str, dict]:
+    """Briefs keyed by their path under briefs_dir, "<section>/<slug>.yaml"."""
+    from assimilator.synthesise import brief_files
+
     out: dict[str, dict] = {}
     if not briefs_dir.is_dir():
         return out
-    for f in sorted(briefs_dir.glob("*.yaml")):
+    for f in brief_files(briefs_dir):
+        key = str(f.relative_to(briefs_dir))
         try:
-            out[f.name] = yaml.safe_load(f.read_text()) or {}
+            out[key] = yaml.safe_load(f.read_text()) or {}
         except yaml.YAMLError:
-            out[f.name] = {}
+            out[key] = {}
     return out
 
 
@@ -137,15 +141,16 @@ def check_all(
     # 5. A page built from a brief the graph has moved past. Not an error - it is
     # the signal to rebuild - but it is invisible without asking.
     if content_dir and content_dir.is_dir():
+        # Both sides keyed "<section>/<slug>" - a slug alone is not a page.
         current = {n[:-5]: d.get("brief_hash") for n, d in briefs.items()}
         stale = []
         for page in sorted(content_dir.glob("*/*.en.md")):
-            slug = page.name[:-6]
-            if slug not in current:
+            ref = f"{page.parent.name}/{page.name[:-6]}"
+            if ref not in current:
                 continue
             m = _BUILT_FROM.search(page.read_text(errors="replace"))
-            if m and m.group(1) != current[slug]:
-                stale.append(slug)
+            if m and m.group(1) != current[ref]:
+                stale.append(ref)
         if stale:
             findings.append(
                 Finding(
@@ -153,7 +158,7 @@ def check_all(
                     "published pages whose brief has changed since they were built",
                     len(stale),
                     sorted(stale)[:5],
-                    "assembler --brief <slug> (costs a model call each)",
+                    "assembler --brief <section>/<slug> (costs a model call each)",
                 )
             )
     return findings
