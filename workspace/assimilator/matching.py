@@ -869,9 +869,14 @@ def person_name_tokens(name: str) -> list[str]:
     base = _PARENS_GROUP_RE.sub(" ", name.lower())
     # Surname-first input ("Eisenhower, Dwight D.") is put back in natural
     # order, so the family name is the last token whichever way it was written.
+    # A comma before a suffix ("Robert Seamans, Jr.") is not surname-first.
     if "," in base:
         family, _, given = base.partition(",")
-        base = f"{given} {family}"
+        given_tokens = [t for t in re.split(r"[\s.]+", given) if t]
+        if given_tokens and all(t in _NAME_SUFFIXES for t in given_tokens):
+            base = family
+        else:
+            base = f"{given} {family}"
 
     def _split(text: str) -> list[str]:
         return [
@@ -930,22 +935,28 @@ def _person_tokens_compatible(a: str, b: str) -> bool:
 
 
 def is_fuller_person_name(name: str, existing: str) -> bool:
-    """Whether `name` says everything `existing` says about a person, and more.
+    """Whether `name` supplies the given name that `existing` lacks.
 
     The graph keeps the first spelling it met as the canonical name and files
     later ones as aliases, so a node named "K. Day" stays "K. Day" after "Kevin
-    Day" arrives. This is the test for promoting the newcomer: every existing
-    token has a counterpart in order (equal, an initial of it, or its short
-    form), the newcomer carries more tokens, and it does not trade spelled-out
-    names for initials ("Kevin Day" is not bettered by "K. R. Day").
+    Day" arrives. This is the test for promoting the newcomer, and it is
+    deliberately narrow: the existing name must be DEFICIENT - its given name an
+    initial ("K. Day", "D. W. Pasulka") or absent - and the newcomer must spell
+    the given name out over the SAME family name. A name that already has a
+    given name and a family name is not bettered by a middle initial, a suffix
+    or a title: "Luis Elizondo" is the name readers look up, "Luis D. Elizondo
+    III" is not, and a first-arrival rule that reaches for the longest form
+    renamed forty people that way. Matching the family name exactly is what
+    keeps a wrong fuzzy match from becoming a wrong rename ("Charles Bowen" was
+    promoted to "Charles B. Moore" through "b." reading as Bowen's initial).
 
     >>> is_fuller_person_name("Kevin Day", "K. Day")
     True
-    >>> is_fuller_person_name("Harold E. Puthoff", "Hal Puthoff")
+    >>> is_fuller_person_name("Diana Walsh Pasulka", "D. W. Pasulka")
     True
-    >>> is_fuller_person_name("K. R. Day", "Kevin Day")
+    >>> is_fuller_person_name("Harold E. Puthoff", "Hal Puthoff")
     False
-    >>> is_fuller_person_name("Dave Fravor", "David Fravor")
+    >>> is_fuller_person_name("Charles B. Moore", "Charles Bowen")
     False
     >>> is_fuller_person_name("Lionel Browning's wife", "Lionel Browning")
     False
@@ -959,17 +970,15 @@ def is_fuller_person_name(name: str, existing: str) -> bool:
     words = [w for w in re.split(r"[\s/,]+", bare) if any(ch.isalpha() for ch in w)]
     if any(w[0].isalpha() and w[0].islower() for w in words):
         return False
-    new, old = person_name_tokens(name), person_name_tokens(existing)
-    if len(new) < len(old) or not old:
-        return False
-    spelled_new = sum(1 for t in new if not _is_initial(t))
-    spelled_old = sum(1 for t in old if not _is_initial(t))
-    if spelled_new < spelled_old:
-        return False
-    if len(new) == len(old) and spelled_new == spelled_old:
-        return False
     if is_record_scoped_person_name(name):
         return False
+    new, old = person_name_tokens(name), person_name_tokens(existing)
+    if len(old) < 2 or len(new) < 2 or new[-1] != old[-1]:
+        return False
+    if not _is_initial(old[0]) or _is_initial(new[0]):
+        return False
+    # Every existing token in order has a counterpart in the newcomer (the
+    # initials it spells out, or the same token).
     i = 0
     for token in old:
         while i < len(new) and not _person_tokens_compatible(token, new[i]):

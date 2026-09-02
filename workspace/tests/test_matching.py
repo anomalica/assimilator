@@ -1225,12 +1225,22 @@ def test_an_untyped_bare_name_can_still_reach_a_non_person():
 def test_the_fuller_person_name_wins():
     from assimilator.matching import is_fuller_person_name
 
+    # Promotion is for a DEFICIENT name: an initial or nothing where the given
+    # name should be, spelled out by the newcomer over the same family name.
     assert is_fuller_person_name("Kevin Day", "K. Day")
-    assert is_fuller_person_name("Harold E. Puthoff", "Hal Puthoff")
-    assert is_fuller_person_name("Kevin R. Day", "Kevin Day")
+    assert is_fuller_person_name("Diana Walsh Pasulka", "D. W. Pasulka")
+    assert is_fuller_person_name("Marshal Ward", "M. Ward")
+    # A name that already has a given name is not bettered by more of it.
+    assert not is_fuller_person_name("Harold E. Puthoff", "Hal Puthoff")
+    assert not is_fuller_person_name("Kevin R. Day", "Kevin Day")
+    assert not is_fuller_person_name("Luis D. Elizondo III", "Luis Elizondo")
+    assert not is_fuller_person_name("Pope John XXIII", "John XXIII")
     assert not is_fuller_person_name("K. R. Day", "Kevin Day")
     assert not is_fuller_person_name("Dave Fravor", "David Fravor")
     assert not is_fuller_person_name("Kevin Day", "Kevin Day")
+    # The family name must be the same one: "b." is not Bowen's initial.
+    assert not is_fuller_person_name("Charles B. Moore", "Charles Bowen")
+    assert not is_fuller_person_name("C. Fred Kleinknecht, Sr.", "C. Fred Kleinknecht")
     # A description that fuzzy-matches a name is not a fuller name.
     assert not is_fuller_person_name("Lionel Browning's wife", "Lionel Browning")
     assert not is_fuller_person_name("Lionel Browning the elder", "Lionel Browning")
