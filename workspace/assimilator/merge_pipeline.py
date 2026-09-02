@@ -138,6 +138,8 @@ def make_plan(
         "verify_calls": est["calls"],
         "input_tokens": est["input_tokens"],
         "output_tokens": est["output_tokens"],
+        "cached_context_tokens": est["cached_context_tokens"],
+        "notional_usd": est["notional_usd"],
         "embed_texts": len(sl["profiles"]),
     }
 
@@ -149,6 +151,8 @@ def plan_line(plan: dict) -> str:
         "verify_calls",
         "input_tokens",
         "output_tokens",
+        "cached_context_tokens",
+        "notional_usd",
         "embed_texts",
         "rules_dropped",
     )

@@ -35,7 +35,14 @@ PAIRS_PER_CALL = 20
 CHARS_PER_TOKEN = (
     2.7  # brief_size's ratio; a JSON-and-prose prompt tokenises about as densely
 )
-OUTPUT_TOKENS_PER_PAIR = 45  # {"pair_id", "same", one-sentence reason}
+OUTPUT_TOKENS_PER_PAIR = 200  # measured 2026-09-03: 101,891 output tokens for 500 pairs
+# Each subscription CLI call carries the CLI's own context on top of the prompt:
+# measured on the 25 calls of the first 500 pairs, 877k cache-creation and
+# 1.83M cache-read tokens = about 108,000 a call, and a notional $0.10 a call
+# at the transport's own accounting. My first estimate counted the prompt
+# only and was an order of magnitude low; the per-call term is the cost.
+CONTEXT_TOKENS_PER_CALL = 108_000
+NOTIONAL_USD_PER_CALL = 0.10
 
 PROMPT = """You are checking a knowledge graph about anomalous phenomena for duplicate nodes. For each numbered pair below, decide whether the two entries refer to the SAME real-world entity - the same person, organisation, project, event, place, object, document or topic, possibly under different names, spellings, acronyms or nicknames - or to DIFFERENT entities.
 
@@ -102,11 +109,14 @@ def render(conn: sqlite3.Connection, batch: list[dict]) -> str:
 
 def estimate(prompts: list[str], pairs: int) -> dict:
     chars = sum(len(p) for p in prompts)
+    calls = len(prompts)
     return {
-        "calls": len(prompts),
+        "calls": calls,
         "pairs": pairs,
         "input_tokens": int(chars / CHARS_PER_TOKEN),
         "output_tokens": pairs * OUTPUT_TOKENS_PER_PAIR,
+        "cached_context_tokens": calls * CONTEXT_TOKENS_PER_CALL,
+        "notional_usd": round(calls * NOTIONAL_USD_PER_CALL, 2),
         "chars": chars,
     }
 
@@ -218,7 +228,10 @@ def main(argv: list[str] | None = None) -> int:
         f"band: {len(pairs)} pairs (top {args.top or 'all'} of the combined band beyond the rules); already decided {len(done)}; to do {len(to_do)}"
     )
     print(
-        f"estimate: {est['calls']} calls, ~{est['input_tokens']:,} input tokens, ~{est['output_tokens']:,} output tokens, model {args.model} on the subscription"
+        f"estimate: {est['calls']} calls, ~{est['input_tokens']:,} prompt tokens, "
+        f"~{est['cached_context_tokens']:,} cached CLI context tokens, "
+        f"~{est['output_tokens']:,} output tokens, notional ${est['notional_usd']:.2f}, "
+        f"model {args.model} on the subscription"
     )
     if not args.run:
         print("dry run: nothing called. --run --confirm to spend (Mark's clearance).")
