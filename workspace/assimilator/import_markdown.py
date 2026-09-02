@@ -717,7 +717,9 @@ def import_extraction(
             "UPDATE records SET metadata = COALESCE(?, metadata), title = ?, "
             "reference = COALESCE(?, reference), date = COALESCE(?, date) WHERE id = ?",
             (
-                json.dumps(refreshed) if refreshed else None,
+                # default=str as insert_record does: the digester's record block
+                # carries dates YAML parses as date objects.
+                json.dumps(refreshed, default=str) if refreshed else None,
                 record_title,
                 fm.get("record_reference"),
                 str(fm["record_date"]) if fm.get("record_date") else None,

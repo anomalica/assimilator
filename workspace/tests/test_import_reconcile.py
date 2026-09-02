@@ -328,8 +328,12 @@ def test_a_record_renamed_by_a_redigest_is_the_same_record():
     first = _parsed([_claim("c1", "Held radar 12 min.")])
     import_extraction(conn, first)
 
+    import datetime
+
     renamed = _parsed([_claim("c1", "Held radar 12 min.")])
     renamed["frontmatter"]["record_title"] = "Interview with the radar operator"
+    # The refreshed record block carries dates YAML parses as date objects.
+    renamed["frontmatter"]["record"] = {"published_date": datetime.date(2017, 12, 16)}
     counts = import_extraction(conn, renamed)
 
     rows = conn.execute("SELECT id, title FROM records").fetchall()
