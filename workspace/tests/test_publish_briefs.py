@@ -143,13 +143,15 @@ def test_the_source_brief_on_disk_is_never_modified(tmp_path):
     briefs = tmp_path / "briefs"
     briefs.mkdir()
     original = _brief("a" * 64)
-    (briefs / "x.yaml").write_text(yaml.safe_dump(original))
+    (briefs / "events").mkdir()
+    (briefs / "events" / "x.yaml").write_text(yaml.safe_dump(original))
 
     stats = publish_briefs(briefs, tmp_path / "out", store)
 
-    on_disk = yaml.safe_load((briefs / "x.yaml").read_text())
+    on_disk = yaml.safe_load((briefs / "events" / "x.yaml").read_text())
     assert on_disk["claims"][0]["original_excerpt"] == "VERBATIM SOURCE TEXT 0"
-    published = yaml.safe_load((tmp_path / "out" / "x.yaml").read_text())
+    # Published at the same <section>/<slug>.yaml path it holds in the source.
+    published = yaml.safe_load((tmp_path / "out" / "events" / "x.yaml").read_text())
     assert published["claims"][0]["original_excerpt"] == "VERBATIM SOURCE TEXT 0"
     assert stats == {
         "briefs": 1,
@@ -197,15 +199,18 @@ def test_an_unreadable_brief_is_reported_not_skipped(tmp_path):
     store = _store(tmp_path, {"a" * 64: "public_domain"})
     briefs = tmp_path / "briefs"
     briefs.mkdir()
-    (briefs / "good.yaml").write_text(yaml.safe_dump(_brief("a" * 64)))
-    (briefs / "broken.yaml").write_text("claims:\n- content: 'unterminated\n")
-    (briefs / "notamapping.yaml").write_text("- just\n- a list\n")
+    (briefs / "events").mkdir()
+    (briefs / "events" / "good.yaml").write_text(yaml.safe_dump(_brief("a" * 64)))
+    (briefs / "events" / "broken.yaml").write_text(
+        "claims:\n- content: 'unterminated\n"
+    )
+    (briefs / "events" / "notamapping.yaml").write_text("- just\n- a list\n")
 
     stats = publish_briefs(briefs, tmp_path / "out", store)
 
     assert stats["briefs"] == 1
     assert len(stats["unreadable"]) == 2
-    assert any(u.startswith("broken.yaml") for u in stats["unreadable"])
+    assert any(u.startswith("events/broken.yaml") for u in stats["unreadable"])
     assert any("not a mapping" in u for u in stats["unreadable"])
 
 
@@ -249,19 +254,24 @@ def test_a_published_brief_the_graph_moved_past_is_reported(tmp_path):
     init_db(conn)
     insert_node(conn, Node(id="LIVE", node_type=NodeType.event, name="Kept Event"))
     out = tmp_path / "published"
-    out.mkdir()
-    (out / "kept-event.yaml").write_text(
+    (out / "events").mkdir(parents=True)
+    (out / "events" / "kept-event.yaml").write_text(
         yaml.safe_dump({"page": {"node_id": "LIVE", "slug": "kept-event"}})
     )
-    (out / "gone-event.yaml").write_text(
+    (out / "events" / "gone-event.yaml").write_text(
         yaml.safe_dump({"page": {"node_id": "RETIRED", "slug": "gone-event"}})
     )
-    (out / "old-name.yaml").write_text(
+    (out / "events" / "old-name.yaml").write_text(
         yaml.safe_dump({"page": {"node_id": "LIVE", "slug": "old-name"}})
+    )
+    # The pre-section flat layout: the same node, stranded by the path alone.
+    (out / "kept-event.yaml").write_text(
+        yaml.safe_dump({"page": {"node_id": "LIVE", "slug": "kept-event"}})
     )
 
     found = {f["file"]: f["why"] for f in unbuildable_in(out, conn)}
 
-    assert "kept-event.yaml" not in found
-    assert found["gone-event.yaml"] == "node retired or absent"
-    assert "stale slug" in found["old-name.yaml"]
+    assert "events/kept-event.yaml" not in found
+    assert found["events/gone-event.yaml"] == "node retired or absent"
+    assert "stale path" in found["events/old-name.yaml"]
+    assert "events/kept-event.yaml" in found["kept-event.yaml"]

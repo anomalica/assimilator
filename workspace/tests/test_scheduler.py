@@ -547,3 +547,55 @@ def test_a_digest_with_the_record_block_out_of_order_still_resolves(tmp_path):
     index = scheduler._digest_index(digests)
 
     assert index["f" * 64]["record_id"] == "r2"
+
+
+def test_two_types_sharing_a_name_both_settle(tmp_path):
+    """An event and a project both called "Apollo 14", both proposed. Their
+    briefs shared one slug and so one FILE; the scheduler matched by node_id,
+    found whichever node had not written last, re-emitted it, and the pair
+    alternated forever - each round a full queue rebuild. With the brief path
+    carrying the section, one emit settles both, and the two assemble jobs
+    carry distinct ids (the id tail is the brief reference the runner hands to
+    the assembler, so it must name the page, not the slug)."""
+    from assimilator import synthesise
+
+    ingests, digests, sources = _corpus(tmp_path)
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R", content_hash="sha256:" + H1))
+    for nid, ntype in (("ev-1", "event"), ("pr-1", "project")):
+        insert_node(conn, Node(id=nid, name="Apollo 14", node_type=ntype))
+        for i in range(2):
+            insert_claim(
+                conn,
+                Claim(
+                    id=f"{nid}-c{i}",
+                    content=f"claim {i}",
+                    claim_type="testimony",
+                    record_id="r1",
+                    node_references=[nid],
+                ),
+            )
+        conn.execute(
+            "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
+            "source_count, status, computed_at) VALUES (?, ?, 'page-worthy', 2, 1, "
+            "'proposed', 'T')",
+            (nid, ntype),
+        )
+    conn.commit()
+    briefs = tmp_path / "briefs"
+
+    q1 = scheduler.build_queue(conn, ingests, digests, sources, "T", briefs_dir=briefs)
+    assert sorted(j["id"] for j in q1["jobs"] if j["type"] == "synthesise") == [
+        "synthesise:ev-1",
+        "synthesise:pr-1",
+    ]
+
+    synthesise.emit_all(conn, briefs)
+    q2 = scheduler.build_queue(conn, ingests, digests, sources, "T", briefs_dir=briefs)
+
+    assert not [j for j in q2["jobs"] if j["type"] == "synthesise"]
+    assert sorted(j["id"] for j in q2["jobs"] if j["type"] == "assemble") == [
+        "assemble:events/apollo-14",
+        "assemble:projects/apollo-14",
+    ]

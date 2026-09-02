@@ -39,8 +39,8 @@ def _graph():
 
 def _brief(tmp_path, node_id, claims):
     d = tmp_path / "briefs"
-    d.mkdir(exist_ok=True)
-    (d / "someone.yaml").write_text(
+    (d / "people").mkdir(parents=True, exist_ok=True)
+    (d / "people" / "someone.yaml").write_text(
         yaml.safe_dump(
             {
                 "page": {"node_id": node_id, "slug": "someone", "title": "Someone"},
@@ -57,15 +57,15 @@ def test_a_page_built_from_the_current_claims_reads_as_current(tmp_path):
     live = dict(conn.execute("SELECT id, claim_hash FROM claims"))
     manifest = staleness_manifest(conn, _brief(tmp_path, "n1", live))
 
-    assert manifest["pages"]["someone"]["pct"] == 0.0
-    assert manifest["pages"]["someone"]["node_state"] == "live"
+    assert manifest["pages"]["people/someone"]["pct"] == 0.0
+    assert manifest["pages"]["people/someone"]["node_state"] == "live"
 
 
 def test_drift_is_reported_when_the_graph_has_moved(tmp_path):
     conn = _graph()
     manifest = staleness_manifest(conn, _brief(tmp_path, "n1", {"gone-id": "oldhash"}))
 
-    page = manifest["pages"]["someone"]
+    page = manifest["pages"]["people/someone"]
     assert page["pct"] == 100.0
     assert page["gone"] == 1
     assert page["added"] == 2
@@ -82,7 +82,7 @@ def test_a_merged_away_node_is_superseded_not_stale(tmp_path):
 
     manifest = staleness_manifest(conn, _brief(tmp_path, "n1", {"x": "y"}))
 
-    assert manifest["pages"]["someone"]["node_state"] == "retired"
+    assert manifest["pages"]["people/someone"]["node_state"] == "retired"
 
 
 def test_a_brief_with_no_node_is_skipped_rather_than_scored(tmp_path):
@@ -90,8 +90,8 @@ def test_a_brief_with_no_node_is_skipped_rather_than_scored(tmp_path):
     fabrication rather than a measurement."""
     conn = _graph()
     d = tmp_path / "briefs"
-    d.mkdir()
-    (d / "rec.yaml").write_text(
+    (d / "records").mkdir(parents=True)
+    (d / "records" / "rec.yaml").write_text(
         yaml.safe_dump({"page": {"slug": "rec", "kind": "record"}, "claims": []})
     )
 
@@ -125,7 +125,7 @@ def test_an_unhashed_claim_counts_rather_than_disappearing(tmp_path):
 
     manifest = staleness_manifest(conn, _brief(tmp_path, "n1", frozen))
 
-    page = manifest["pages"]["someone"]
+    page = manifest["pages"]["people/someone"]
     assert page["current_total"] == 2, "the unhashed claim is still in the graph"
     assert page["added"] == 1, "and shows as material the brief has not seen"
 

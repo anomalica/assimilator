@@ -4,9 +4,9 @@ import sqlite3
 
 import yaml
 
-from anomalica_common.digest.models import Node, NodeType
+from anomalica_common.digest.models import Claim, Node, NodeType, Record
 from assimilator import synthesise
-from assimilator.database import init_db, insert_node
+from assimilator.database import init_db, insert_claim, insert_node, insert_record
 
 
 def test_prune_removes_briefs_for_retired_and_renamed_nodes(tmp_path):
@@ -31,14 +31,18 @@ def test_prune_removes_briefs_for_retired_and_renamed_nodes(tmp_path):
     insert_node(conn, Node(id="dead-1", name="Lou Elizondo", node_type=NodeType.person))
     conn.execute("UPDATE nodes SET retired_at = '2026-08-20' WHERE id = 'dead-1'")
 
-    for stem, node_id in (
-        ("luis-elizondo", "live-1"),  # current: kept
-        ("lue-elizondo", "live-1"),  # stranded by the rename: pruned
-        ("lou-elizondo", "dead-1"),  # retired node: pruned
-        ("someone-else", "absent-1"),  # node not in the graph at all: pruned
+    for rel, node_id in (
+        ("people/luis-elizondo", "live-1"),  # current: kept
+        ("people/lue-elizondo", "live-1"),  # stranded by the rename: pruned
+        ("people/lou-elizondo", "dead-1"),  # retired node: pruned
+        ("people/someone-else", "absent-1"),  # node not in the graph at all: pruned
+        ("luis-elizondo", "live-1"),  # the pre-section flat layout: pruned
+        ("organisations/luis-elizondo", "live-1"),  # wrong section: pruned
     ):
-        (tmp_path / f"{stem}.yaml").write_text(
-            yaml.safe_dump({"page": {"node_id": node_id, "slug": stem}})
+        path = tmp_path / f"{rel}.yaml"
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(
+            yaml.safe_dump({"page": {"node_id": node_id, "slug": rel.split("/")[-1]}})
         )
 
     removed = synthesise.prune_retired_briefs(
@@ -46,11 +50,13 @@ def test_prune_removes_briefs_for_retired_and_renamed_nodes(tmp_path):
     )
 
     assert sorted(removed) == [
-        "lou-elizondo.yaml",
-        "lue-elizondo.yaml",
-        "someone-else.yaml",
+        "luis-elizondo.yaml",
+        "organisations/luis-elizondo.yaml",
+        "people/lou-elizondo.yaml",
+        "people/lue-elizondo.yaml",
+        "people/someone-else.yaml",
     ]
-    assert (tmp_path / "luis-elizondo.yaml").exists()
+    assert (tmp_path / "people" / "luis-elizondo.yaml").exists()
 
 
 def test_prune_never_deletes_an_unreadable_brief(tmp_path):
@@ -62,6 +68,80 @@ def test_prune_never_deletes_an_unreadable_brief(tmp_path):
     bad.write_text("{{{ not yaml")
     assert synthesise.prune_retired_briefs(conn, tmp_path, slug_map={}) == []
     assert bad.exists()
+
+
+def _claimed(conn, node_id: str, n: int, record: str = "r1") -> None:
+    for i in range(n):
+        insert_claim(
+            conn,
+            Claim(
+                id=f"{node_id}-c{i}",
+                content=f"claim {i} about {node_id}",
+                claim_type="testimony",
+                record_id=record,
+                node_references=[node_id],
+            ),
+        )
+
+
+def _two_types_one_name(tmp_path):
+    """An event and a project both called "Apollo 14", both proposed. The live
+    graph held exactly this on 2026-09-02, plus SETI as a project and a topic."""
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R", content_hash="sha256:aa"))
+    insert_node(conn, Node(id="ev-1", name="Apollo 14", node_type=NodeType.event))
+    insert_node(conn, Node(id="pr-1", name="Apollo 14", node_type=NodeType.project))
+    _claimed(conn, "ev-1", 2)
+    _claimed(conn, "pr-1", 2)
+    for nid, t in (("ev-1", "event"), ("pr-1", "project")):
+        conn.execute(
+            "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
+            "source_count, status, computed_at) VALUES (?, ?, 'page-worthy', 2, 1, "
+            "'proposed', 'T')",
+            (nid, t),
+        )
+    conn.commit()
+    return conn
+
+
+def test_two_types_sharing_a_name_get_two_briefs(tmp_path):
+    """The slug is disambiguated only within a type - /events/apollo-14 and
+    /projects/apollo-14 never clash as URLs - so the brief PATH must carry the
+    section too. Keyed on the slug alone, the two pages had one file, whichever
+    node wrote last owned it, and the scheduler re-emitted the other forever."""
+    conn = _two_types_one_name(tmp_path)
+    out = tmp_path / "briefs"
+
+    result = synthesise.emit_all(conn, out)
+
+    assert result["written"] == 2
+    assert (out / "events" / "apollo-14.yaml").is_file()
+    assert (out / "projects" / "apollo-14.yaml").is_file()
+    assert synthesise.brief_node_id(out / "events" / "apollo-14.yaml") == "ev-1"
+    assert synthesise.brief_node_id(out / "projects" / "apollo-14.yaml") == "pr-1"
+    assert synthesise.prune_retired_briefs(conn, out) == []
+
+
+def test_a_single_node_emit_uses_the_global_slug_map(tmp_path):
+    """Two PROJECTS called "Apollo 14" collide within a type, so the loser's
+    slug carries a node-id suffix. Emitted alone (the scheduler runs synthesise
+    per node), the loser used to take the per-node canonical slug - the base -
+    and overwrite the winner's brief."""
+    conn = _two_types_one_name(tmp_path)
+    insert_node(conn, Node(id="pr-2", name="Apollo 14", node_type=NodeType.project))
+    _claimed(conn, "pr-2", 2)
+    conn.commit()
+    db = tmp_path / "graph.db"
+    disk = sqlite3.connect(db)
+    conn.backup(disk)
+    disk.close()
+    out = tmp_path / "briefs"
+
+    assert synthesise.main(["--db", str(db), "--out", str(out), "--node", "pr-2"]) == 0
+
+    assert (out / "projects" / "apollo-14-pr-2.yaml").is_file()
+    assert not (out / "projects" / "apollo-14.yaml").exists()
 
 
 def _row(claim_id, attestation=None, speaker=None, work="w1"):
