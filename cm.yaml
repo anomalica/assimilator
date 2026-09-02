@@ -32,6 +32,7 @@ stages:
       - apt-get:
           install:
             - gcc
+            - libc6-dev  # gcc alone (no recommends) has no stdio.h; Triton's helper needs it
   development:
     from: base
     runtime:

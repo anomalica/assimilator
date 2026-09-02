@@ -51,7 +51,9 @@ ENV EMBEDDING_MODEL_PATH="/opt/models/qwen3-embedding" \
 RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('electroglyph/Qwen3-Embedding-0.6B-onnx-uint8', local_dir='/opt/models/qwen3-embedding')" && \
     python -c "from huggingface_hub import snapshot_download; snapshot_download('cross-encoder/ms-marco-MiniLM-L-6-v2', local_dir='/opt/models/ms-marco-minilm')"
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc && \
+    apt-get install -y --no-install-recommends \
+        gcc \
+        libc6-dev && \
     rm -rf /var/lib/apt/lists/*
 # Pre-compile .pyc bytecode so imports don't pay the compile cost on every
 # startup; the runtime user can't write .pyc back to root-owned site-packages.
