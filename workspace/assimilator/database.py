@@ -269,6 +269,10 @@ CREATE TABLE IF NOT EXISTS page_proposals (
     -- the confidence in that number: 5% unscored and 60% unscored both yield a
     -- count, and only the first should be trusted.
     unscored_claims INTEGER,
+    -- Claims that are ABOUT the node (it is the grammatical subject) rather than
+    -- merely mentioning it. Gated for person/organisation/object, reported for
+    -- the rest - see page_gate._subject_counts.
+    subject_claims INTEGER,
     status TEXT NOT NULL,
     computed_at TEXT NOT NULL
 );
@@ -371,6 +375,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             "top_source_claims",
             "second_source_claims",
             "unscored_claims",
+            "subject_claims",
         ):
             if column not in proposal_cols:
                 conn.execute(f"ALTER TABLE page_proposals ADD COLUMN {column} INTEGER")
@@ -380,7 +385,7 @@ def init_db(conn: sqlite3.Connection) -> None:
 
 def insert_node(conn: sqlite3.Connection, node: Node) -> Node:
     now = _now()
-    metadata_json = json.dumps(node.metadata) if node.metadata else None
+    metadata_json = json.dumps(node.metadata, default=str) if node.metadata else None
     conn.execute(
         "INSERT INTO nodes (id, node_type, name, metadata, created_at) VALUES (?, ?, ?, ?, ?)",
         (node.id, node.node_type.value, node.name, metadata_json, now),
@@ -461,7 +466,9 @@ def insert_alias(conn: sqlite3.Connection, alias: str, node_id: str) -> None:
 
 def insert_record(conn: sqlite3.Connection, record: Record) -> Record:
     now = _now()
-    metadata_json = json.dumps(record.metadata) if record.metadata else None
+    metadata_json = (
+        json.dumps(record.metadata, default=str) if record.metadata else None
+    )
     conn.execute(
         "INSERT INTO records "
         "(id, title, reference, date, producer_id, content_hash, friendly_name, "
@@ -511,7 +518,7 @@ def insert_claim(
     # created_at is overridable so a carried-forward claim keeps its original
     # timestamp across a re-import (the row is rewritten, not first-seen).
     now = created_at or _now()
-    metadata_json = json.dumps(claim.metadata) if claim.metadata else None
+    metadata_json = json.dumps(claim.metadata, default=str) if claim.metadata else None
     chain = claim.provenance_chain
     ent = entailment or {}
     conn.execute(
