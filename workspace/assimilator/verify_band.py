@@ -41,9 +41,7 @@ PROMPT = """You are checking a knowledge graph about anomalous phenomena for dup
 
 Related but distinct things are DIFFERENT: a person and their organisation, a parent and a child, a ship and an incident aboard it, a mission and one event during it, a report and the investigation that produced it, a paper and its author, two numbered missions in one programme, a place and a thing at it, two members of one family. When the entries do not establish that they are one thing, answer different.
 
-Return JSON only: {{"decisions": [{{"pair_id": 1, "same": true, "reason": "one sentence"}}, ...]}} with one decision per pair, in order.
-
-{pairs}"""
+The numbered pairs are in the document. Return JSON only: {"decisions": [{"pair_id": 1, "same": true, "reason": "one sentence"}, ...]} with one decision per pair, in order."""
 
 SCHEMA = {
     "type": "object",
@@ -99,7 +97,7 @@ def render(conn: sqlite3.Connection, batch: list[dict]) -> str:
         if a is None or b is None:
             continue
         lines.append(f"PAIR {i}\nA:\n{a.text()}\nB:\n{b.text()}\n")
-    return PROMPT.format(pairs="\n".join(lines))
+    return "\n".join(lines)
 
 
 def estimate(prompts: list[str], pairs: int) -> dict:
@@ -134,8 +132,8 @@ def run_batches(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("a") as f:
         for batch in batches(to_do):
-            prompt = render(conn, batch)
-            raw = call(prompt, "", model, schema=SCHEMA, use_api=use_api)
+            document = render(conn, batch)
+            raw = call(PROMPT, document, model, schema=SCHEMA, use_api=use_api)
             counts["calls"] += 1
             try:
                 data = parse(raw)
@@ -214,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
     done = decided(Path(args.out))
     to_do = [f for f in pairs if tuple(f["pair"]) not in done]
-    prompts = [render(conn, b) for b in batches(to_do)]
+    prompts = [PROMPT + render(conn, b) for b in batches(to_do)]
     est = estimate(prompts, len(to_do))
     print(
         f"band: {len(pairs)} pairs (top {args.top or 'all'} of the combined band beyond the rules); already decided {len(done)}; to do {len(to_do)}"

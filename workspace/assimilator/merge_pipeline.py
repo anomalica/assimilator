@@ -124,7 +124,10 @@ def make_plan(
         {"pair": list(p), **{k_: scores[p][k_] for k_ in ("names_only", "with_claims")}}
         for p in band
     ]
-    prompts = [verify_band.render(conn, b) for b in verify_band.batches(items)]
+    prompts = [
+        verify_band.PROMPT + verify_band.render(conn, b)
+        for b in verify_band.batches(items)
+    ]
     est = verify_band.estimate(prompts, len(items))
     return {
         "shortlist_pairs": len(pairs),

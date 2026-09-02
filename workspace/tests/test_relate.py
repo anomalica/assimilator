@@ -82,7 +82,7 @@ def test_render_numbers_pairs_and_cuts_a_big_side_to_the_claims_that_took_part()
             (("ra", "rc"), None),
         ],
     )
-    assert prompt.startswith("You are comparing the extracted claims")
+    assert relate.PROMPT.startswith("You are comparing the extracted claims")
     assert "PAIR 1\nRECORD A:" in prompt and "PAIR 2\nRECORD A:" in prompt
     assert "[rb-0] (testimony) the operation lured" in prompt
     assert "filler" not in prompt  # the big side is cut to its neighbours
@@ -94,8 +94,11 @@ def test_verdicts_are_stored_including_unrelated_and_not_rejudged():
     calls = []
 
     def call(prompt, text, model, schema=None, use_api=None):
-        calls.append(prompt)
-        assert "PAIR 1" in prompt and "PAIR 2" in prompt  # both pairs in one call
+        calls.append(text)
+        assert prompt == relate.PROMPT
+        assert (
+            "PAIR 1" in text and "PAIR 2" in text
+        )  # both pairs in one call, in the document
         return json.dumps(
             {
                 "decisions": [
@@ -196,7 +199,7 @@ def test_a_positive_survives_only_if_a_fresh_batch_reproduces_it():
     def call(prompt, text, model, schema=None, use_api=None):
         # Whatever the order, ra~rb is reproduced and ra~rc is not.
         decisions = []
-        for n, block in enumerate(prompt.split("PAIR ")[1:], 1):
+        for n, block in enumerate(text.split("PAIR ")[1:], 1):
             verdict = (
                 "unrelated"
                 if ("[rc-0]" in block and "[rb-0]" not in block)

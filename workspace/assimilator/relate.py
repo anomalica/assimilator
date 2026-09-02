@@ -58,9 +58,7 @@ Not a shared subject: the same speaker or outlet, the same period or administrat
 
 Give the shared specific thing as one short noun phrase with its date or place (empty if unrelated), a two-sentence reason that quotes the pinning particular from each side, and up to 6 claim-id pairs that carry the connection.
 
-Judge each numbered pair below on its own; the pairs have nothing to do with one another. Return JSON only: {{"decisions": [{{"pair_id": 1, "verdict": ..., "shared_subject": ..., "reason": ..., "links": [...]}}, ...]}} with one decision per pair, in order.
-
-{PAIRS}
+The numbered pairs are in the document. Judge each on its own; the pairs have nothing to do with one another. Return JSON only: {"decisions": [{"pair_id": 1, "verdict": ..., "shared_subject": ..., "reason": ..., "links": [...]}, ...]} with one decision per pair, in order.
 """
 
 PAIR_BLOCK = """PAIR {n}
@@ -202,7 +200,9 @@ def claim_lines(
 def render(
     conn: sqlite3.Connection, batch: list[tuple[tuple[str, str], dict | None]]
 ) -> str:
-    """One prompt for a batch of pairs, numbered from 1."""
+    """The document for a batch of pairs, numbered from 1. It travels as the
+    transport's `text` - a file the model reads - not on the command line,
+    which has an argument limit a six-pair batch exceeds."""
     blocks = []
     for n, ((a, b), entry) in enumerate(batch, 1):
         ka = (entry or {}).get("claims_a")
@@ -214,7 +214,7 @@ def render(
                 B="\n".join(claim_lines(conn, b, kb)),
             )
         )
-    return PROMPT.format(PAIRS="\n".join(blocks))
+    return "\n".join(blocks)
 
 
 def batches(items: list, size: int = PAIRS_PER_CALL) -> list[list]:
@@ -283,9 +283,9 @@ def store_confirmation(conn: sqlite3.Connection, a: str, b: str, result: dict) -
 def _decisions(
     conn, batch, model: str, use_api, call, parse
 ) -> tuple[str, dict[int, dict]]:
-    prompt = render(conn, batch)
-    data = parse(call(prompt, "", model, schema=SCHEMA, use_api=use_api))
-    return prompt, {
+    document = render(conn, batch)
+    data = parse(call(PROMPT, document, model, schema=SCHEMA, use_api=use_api))
+    return PROMPT + document, {
         d.get("pair_id"): d for d in data.get("decisions", []) if isinstance(d, dict)
     }
 

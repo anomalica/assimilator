@@ -68,8 +68,9 @@ def test_a_live_run_writes_verdicts_and_merges_nothing(tmp_path):
     calls = []
 
     def fake_call(prompt, text, model, schema=None, use_api=None):
-        calls.append(prompt)
-        assert "PAIR 1" in prompt and "Lockheed U-2" in prompt
+        calls.append(text)
+        assert prompt == verify_band.PROMPT
+        assert "PAIR 1" in text and "Lockheed U-2" in text
         return json.dumps(
             {"decisions": [{"pair_id": 1, "same": True, "reason": "one aircraft"}]}
         )
