@@ -992,16 +992,19 @@ def same_record_person(
     one of the record's people carries it ("Fravor" in a record that declares
     "David Fravor" is that man; in a record with two Fravors it is nobody).
     """
+    # Start from the record's own node set (indexed by record) rather than
+    # testing every person in the graph against it: this runs once per bare
+    # name in every record, and the graph has thousands of people.
     people = conn.execute(
         """
         SELECT DISTINCT n.id, n.name FROM nodes n
+          JOIN (SELECT node_id FROM record_nodes WHERE record_id = ?
+                UNION SELECT speaker_id FROM claims
+                       WHERE record_id = ? AND speaker_id IS NOT NULL
+                UNION SELECT r.node_id FROM claims c
+                       JOIN claim_node_refs r ON r.claim_id = c.id
+                       WHERE c.record_id = ?) x ON x.node_id = n.id
          WHERE n.retired_at IS NULL AND n.node_type = 'person'
-           AND (EXISTS (SELECT 1 FROM record_nodes rn
-                         WHERE rn.node_id = n.id AND rn.record_id = ?)
-             OR EXISTS (SELECT 1 FROM claims c
-                         WHERE c.speaker_id = n.id AND c.record_id = ?)
-             OR EXISTS (SELECT 1 FROM claim_node_refs r JOIN claims c ON c.id = r.claim_id
-                         WHERE r.node_id = n.id AND c.record_id = ?))
         """,
         (record_id, record_id, record_id),
     ).fetchall()
