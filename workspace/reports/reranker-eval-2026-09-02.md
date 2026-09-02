@@ -206,3 +206,29 @@ Recommended next step, master's call: either a stronger judge on the combined ba
 only (3,680 pairs is within reach of the Claude verify pass, subscription, paced) or
 a larger reranker for that band; and the deterministic profile before either, since
 the shortlist's recall moves with row order today.
+
+
+# Deterministic profile: stability confirmed (2026-09-03, 02:55)
+
+The profile is now a node's five longest claims, ties by claim_hash (assimilator
+46e8da0). The same 90 distinct human-merged pairs were run through the kNN stage
+on two graph states - the morning backup (before the day's merges and re-imports)
+and the current graph - with the victim side fixed and the survivor side each
+state's profile. `reports/profile-stability-2026-09-03.json`.
+
+| state | live nodes | pairs measurable | top 5 | top 20 | top 50 |
+|---|---|---|---|---|---|
+| morning | 10,795 | 90 | 67 | 84 | 87 |
+| current | 10,909 | 85 (5 survivors merged away since) | 66 | 80 | 82 |
+
+Between the two states 134 of 10,771 nodes live in both have a different profile,
+every one because its claim set changed (1,368 claims were rewritten by the
+entailment re-import); 11 of the 68 survivors did. Three pairs changed top-20
+membership. Under the old row-order profile the same re-import moved 35 pairs and
+took recall from 169 to 134 of 178 rows. Recall also rose: 84 of 90 within 20
+neighbours against 75 of 85 with three claims by row order.
+
+Cost: the morning state embedded cold in 2,671 s (10,795 profiles at 4 a second);
+the current state in 132 s, because an unchanged profile is a cache hit at the
+endpoint. That is the property the profile needed: re-embedding after an import
+costs exactly the nodes whose claims changed.
