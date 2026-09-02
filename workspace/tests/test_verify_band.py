@@ -151,8 +151,8 @@ def test_the_default_is_a_dry_run_and_run_without_confirm_is_refused(tmp_path, c
 
 def test_estimate_counts_calls_and_tokens():
     est = verify_band.estimate(["x" * 2700, "y" * 270], 21)
-    assert (
-        est["calls"] == 2
-        and est["input_tokens"] == 1100
-        and est["output_tokens"] == 21 * 45
-    )
+    assert est["calls"] == 2 and est["input_tokens"] == 1100
+    assert est["output_tokens"] == 21 * verify_band.OUTPUT_TOKENS_PER_PAIR
+    # The per-call term is the cost: the CLI's own context dwarfs any prompt.
+    assert est["cached_context_tokens"] == 2 * verify_band.CONTEXT_TOKENS_PER_CALL
+    assert est["notional_usd"] == 0.2

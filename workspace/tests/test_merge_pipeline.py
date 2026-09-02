@@ -88,6 +88,7 @@ def test_dry_run_plans_and_calls_nothing(monkeypatch, tmp_path, capsys):
     assert (
         plan["to_score"] >= 1 and plan["to_verify"] == 0 and plan["verify_calls"] == 0
     )
+    assert plan["cached_context_tokens"] == 0 and plan["notional_usd"] == 0
     assert not (tmp_path / "scores.jsonl").exists()
 
 
