@@ -16,6 +16,8 @@ from pathlib import Path
 from assimilator.database import (
     delete_claim,
     find_node_by_name,
+    get_record,
+    get_record_by_content_hash,
     get_record_by_title,
     get_record_claim_hashes,
     insert_alias,
@@ -692,21 +694,39 @@ def import_extraction(
             ),
         }
 
-    # Create or find record
+    # Create or find record. THE ID IS THE IDENTITY, then the content hash; the
+    # title is a fallback for a digest that carries neither. Looking up by title
+    # alone meant a re-digest that refreshed a record's title while keeping its
+    # id looked like a new record and collided on the primary key - the 2026-09-02
+    # record-block refresh renamed "Project Serpo" to its interview title and
+    # the entailment backfill import stopped at digest 18 of 108.
     record_title = fm.get("record_title", "Untitled")
-    existing_record = get_record_by_title(conn, record_title)
+    existing_record = get_record(conn, fm["record_id"]) if fm.get("record_id") else None
+    if existing_record is None and fm.get("content_hash"):
+        existing_record = get_record_by_content_hash(conn, fm["content_hash"])
+    if existing_record is None:
+        existing_record = get_record_by_title(conn, record_title)
     if existing_record:
         record = existing_record
-        # Refresh the record metadata on re-import. Insert-only would leave every
-        # record already in the graph without a review state forever, which is
-        # exactly how the provenance chain stayed NULL through a full re-digest.
+        # Refresh the record on re-import: metadata (insert-only left every record
+        # without a review state forever, which is how the provenance chain stayed
+        # NULL through a full re-digest) and the title, reference and date, which
+        # the digester's record-block refresh is entitled to change.
         refreshed = _record_metadata(fm)
-        if refreshed:
-            conn.execute(
-                "UPDATE records SET metadata = ? WHERE id = ?",
-                (json.dumps(refreshed), record.id),
-            )
-        log(f"  Existing record: {record.title} [{record.id[:8]}]")
+        conn.execute(
+            "UPDATE records SET metadata = COALESCE(?, metadata), title = ?, "
+            "reference = COALESCE(?, reference), date = COALESCE(?, date) WHERE id = ?",
+            (
+                json.dumps(refreshed) if refreshed else None,
+                record_title,
+                fm.get("record_reference"),
+                str(fm["record_date"]) if fm.get("record_date") else None,
+                record.id,
+            ),
+        )
+        if record.title != record_title:
+            log(f"  Existing record renamed: {record.title!r} -> {record_title!r}")
+        log(f"  Existing record: {record_title} [{record.id[:8]}]")
     else:
         # Resolve the ingest content_hash and friendly_name for this record
         # so downstream consumers (assembler, workbench) can link claim ->

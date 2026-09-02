@@ -501,6 +501,15 @@ def get_record(conn: sqlite3.Connection, record_id: str) -> Record | None:
     return _row_to_record(row)
 
 
+def get_record_by_content_hash(
+    conn: sqlite3.Connection, content_hash: str
+) -> Record | None:
+    row = conn.execute(
+        "SELECT * FROM records WHERE content_hash = ?", (content_hash,)
+    ).fetchone()
+    return None if row is None else _row_to_record(row)
+
+
 def get_record_by_title(conn: sqlite3.Connection, title: str) -> Record | None:
     row = conn.execute("SELECT * FROM records WHERE title = ?", (title,)).fetchone()
     if row is None:
