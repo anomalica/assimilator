@@ -149,13 +149,16 @@ class EntityReranker:
         )
         dtype = torch.float16 if self.device == "cuda" else torch.float32
         self.tokenizer = AutoTokenizer.from_pretrained(path, padding_side="left")
-        # Eager attention: the default path reaches for a Triton kernel on the
-        # GPU and the container has no C compiler to build one. A 0.6B model
-        # scoring a few hundred tokens does not need the fused kernel.
+        # Memory-efficient attention (sdpa): eager attention materialises a
+        # length-squared matrix per head and per layer, which bounds the batch on
+        # a 6 GB card; and the run is memory-bound under the laptop's 20 W power
+        # cap, so the batch is what amortises each read of the 1.2 GB of weights.
+        # (The Triton kernel torch 2.13 uses for the rotary embedding needs gcc
+        # and libc6-dev in the image, whatever the attention implementation.)
         os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
         self.model = (
             AutoModelForCausalLM.from_pretrained(
-                path, dtype=dtype, attn_implementation="eager"
+                path, dtype=dtype, attn_implementation="sdpa"
             )
             .to(self.device)
             .eval()
@@ -208,9 +211,14 @@ class EntityReranker:
         prompts = [pair_prompt(a, b) for a, b in pairs]
         if symmetric:
             prompts += [pair_prompt(b, a) for a, b in pairs]
-        scores: list[float] = []
-        for i in range(0, len(prompts), batch_size):
-            scores += self._batch_scores(prompts[i : i + batch_size])
+        # Batch by length so a batch pads to its own longest prompt, not the
+        # corpus's: the work is proportional to the padded length.
+        order = sorted(range(len(prompts)), key=lambda i: len(prompts[i]))
+        scores = [0.0] * len(prompts)
+        for i in range(0, len(order), batch_size):
+            idx = order[i : i + batch_size]
+            for j, s in zip(idx, self._batch_scores([prompts[k] for k in idx])):
+                scores[j] = s
         if not symmetric:
             return scores
         n = len(pairs)
