@@ -34,6 +34,7 @@ from assimilator.matching import (
     is_fuller_person_name,
     match_node,
     normalise_node_name,
+    name_equivalence_key,
 )
 from anomalica_common.digest import claim_hash
 from anomalica_common.digest.models import Claim, Node, ProvenanceChain, Record
@@ -584,6 +585,92 @@ def _entailment_block(block: object) -> dict | None:
     return {"label": label, "score": float(score), "model": model, "premise": premise}
 
 
+def manual_candidates_path() -> Path:
+    """The merge-candidate file the workbench merges into its review queue and
+    that propose_merges never regenerates (its own output is clobbered on every
+    pass). The env name is the workbench's, so both sides follow one setting."""
+    return Path(
+        os.environ.get(
+            "ANOMALICA_MERGE_CANDIDATES_MANUAL",
+            str(
+                Path.home()
+                / ".local"
+                / "share"
+                / "assimilator"
+                / "merge-candidates-manual.json"
+            ),
+        )
+    )
+
+
+def _twin_index(conn: sqlite3.Connection) -> dict[str, list[tuple[str, str, str]]]:
+    """Live nodes by name-equivalence key (case, diacritics, punctuation and
+    acronym suffix folded), built once per import and extended as nodes are
+    minted."""
+    index: dict[str, list[tuple[str, str, str]]] = {}
+    for nid, name, node_type in conn.execute(
+        "SELECT id, name, node_type FROM nodes WHERE retired_at IS NULL"
+    ):
+        index.setdefault(name_equivalence_key(name), []).append((nid, name, node_type))
+    return index
+
+
+def queue_cross_type_twin(
+    conn: sqlite3.Connection,
+    new_id: str,
+    name: str,
+    node_type: str,
+    twins: list[tuple[str, str, str]],
+    record_id: str | None,
+    path: Path | None = None,
+) -> dict | None:
+    """Queue a freshly minted node and its same-name nodes of other types as ONE
+    merge candidate for a reviewer. The suggested survivor is the twin with the
+    most claims - the established node, never the newcomer. Idempotent on the
+    node set, so a re-import does not queue the pair twice; returns the entry
+    written, or None when it was already there."""
+    path = path or manual_candidates_path()
+    try:
+        existing = json.loads(path.read_text()) if path.exists() else []
+    except (OSError, json.JSONDecodeError):
+        existing = []
+    if not isinstance(existing, list):
+        existing = []
+    node_ids = sorted({new_id, *(tw[0] for tw in twins)})
+    if any(
+        set(c.get("node_ids") or []) == set(node_ids)
+        for c in existing
+        if isinstance(c, dict)
+    ):
+        return None
+    refs = {
+        nid: conn.execute(
+            "SELECT COUNT(*) FROM claim_node_refs WHERE node_id = ?", (nid,)
+        ).fetchone()[0]
+        for nid in node_ids
+    }
+    survivor = max(twins, key=lambda tw: refs.get(tw[0], 0))
+    entry = {
+        "node_ids": node_ids,
+        "suggested_canonical": survivor[0],
+        "score": 0.9,
+        "node_type": survivor[2],
+        "reason": (
+            f"import: {name!r} ({node_type}, new, record {record_id}) minted beside "
+            + ", ".join(
+                f"{tw[1]!r} ({tw[2]}, {refs.get(tw[0], 0)} claims)" for tw in twins
+            )
+            + " - one name across types; a reviewer decides, nothing merged"
+        ),
+    }
+    existing.append(entry)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(existing, indent=1, ensure_ascii=False) + "\n")
+    os.replace(tmp, path)
+    return entry
+
+
 def import_extraction(
     conn: sqlite3.Connection,
     parsed: dict,
@@ -619,8 +706,10 @@ def import_extraction(
         "claims_rejected": 0,
         "claims_assessed": 0,
         "entailment_malformed": 0,
+        "cross_type_twins": 0,
         "record_id": None,
     }
+    twin_index: dict[str, list[tuple[str, str, str]]] | None = None
 
     # Drop unusable nodes (redacted / type-in-parens) before any matching.
     # Track their ids so claims referencing them can be dropped too.
@@ -865,6 +954,30 @@ def import_extraction(
             node_id_by_md_id[md_id] = node.id
             log(f"  New node: {name} ({node_type}) [{node.id[:8]}]")
             counts["nodes_created"] += 1
+            # A name another live node already carries under a DIFFERENT type is
+            # queued for a reviewer now, not minted in silence: the matcher is
+            # type-scoped, so "All-Domain Anomaly Resolution Office (AARO)" typed
+            # project became a second AARO beside the 186-claim organisation,
+            # and only the site's slug guard noticed. Never merged here - a
+            # cross-type name match is more often two referents than one
+            # (node-types.md) - but never lost either.
+            if twin_index is None:
+                twin_index = _twin_index(conn)
+            twins = [
+                tw
+                for tw in twin_index.get(name_equivalence_key(name), [])
+                if tw[0] != node.id and tw[2] != node_type
+            ]
+            twin_index.setdefault(name_equivalence_key(name), []).append(
+                (node.id, name, node_type)
+            )
+            if twins:
+                queue_cross_type_twin(conn, node.id, name, node_type, twins, record.id)
+                counts["cross_type_twins"] += 1
+                log(
+                    f"  Cross-type twin queued for review: {name} ({node_type}) ~ "
+                    + ", ".join(f"{tw[1]} ({tw[2]})" for tw in twins)
+                )
 
         # Aliases declared in the digest are graph aliases. Written here rather
         # than left in metadata because a rebuild wipes the graph and only the
