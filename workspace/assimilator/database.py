@@ -86,7 +86,12 @@ CREATE TABLE IF NOT EXISTS claims (
     -- not defined yet (Mark's), so nothing weights or hides a claim on it.
     entailment_label TEXT,
     entailment_score REAL,
-    entailment_model TEXT
+    entailment_model TEXT,
+    -- Which text produced the label: 'quote' (the excerpt alone) or 'window'
+    -- (the record text around it, tried when the quote alone is neutral). An
+    -- entails-by-window is the weaker verdict, so the entailed fraction is
+    -- always reported split by premise, never as one number.
+    entailment_premise TEXT
 );
 
 CREATE TABLE IF NOT EXISTS claim_node_refs (
@@ -336,6 +341,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             ("entailment_label", "TEXT"),
             ("entailment_score", "REAL"),
             ("entailment_model", "TEXT"),
+            ("entailment_premise", "TEXT"),
         ):
             if column not in cols:
                 conn.execute(f"ALTER TABLE claims ADD COLUMN {column} {kind}")
@@ -512,8 +518,8 @@ def insert_claim(
         "INSERT INTO claims (id, content, original_excerpt, claim_type, attestation, record_id, speaker_id, "
         "location_in_record, date, date_end, claim_hash, confidence, metadata, created_at, claim_role, "
         "origin_kind, origin, relay, entailment_label, entailment_score, "
-        "entailment_model) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "entailment_model, entailment_premise) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             claim.id,
             claim.content,
@@ -536,6 +542,7 @@ def insert_claim(
             ent.get("label"),
             ent.get("score"),
             ent.get("model"),
+            ent.get("premise"),
         ),
     )
     for node_id in claim.node_references:
@@ -588,8 +595,14 @@ def update_claim_entailment(
     ent = entailment or {}
     conn.execute(
         "UPDATE claims SET entailment_label = ?, entailment_score = ?, "
-        "entailment_model = ? WHERE id = ?",
-        (ent.get("label"), ent.get("score"), ent.get("model"), claim_id),
+        "entailment_model = ?, entailment_premise = ? WHERE id = ?",
+        (
+            ent.get("label"),
+            ent.get("score"),
+            ent.get("model"),
+            ent.get("premise"),
+            claim_id,
+        ),
     )
 
 
@@ -757,23 +770,41 @@ def get_stats(conn: sqlite3.Connection) -> dict:
 
 def entailment_counts(conn: sqlite3.Connection) -> dict:
     """How many claims the digester's entailment check has assessed and how
-    the labels fall. Counts only: the entailed fraction is shown, never yet
-    weighted - the evidence score it will feed is not defined."""
-    labels = dict(
-        conn.execute(
-            "SELECT COALESCE(entailment_label, 'unassessed'), COUNT(*) FROM claims "
-            "GROUP BY 1"
-        ).fetchall()
+    the labels fall. Counts only, and the entailed share is SPLIT by premise:
+    entailed by the quote alone is the strong verdict, entailed only by the
+    record text around it the weaker one, and one number would hide which.
+    Shown, never yet weighted - the evidence score it will feed is not defined."""
+    rows = conn.execute(
+        "SELECT COALESCE(entailment_label, 'unassessed'), entailment_premise, "
+        "COUNT(*) FROM claims GROUP BY 1, 2"
+    ).fetchall()
+    return summarise_entailment([(label, premise, n) for label, premise, n in rows])
+
+
+def summarise_entailment(groups: list[tuple[str | None, str | None, int]]) -> dict:
+    """The entailment summary from (label, premise, count) groups; the brief
+    builds the same block for one page from its own rows."""
+    count: dict[str, int] = {}
+    for label, premise, n in groups:
+        key = label or "unassessed"
+        count[key] = count.get(key, 0) + n
+        if key == "entails":
+            sub = "entailed_by_quote" if premise == "quote" else "entailed_by_window"
+            count[sub] = count.get(sub, 0) + n
+    assessed = sum(
+        v for k, v in count.items() if k in ("entails", "neutral", "contradicts")
     )
-    assessed = sum(v for k, v in labels.items() if k != "unassessed")
-    entails = labels.get("entails", 0)
+    frac = lambda k: round(count.get(k, 0) / assessed, 3) if assessed else None  # noqa: E731
     return {
         "assessed": assessed,
-        "unassessed": labels.get("unassessed", 0),
-        "entails": entails,
-        "neutral": labels.get("neutral", 0),
-        "contradicts": labels.get("contradicts", 0),
-        "entailed_fraction": round(entails / assessed, 3) if assessed else None,
+        "unassessed": count.get("unassessed", 0),
+        "entails": count.get("entails", 0),
+        "neutral": count.get("neutral", 0),
+        "contradicts": count.get("contradicts", 0),
+        "entailed_by_quote": count.get("entailed_by_quote", 0),
+        "entailed_by_window": count.get("entailed_by_window", 0),
+        "entailed_by_quote_fraction": frac("entailed_by_quote"),
+        "entailed_by_window_fraction": frac("entailed_by_window"),
     }
 
 

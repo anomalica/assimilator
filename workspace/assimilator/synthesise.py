@@ -107,7 +107,7 @@ _COL_CONTENT = 1
 _COL_EXCERPT = 2
 _COL_ATTESTATION = 4
 _COL_SPEAKER_ID = 9
-_COL_ENTAILMENT = 21  # label; score and model follow
+_COL_ENTAILMENT = 21  # label; score, model and premise follow
 
 # Attestation ranked by evidential weight. Measured across the corpus: first_hand
 # 16,794, second_hand 6,479, third_hand 431, absent 7,362 - so this discriminates
@@ -132,15 +132,14 @@ def _claim_token_cost(row) -> int:
 
 
 def _entailment_summary(rows) -> dict:
-    labels = [r[_COL_ENTAILMENT] for r in rows if r[_COL_ENTAILMENT]]
-    counts = {k: labels.count(k) for k in ("entails", "neutral", "contradicts")}
-    n = len(labels)
-    return {
-        "assessed": n,
-        "unassessed": len(rows) - n,
-        **counts,
-        "entailed_fraction": round(counts["entails"] / n, 3) if n else None,
-    }
+    """The page's entailment block, the same shape stats reports: counts by
+    label, and the entailed share split by premise (quote alone, or the
+    record around it), never as one number."""
+    from assimilator.database import summarise_entailment
+
+    return summarise_entailment(
+        [(r[_COL_ENTAILMENT], r[_COL_ENTAILMENT + 3], 1) for r in rows]
+    )
 
 
 def _importance(
@@ -512,7 +511,8 @@ def build_entity_brief(
                c.speaker_id, sp.name,
                c.record_id, r.title, r.date, r.reference, r.content_hash, r.friendly_name,
                c.origin_kind, c.origin, c.relay, COALESCE(r.work_id, c.record_id),
-               c.entailment_label, c.entailment_score, c.entailment_model
+               c.entailment_label, c.entailment_score, c.entailment_model,
+               c.entailment_premise
         FROM claims c
         LEFT JOIN records r ON r.id = c.record_id
         LEFT JOIN nodes sp ON sp.id = c.speaker_id
@@ -583,6 +583,7 @@ def build_entity_brief(
             _ent_label,  # entailment; the dict reads these by _COL_ENTAILMENT
             _ent_score,
             _ent_model,
+            _ent_premise,
         ) = row
         claims.append(
             {
@@ -633,6 +634,7 @@ def build_entity_brief(
                             "label": row[_COL_ENTAILMENT],
                             "score": row[_COL_ENTAILMENT + 1],
                             "model": row[_COL_ENTAILMENT + 2],
+                            "premise": row[_COL_ENTAILMENT + 3],
                         }
                     }
                     if row[_COL_ENTAILMENT]

@@ -547,28 +547,34 @@ def _lookup_ingest_metadata(
 
 
 _ENTAILMENT_LABELS = frozenset({"entails", "neutral", "contradicts"})
+_ENTAILMENT_PREMISES = frozenset({"quote", "window"})
 
 
 def _entailment_block(block: object) -> dict | None:
     """The digester's per-claim entailment block, validated, or None.
 
     Shape (pinned with the digester 2026-09-02): {label: entails|neutral|
-    contradicts, score: probability of THAT label in [0, 1], model: id}.
-    Premise is the excerpt, hypothesis the claim text. An absent block means
-    not assessed; a present but malformed one is also stored as not assessed
-    and COUNTED by the caller, so a digester regression shows in the import
-    summary instead of arriving as a quiet run of nulls.
+    contradicts, score: probability of THAT label in [0, 1], model: id,
+    premise: quote|window}. The hypothesis is the claim text; the premise is
+    the excerpt alone ("quote") or, when that alone is neutral, the record text
+    around it ("window") - and an entails-by-window is the weaker verdict. An
+    absent block means not assessed; a present but malformed one is also stored
+    as not assessed and COUNTED by the caller, so a digester regression shows in
+    the import summary instead of arriving as a quiet run of nulls.
     """
     if not isinstance(block, dict):
         return None
     label, score, model = block.get("label"), block.get("score"), block.get("model")
+    premise = block.get("premise")
     if label not in _ENTAILMENT_LABELS or not isinstance(model, str) or not model:
         return None
     if isinstance(score, bool) or not isinstance(score, (int, float)):
         return None
     if not 0.0 <= float(score) <= 1.0:
         return None
-    return {"label": label, "score": float(score), "model": model}
+    if premise not in _ENTAILMENT_PREMISES:
+        return None
+    return {"label": label, "score": float(score), "model": model, "premise": premise}
 
 
 def import_extraction(

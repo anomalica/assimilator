@@ -250,9 +250,11 @@ def stats(ctx: click.Context) -> None:
     if e.get("assessed"):
         click.echo(
             f"Entailment: {e['assessed']} of {s['claims']} claims assessed - "
-            f"entails {e['entails']}, neutral {e['neutral']}, contradicts "
-            f"{e['contradicts']} (entailed fraction {e['entailed_fraction']}; "
-            "shown, not weighted)"
+            f"entailed by the quote {e['entailed_by_quote']} "
+            f"({e['entailed_by_quote_fraction']}), by the surrounding record "
+            f"{e['entailed_by_window']} ({e['entailed_by_window_fraction']}), "
+            f"neutral {e['neutral']}, contradicts {e['contradicts']} "
+            "(shown, not weighted)"
         )
     else:
         click.echo("Entailment: no claim assessed yet")
