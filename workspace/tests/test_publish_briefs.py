@@ -352,3 +352,58 @@ def test_a_members_brief_is_not_removable_until_the_composed_page_exists(tmp_pat
 
     found = {f["file"] for f in unbuildable_in(out, conn, pages_dir=pages_dir)}
     assert found == {"topics/uap-topic.yaml", "topics/ufo-topic.yaml"}
+
+
+def test_without_a_pages_directory_no_members_brief_is_removable(tmp_path):
+    """Not knowing whether the composed article exists must fail towards the
+    brief standing. The first version returned "it exists" for an unknown
+    directory and called that cautious; it licensed the deletion instead."""
+    import inspect
+
+    from assimilator.pages import append_compose_entry, apply_pages
+    from assimilator.publish_briefs import article_exists, unbuildable_in
+
+    # The permissive answer cannot be reached by omitting an argument.
+    assert (
+        inspect.signature(article_exists).parameters["pages_dir"].default
+        is inspect.Parameter.empty
+    )
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R", content_hash="sha256:aa"))
+    for nid, name in (("uap", "UAP topic"), ("ufo", "UFO topic")):
+        insert_node(conn, Node(id=nid, node_type=NodeType.topic, name=name))
+        insert_claim(
+            conn,
+            Claim(
+                id=f"{nid}-c",
+                content="x",
+                claim_type="testimony",
+                record_id="r1",
+                node_references=[nid],
+            ),
+        )
+    conn.commit()
+    append_compose_entry(
+        "UFOs / UAPs",
+        "topic",
+        [
+            {"name": "UAP topic", "node_type": "topic"},
+            {"name": "UFO topic", "node_type": "topic"},
+        ],
+        page_id="pg1",
+        confirmation={
+            "by": "workbench/mark",
+            "at": "2026-09-03T05:00:00Z",
+            "via": "workbench-compose",
+        },
+    )
+    apply_pages(conn)
+    out = tmp_path / "briefs"
+    (out / "topics").mkdir(parents=True)
+    (out / "topics" / "uap-topic.yaml").write_text(
+        yaml.safe_dump({"page": {"nodes": [{"node_id": "uap"}], "slug": "uap-topic"}})
+    )
+
+    assert unbuildable_in(out, conn) == []

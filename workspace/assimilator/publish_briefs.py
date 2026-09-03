@@ -202,12 +202,19 @@ def redact_brief(brief: dict, store_dir: Path) -> tuple[dict, dict]:
     return out, counts
 
 
-def article_exists(pages_dir: Path | None, section: str, slug: str) -> bool:
-    """Whether a built article stands at <section>/<slug>. Unknown pages_dir
-    reads as "it does", which is the cautious direction here: the caller uses
-    this to decide whether REMOVING a brief is safe."""
-    if pages_dir is None:
-        return True
+def article_exists(pages_dir: Path, section: str, slug: str) -> bool:
+    """Whether a built article stands at <section>/<slug>.
+
+    pages_dir is REQUIRED, deliberately. The caller uses this to decide whether
+    deleting a published brief is safe, and True is the permissive answer - it
+    means "the composed article is there, the member's brief may go". An
+    optional directory would let a caller reach that answer by omitting an
+    argument, and the first version of this function did exactly that while its
+    comment claimed the omission was cautious. A wrong comment there is worse
+    than none: it turns a mistake into a decision someone believes they made
+    correctly. Not knowing must be handled by the caller, which can fail
+    towards keeping the brief; it cannot be hidden in a default here.
+    """
     return any(pages_dir.glob(f"{section}/{slug}.*.md"))
 
 
@@ -239,7 +246,9 @@ def unbuildable_in(out_dir: Path, conn, pages_dir: Path | None = None) -> list[d
     brief whenever - a brief with no article renders honestly - but do not
     remove a member's brief until the composed page EXISTS as an article. So
     a member brief is reported here only once that article is on disk, and
-    pages_dir is what makes it checkable rather than remembered.
+    pages_dir is what makes it checkable rather than remembered. Called without
+    pages_dir, this cannot see the article and therefore never reports a
+    member's brief as removable - not knowing fails towards the brief standing.
 
     - the brief sits at a STALE PATH while the node has another brief at its
       current one, so one entity gets two pages. That is the Elizondo failure
@@ -290,7 +299,10 @@ def unbuildable_in(out_dir: Path, conn, pages_dir: Path | None = None) -> list[d
             continue
         covering = pages_by_member.get(usable[0]) if len(members) == 1 else None
         if covering is not None:
-            if not article_exists(
+            # No pages directory means this call cannot see whether the composed
+            # article exists, so it must not license a deletion: the member's
+            # brief stands until a caller that CAN see says otherwise.
+            if pages_dir is None or not article_exists(
                 pages_dir, section_for(covering["node_type"]), covering["slug"]
             ):
                 # Its subject moved to a composed page that is not built yet.
