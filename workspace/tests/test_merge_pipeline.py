@@ -118,6 +118,11 @@ def test_a_run_scores_judges_lands_and_then_has_nothing_new(
     assert verdicts[("a", "b")]["same"] is True
     manual = json.loads((tmp_path / "manual.json").read_text())
     assert len(manual) == 1 and manual[0]["reason"].startswith("verify: one aircraft")
+    assert manual[0]["suggested_canonical"] in ("Lockheed U-2", "U-2 spy plane")
+    assert manual[0]["suggested_survivor"] in (
+        "a",
+        "b",
+    )  # the id lives here, not in the name
     assert set(manual[0]["node_ids"]) == {"a", "b"}
     assert (
         conn.execute("SELECT COUNT(*) FROM nodes WHERE retired_at IS NULL").fetchone()[

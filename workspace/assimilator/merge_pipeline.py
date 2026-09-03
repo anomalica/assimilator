@@ -272,7 +272,12 @@ def land_yes(verdicts: dict, path: Path, conn: sqlite3.Connection) -> int:
         existing.append(
             {
                 "node_ids": sorted(pair),
-                "suggested_canonical": survivor,
+                # A NAME, never an id: the canonical name becomes the survivor's
+                # node name, hence the page title and its address. 253 queued
+                # proposals carried the survivor's uuid here on 2026-09-03 and
+                # the workbench offered it as the name to keep.
+                "suggested_canonical": rows[survivor][0],
+                "suggested_survivor": survivor,
                 "score": round(
                     min(v.get("names_only", 0.9), v.get("with_claims", 0.9)), 3
                 ),
