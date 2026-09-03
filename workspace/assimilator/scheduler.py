@@ -798,13 +798,23 @@ def enumerate_assemble_jobs(briefs: list[dict], content_dir: Path | None) -> lis
 
 def _proposal_table_stale(conn: sqlite3.Connection) -> tuple[bool, int]:
     """Does the derived page_proposals table reflect the current gate? Returns
-    (stale, gate_count). Stale when the gate-passing (non-vetoed) node set differs
-    from what is recorded - a recompute is then a pending propose-pages job."""
+    (stale, gate_count). Stale when the gate-passing node set differs from what
+    is recorded - a recompute is then a pending propose-pages job.
+
+    THE TWO SETS MUST BE SUBTRACTED THE SAME WAY. propose() writes the gate
+    minus vetoes AND minus the nodes a composed page covers; this compared the
+    gate minus vetoes alone, so from the moment one page covered two nodes the
+    sets could never match and propose-pages was pending for ever - it ran 12
+    times, once per scheduler restart, and showed on Mark's card as permanently
+    waiting. A staleness test that names the exclusions itself will drift from
+    the writer again, so it calls the same helpers propose() does.
+    """
     from assimilator.page_gate import page_gate_rows
+    from assimilator.pages import member_node_ids
     from assimilator.propose_pages import vetoed_node_ids
 
-    vetoed = vetoed_node_ids(conn)
-    gate_ids = {r["node_id"] for r in page_gate_rows(conn)} - vetoed
+    excluded = vetoed_node_ids(conn) | set(member_node_ids(conn))
+    gate_ids = {r["node_id"] for r in page_gate_rows(conn)} - excluded
     try:
         proposed = {
             r[0] for r in conn.execute("SELECT node_id FROM page_proposals").fetchall()

@@ -16,7 +16,7 @@ import yaml
 
 from assimilator import scheduler
 from assimilator.database import init_db, insert_claim, insert_node, insert_record
-from anomalica_common.digest.models import Claim, Node, Record
+from anomalica_common.digest.models import Claim, Node, NodeType, Record
 
 H1 = "1" * 64  # an ingested+reviewed+digestible record
 H2 = "2" * 64  # an ingested, never-reviewed record
@@ -599,3 +599,57 @@ def test_two_types_sharing_a_name_both_settle(tmp_path):
         "assemble:events/apollo-14",
         "assemble:projects/apollo-14",
     ]
+
+
+def test_the_proposal_staleness_test_excludes_what_the_proposer_excludes(
+    tmp_path, monkeypatch
+):
+    """propose() writes the gate minus vetoes minus composed-page members. A
+    staleness test that subtracts less can never agree with it, and the job it
+    guards is emitted for ever - which is what happened from the first composed
+    page: 12 runs, one per restart, permanently "waiting" on Mark's card."""
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    from assimilator.pages import append_compose_entry, apply_pages
+    from assimilator.propose_pages import propose
+    from assimilator.scheduler import _proposal_table_stale
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    for i in range(3):
+        insert_record(
+            conn, Record(id=f"r{i}", title=f"R{i}", content_hash=f"sha256:a{i}")
+        )
+    for nid, name in (("uap", "UAP topic"), ("ufo", "UFO topic")):
+        insert_node(conn, Node(id=nid, name=name, node_type=NodeType.topic))
+        for i in range(9):
+            insert_claim(
+                conn,
+                Claim(
+                    id=f"{nid}-{i}",
+                    content=f"claim {i} about {name}",
+                    claim_type="testimony",
+                    record_id=f"r{i % 3}",
+                    node_references=[nid],
+                ),
+            )
+    conn.commit()
+    append_compose_entry(
+        "UFOs / UAPs",
+        "topic",
+        [
+            {"name": "UAP topic", "node_type": "topic"},
+            {"name": "UFO topic", "node_type": "topic"},
+        ],
+        page_id="pg1",
+        confirmation={
+            "by": "workbench/mark",
+            "at": "2026-09-03T05:00:00Z",
+            "via": "workbench-compose",
+        },
+    )
+    apply_pages(conn)
+    propose(conn)
+
+    stale, _gate_count = _proposal_table_stale(conn)
+
+    assert stale is False  # the recompute has nothing left to do
