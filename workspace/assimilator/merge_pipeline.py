@@ -44,6 +44,18 @@ NAMES_BATCH = 48
 # holding 3.4 GB of a 6 GB card). Small enough that progress lands every few
 # minutes and a kill loses minutes of work, not hours.
 SCORE_CHUNK = 500
+
+
+def _log(message: str) -> None:
+    """Print and FLUSH. A progress line that sits in a pipe buffer is no
+    progress line: stdout is block-buffered when it is not a terminal, which is
+    every container run, so the watcher saw nothing until the process ended -
+    the exact failure the lines were added to prevent. Flushing here rather
+    than relying on the caller to set PYTHONUNBUFFERED, because a run that
+    reports nothing looks wedged and gets killed."""
+    print(message, flush=True)
+
+
 CLAIMS_BATCH = 16
 
 
@@ -198,7 +210,7 @@ def score_pairs(
     pairs: list[tuple[str, str]],
     reranker,
     path: Path,
-    log=print,
+    log=_log,
     deadline: float | None = None,
 ) -> dict:
     """Both reranker scores for each pair, appended to the memo as they land.
@@ -374,7 +386,7 @@ def run_pipeline(
     model: str,
     use_api,
     dry_run: bool,
-    log=print,
+    log=_log,
     k: int = K_NEIGHBOURS,
     score_only: bool = False,
     band_floor: float | None = None,
@@ -613,7 +625,7 @@ def main(argv: list[str] | None = None) -> int:
             model,
             resolve_use_api("ASSIMILATOR_USE_API"),
             args.dry_run,
-            print,
+            _log,
             args.k,
             score_only=args.score_only,
             band_floor=args.band_floor,
