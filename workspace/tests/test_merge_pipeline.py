@@ -157,3 +157,37 @@ def test_a_failed_verify_keeps_what_landed_and_exits_6(monkeypatch, tmp_path):
     )
     assert code == mp.EXIT_VERIFY
     assert (tmp_path / "scores.jsonl").exists()  # the GPU work is kept
+
+
+def test_score_only_reranks_and_holds_the_verify_stage(monkeypatch, tmp_path, capsys):
+    """Master, 2026-09-03: no more judging while Mark's queue is full, but new
+    pairs should carry scores so a later run judges them in one go."""
+    _env(monkeypatch, tmp_path)
+    conn = _graph()
+
+    def no_call(*a, **k):
+        raise AssertionError("the verify stage must not call the model")
+
+    code = mp.run_pipeline(
+        conn,
+        _embed,
+        _Reranker,
+        no_call,
+        json.loads,
+        "claude-haiku-4-5",
+        False,
+        False,
+        print,
+        k=1,
+        score_only=True,
+    )
+    out = capsys.readouterr().out
+    assert code == mp.EXIT_OK
+    assert ("a", "b") in mp.load_scores(tmp_path / "scores.jsonl")
+    assert not (tmp_path / "verdicts.jsonl").exists()
+    assert "score-only" in out
+    run = json.loads(
+        [ln for ln in out.splitlines() if ln.startswith("RUN_JSON ")][0][9:]
+    )
+    counts = run.get("counts", run)
+    assert counts["band"] == 1 and counts["verified"] == 0

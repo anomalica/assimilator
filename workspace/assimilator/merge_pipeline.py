@@ -95,24 +95,34 @@ def load_verdicts(path: Path) -> dict[tuple[str, str], dict]:
     return out
 
 
-def in_band(s: dict) -> bool:
+def in_band(s: dict, floor: float | None = None) -> bool:
+    """Both scores at or above the band floor. The default floor is the 0.9 the
+    band was defined with; a run may raise it (master, 2026-09-03: judge the
+    rest of the band in one go at 0.95 once Mark's queue is worked down, rather
+    than creep the threshold up)."""
     wc = s.get("with_claims")
-    return (
-        wc is not None
-        and s.get("names_only", 0.0) >= verify_band.BAND_NAMES_MIN
-        and wc >= verify_band.BAND_CLAIMS_MIN
-    )
+    names_min = verify_band.BAND_NAMES_MIN if floor is None else floor
+    claims_min = verify_band.BAND_CLAIMS_MIN if floor is None else floor
+    return wc is not None and s.get("names_only", 0.0) >= names_min and wc >= claims_min
 
 
 def make_plan(
-    conn: sqlite3.Connection, embed, scores: dict, verdicts: dict, k: int = K_NEIGHBOURS
+    conn: sqlite3.Connection,
+    embed,
+    scores: dict,
+    verdicts: dict,
+    k: int = K_NEIGHBOURS,
+    band_floor: float | None = None,
+    pairs_per_call: int = verify_band.PAIRS_PER_CALL,
 ) -> dict:
     """What a run would do, without the reranker or the model."""
     sl = shortlist(conn, embed, k=k, rules_path=candidates_path())
     pairs = {_key(p) for p in sl["pairs"]}
     to_score = sorted(p for p in pairs if p not in scores)
     band = [
-        p for p in pairs if p in scores and in_band(scores[p]) and p not in verdicts
+        p
+        for p in pairs
+        if p in scores and in_band(scores[p], band_floor) and p not in verdicts
     ]
     band.sort(
         key=lambda p: (-min(scores[p]["names_only"], scores[p]["with_claims"]), p)
@@ -123,7 +133,7 @@ def make_plan(
     ]
     prompts = [
         verify_band.PROMPT + verify_band.render(conn, b)
-        for b in verify_band.batches(items)
+        for b in verify_band.batches(items, pairs_per_call)
     ]
     est = verify_band.estimate(prompts, len(items))
     return {
@@ -281,21 +291,31 @@ def run_pipeline(
     dry_run: bool,
     log=print,
     k: int = K_NEIGHBOURS,
+    score_only: bool = False,
+    band_floor: float | None = None,
+    pairs_per_call: int = verify_band.PAIRS_PER_CALL,
 ) -> int:
-    """The whole chain with its dependencies injected; returns the exit code."""
+    """The whole chain with its dependencies injected; returns the exit code.
+
+    score_only runs the shortlist and the reranker (GPU, no model, no
+    allowance) and holds the verify stage, so new pairs carry scores and are
+    ready the day judging is cleared; the plan line still reports the band.
+    """
     started = time.time()
     stage: dict[str, float] = {}
     t = time.time()
     try:
         scores = load_scores(scores_path())
         verdicts = load_verdicts(verdicts_path())
-        plan = make_plan(conn, embed, scores, verdicts, k)
+        plan = make_plan(conn, embed, scores, verdicts, k, band_floor, pairs_per_call)
     except Exception as exc:  # noqa: BLE001 - the endpoint is the only network here
         log(f"embedding endpoint or shortlist failed: {exc}")
         return EXIT_ENDPOINT
     stage["embed"] = round(time.time() - t, 1)
     log(plan_line(plan))
-    nothing = not plan["to_score"] and not plan["to_verify"]
+    if score_only:
+        log("score-only: the verify stage is held; the band above is not judged")
+    nothing = not plan["to_score"] and not (plan["to_verify"] and not score_only)
     if dry_run:
         return EXIT_NOTHING if nothing else EXIT_OK
     if nothing:
@@ -328,11 +348,11 @@ def run_pipeline(
         stage["rerank"] = round(time.time() - t, 1)
         # Re-plan the band now that new pairs carry scores.
         scores = load_scores(scores_path())
-        plan = make_plan(conn, embed, scores, verdicts, k)
+        plan = make_plan(conn, embed, scores, verdicts, k, band_floor, pairs_per_call)
     counts["band"] = len(plan["to_verify"])
     outcome = "ok"
     t = time.time()
-    if plan["to_verify"]:
+    if plan["to_verify"] and not score_only:
         try:
             vc = verify_band.run_batches(
                 conn,
@@ -343,6 +363,7 @@ def run_pipeline(
                 call,
                 parse,
                 log,
+                size=pairs_per_call,
             )
             counts.update(
                 {
@@ -408,6 +429,23 @@ def main(argv: list[str] | None = None) -> int:
         help="reranker model id, resolved through the policy's rerank stage",
     )
     p.add_argument("--k", type=int, default=K_NEIGHBOURS)
+    p.add_argument(
+        "--score-only",
+        action="store_true",
+        help="shortlist and rerank only (GPU, no model calls); hold the verify stage",
+    )
+    p.add_argument(
+        "--band-floor",
+        type=float,
+        default=None,
+        help="both reranker scores must reach this to be judged (default 0.9)",
+    )
+    p.add_argument(
+        "--pairs-per-call",
+        type=int,
+        default=verify_band.PAIRS_PER_CALL,
+        help="pairs per verify call (default 20; 50 halves the calls)",
+    )
     args = p.parse_args(argv)
     if args.run == args.dry_run:
         print("one of --dry-run or --run", file=sys.stderr)
@@ -466,6 +504,9 @@ def main(argv: list[str] | None = None) -> int:
             args.dry_run,
             print,
             args.k,
+            score_only=args.score_only,
+            band_floor=args.band_floor,
+            pairs_per_call=args.pairs_per_call,
         )
     finally:
         conn.close()

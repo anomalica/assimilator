@@ -136,13 +136,21 @@ def decided(path: Path) -> set[tuple[str, str]]:
 
 
 def run_batches(
-    conn, to_do: list[dict], model: str, use_api, out_path: Path, call, parse, log
+    conn,
+    to_do: list[dict],
+    model: str,
+    use_api,
+    out_path: Path,
+    call,
+    parse,
+    log,
+    size: int = PAIRS_PER_CALL,
 ) -> dict:
     """Live calls; verdicts appended per pair as they land. Never merges."""
     counts = {"same": 0, "different": 0, "unanswered": 0, "calls": 0}
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("a") as f:
-        for batch in batches(to_do):
+        for batch in batches(to_do, size):
             document = render(conn, batch)
             raw = call(PROMPT, document, model, schema=SCHEMA, use_api=use_api)
             counts["calls"] += 1
