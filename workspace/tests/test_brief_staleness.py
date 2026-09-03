@@ -43,7 +43,11 @@ def _brief(tmp_path, node_id, claims):
     (d / "people" / "someone.yaml").write_text(
         yaml.safe_dump(
             {
-                "page": {"node_id": node_id, "slug": "someone", "title": "Someone"},
+                "page": {
+                    "nodes": [{"node_id": node_id}],
+                    "slug": "someone",
+                    "title": "Someone",
+                },
                 "brief_hash": "bh",
                 "claims": [{"claim_id": k, "claim_hash": v} for k, v in claims.items()],
             }

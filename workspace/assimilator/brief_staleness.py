@@ -71,7 +71,12 @@ def staleness_manifest(conn: sqlite3.Connection, briefs_dir: Path) -> dict:
         if not isinstance(brief, dict):
             continue
         page = brief.get("page") or {}
-        node_id = page.get("node_id")
+        members = [
+            str(m.get("node_id"))
+            for m in (page.get("nodes") or [])
+            if isinstance(m, dict) and m.get("node_id")
+        ]
+        node_id = members[0] if members else None
         slug = page.get("slug") or path.stem
         frozen = {
             c["claim_id"]: c["claim_hash"]
@@ -83,7 +88,10 @@ def staleness_manifest(conn: sqlite3.Connection, briefs_dir: Path) -> dict:
             # reporting 100% would be a fabrication rather than a measurement.
             missing_node += 1
             continue
-        drift = brief_drift(frozen, _current_claims(conn, node_id))
+        current: dict[str, str] = {}
+        for member in members:  # a composed page drifts against ALL its members
+            current.update(_current_claims(conn, member))
+        drift = brief_drift(frozen, current)
         # A brief whose node was MERGED AWAY is not 100% stale, it is superseded -
         # its material lives on the survivor's page. Reported identically, the two
         # read as "this page has lost all its evidence", which is alarming and

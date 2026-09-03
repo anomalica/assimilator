@@ -268,20 +268,24 @@ def test_a_published_brief_the_graph_moved_past_is_reported(tmp_path):
     out = tmp_path / "published"
     (out / "events").mkdir(parents=True)
     (out / "events" / "empty-event.yaml").write_text(
-        yaml.safe_dump({"page": {"node_id": "EMPTY", "slug": "empty-event"}})
+        yaml.safe_dump(
+            {"page": {"nodes": [{"node_id": "EMPTY"}], "slug": "empty-event"}}
+        )
     )
     (out / "events" / "kept-event.yaml").write_text(
-        yaml.safe_dump({"page": {"node_id": "LIVE", "slug": "kept-event"}})
+        yaml.safe_dump({"page": {"nodes": [{"node_id": "LIVE"}], "slug": "kept-event"}})
     )
     (out / "events" / "gone-event.yaml").write_text(
-        yaml.safe_dump({"page": {"node_id": "RETIRED", "slug": "gone-event"}})
+        yaml.safe_dump(
+            {"page": {"nodes": [{"node_id": "RETIRED"}], "slug": "gone-event"}}
+        )
     )
     (out / "events" / "old-name.yaml").write_text(
-        yaml.safe_dump({"page": {"node_id": "LIVE", "slug": "old-name"}})
+        yaml.safe_dump({"page": {"nodes": [{"node_id": "LIVE"}], "slug": "old-name"}})
     )
     # The pre-section flat layout: the same node, stranded by the path alone.
     (out / "kept-event.yaml").write_text(
-        yaml.safe_dump({"page": {"node_id": "LIVE", "slug": "kept-event"}})
+        yaml.safe_dump({"page": {"nodes": [{"node_id": "LIVE"}], "slug": "kept-event"}})
     )
 
     found = {f["file"]: f["why"] for f in unbuildable_in(out, conn)}

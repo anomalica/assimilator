@@ -687,12 +687,14 @@ def enumerate_synthesise_jobs(
 
     current = _graph_version(conn)
     # node_id -> the graph state its brief was built from.
-    have = {
-        (b.get("page") or {}).get("node_id"): (b.get("generated") or {}).get(
-            "graph_version"
-        )
-        for b in briefs
-    }
+    # Keyed by EVERY member: a composed page's brief is the brief for each node
+    # it covers, so none of them looks brief-less.
+    have = {}
+    for b in briefs:
+        version = (b.get("generated") or {}).get("graph_version")
+        for member in (b.get("page") or {}).get("nodes") or []:
+            if isinstance(member, dict) and member.get("node_id"):
+                have[str(member["node_id"])] = version
     page_ids = set(proposed_node_ids(conn))  # only proposed entities deserve a page
     rows = conn.execute(
         "SELECT id, name, node_type FROM nodes WHERE retired_at IS NULL ORDER BY name"

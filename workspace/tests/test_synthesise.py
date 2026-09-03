@@ -46,7 +46,9 @@ def test_prune_removes_briefs_for_retired_and_renamed_nodes(tmp_path):
         path = tmp_path / f"{rel}.yaml"
         path.parent.mkdir(exist_ok=True)
         path.write_text(
-            yaml.safe_dump({"page": {"node_id": node_id, "slug": rel.split("/")[-1]}})
+            yaml.safe_dump(
+                {"page": {"nodes": [{"node_id": node_id}], "slug": rel.split("/")[-1]}}
+            )
         )
 
     removed = synthesise.prune_retired_briefs(
@@ -392,10 +394,10 @@ def test_the_header_parse_reads_the_page_and_never_the_bulk(tmp_path):
     path = tmp_path / "events" / "apollo-14.yaml"
     path.parent.mkdir()
     path.write_text(
-        "schema: anomalica/brief/1\n"
+        "schema: anomalica/brief/2\n"
         "brief_hash: abc\n"
-        "page:\n  kind: entity\n  node_id: ev-1\n  node_type: event\n"
-        "  slug: apollo-14\n"
+        "page:\n  kind: entity\n  nodes:\n  - node_id: ev-1\n    node_type: event\n"
+        "  node_type: event\n  slug: apollo-14\n"
         "generated:\n  graph_version: 'v1'\n"
         "related_nodes:\n- node_id: other-1\n  slug: other\n"
         "claims:\n- claim_id: c1\n  content: 'unterminated\n"
@@ -403,11 +405,11 @@ def test_the_header_parse_reads_the_page_and_never_the_bulk(tmp_path):
 
     header = synthesise.brief_header(path)
 
-    assert header["page"]["node_id"] == "ev-1"
+    assert [n["node_id"] for n in header["page"]["nodes"]] == ["ev-1"]
     assert header["generated"]["graph_version"] == "v1"
     assert header["brief_hash"] == "abc"
     assert "related_nodes" not in header and "claims" not in header
-    assert synthesise.brief_node_id(path) == "ev-1"
+    assert synthesise.brief_node_ids(path) == ["ev-1"]
 
 
 def test_a_brief_with_no_readable_header_yields_nothing(tmp_path):
@@ -489,3 +491,57 @@ def test_a_renamed_node_with_a_brief_gets_it_refiled_at_the_new_slug(tmp_path):
     assert moved["pruned"] == ["documents/old-act-name.yaml"]
     assert not (out / "documents" / "old-act-name.yaml").exists()
     assert not (out / "documents" / "never-had-one.yaml").exists()
+
+
+def test_a_composed_page_unions_its_members_and_dedupes_the_shared_claims(tmp_path):
+    """UFO and UAP stay separate nodes - they share 26 claims of 2,068, so a
+    merge would destroy which word each source used - and one page covers both.
+    A naive union would put every count on the page out by the shared claims."""
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R", content_hash="sha256:aa"))
+    insert_node(conn, Node(id="uap", name="Anomalous (UAP)", node_type=NodeType.topic))
+    insert_node(conn, Node(id="ufo", name="Flying (UFO)", node_type=NodeType.topic))
+    for nid in ("uap", "ufo"):
+        for i in range(3):
+            insert_claim(
+                conn,
+                Claim(
+                    id=f"{nid}-{i}",
+                    content=f"claim {i} about {nid}",
+                    claim_type="testimony",
+                    record_id="r1",
+                    node_references=[nid],
+                ),
+            )
+    # One claim reached through both members, and the same claim twice by hash.
+    conn.execute(
+        "INSERT INTO claim_node_refs (claim_id, node_id) VALUES ('ufo-0', 'uap')"
+    )
+    conn.execute(
+        "UPDATE claims SET claim_hash = 'shared' WHERE id IN ('uap-1', 'ufo-1')"
+    )
+    conn.commit()
+
+    brief = synthesise.build_entity_brief(
+        conn,
+        "uap",
+        {},
+        node_ids=["uap", "ufo"],
+        page={"name": "UAP and UFO", "slug": "uap-and-ufo", "node_type": "topic"},
+    )
+
+    page = brief["page"]
+    assert [n["node_id"] for n in page["nodes"]] == ["uap", "ufo"]
+    assert page["title"] == "UAP and UFO" and page["slug"] == "uap-and-ufo"
+    ids = [c["claim_id"] for c in brief["claims"]]
+    assert len(ids) == len(set(ids))  # ufo-0 reached through both members: once
+    assert "uap-1" in ids and "ufo-1" not in ids  # same hash: the earlier member's
+    assert len(ids) == 5
+    assert brief["schema"] == "anomalica/brief/2"
+
+
+def test_a_composed_pages_brief_hash_covers_its_member_list():
+    a = synthesise.brief_hash(["n1"], "entity", [("c1", "h1")])
+    b = synthesise.brief_hash(["n1", "n2"], "entity", [("c1", "h1")])
+    assert a != b  # adding a member changes what the page should say

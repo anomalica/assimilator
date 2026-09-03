@@ -40,7 +40,7 @@ from assimilator.database import claim_ref_statuses
 from assimilator.propose_pages import proposed_node_ids
 from assimilator.data_dir import data_dir
 
-SCHEMA = "anomalica/brief/1"
+SCHEMA = "anomalica/brief/2"
 
 # Per-brief claim cap. A hub entity can be referenced by thousands of claims,
 # which would make one brief too large for the assembler to render in a single
@@ -105,6 +105,7 @@ MIN_SOURCE_CLAIMS = 5
 # percent of the measured prompt.
 _CLAIM_OVERHEAD_TOKENS = 20
 _COL_ID = 0
+_COL_HASH = 8
 _COL_CONTENT = 1
 _COL_EXCERPT = 2
 _COL_ATTESTATION = 4
@@ -359,7 +360,9 @@ def _graph_version(conn: sqlite3.Connection) -> str | None:
     return row[0] if row else None
 
 
-def brief_hash(node_id: str, kind: str, ordered_pairs: list[tuple[str, str]]) -> str:
+def brief_hash(
+    node_ids: str | list[str], kind: str, ordered_pairs: list[tuple[str, str]]
+) -> str:
     """sha256 over the ordered (claim_id, claim_hash) selection plus page identity.
 
     The claims list is ORDER-SENSITIVE (it is the selection order), so it is not
@@ -370,7 +373,10 @@ def brief_hash(node_id: str, kind: str, ordered_pairs: list[tuple[str, str]]) ->
     blob = json.dumps(
         {
             "kind": kind,
-            "node_id": node_id,
+            # THE MEMBER LIST, not one node: a page can cover several (brief/2)
+            # and adding a member changes what the page should say. Without it
+            # here, a page built from the old member set still looks fresh.
+            "node_id": (node_ids if isinstance(node_ids, str) else ",".join(node_ids)),
             "claims": [[c, h] for c, h in ordered_pairs],
         },
         ensure_ascii=False,
@@ -493,7 +499,11 @@ def _attribution_mode(
 
 
 def build_entity_brief(
-    conn: sqlite3.Connection, node_id: str, slug_map: dict[str, str] | None = None
+    conn: sqlite3.Connection,
+    node_id: str,
+    slug_map: dict[str, str] | None = None,
+    node_ids: list[str] | None = None,
+    page: dict | None = None,
 ) -> dict | None:
     """Build the brief for one entity node from its graph slice.
 
@@ -503,13 +513,30 @@ def build_entity_brief(
     slug_map (from build_slug_map) gives globally-disambiguated slugs; without it,
     the per-node canonical slug is used (fine for a single-page emit).
     """
+    members = [n for n in (node_ids or [node_id]) if n]
     node = conn.execute(
-        "SELECT id, node_type, name, metadata FROM nodes WHERE id = ?", (node_id,)
+        "SELECT id, node_type, name, metadata FROM nodes WHERE id = ?", (members[0],)
     ).fetchone()
     if node is None:
         return None
-    ref_status = claim_ref_statuses(conn, node_id)
+    node_id = members[0]
+    ref_status: dict[str, str] = {}
+    for member in members:
+        ref_status.update(claim_ref_statuses(conn, member))
     nid, node_type, name, metadata = node
+    # A COMPOSED PAGE unions its members' claims (curation/pages.yaml). The
+    # members stay separate nodes - UFO and UAP share 26 claims of 2,068, so a
+    # merge would destroy which word each source used - and only the page is
+    # one thing. Which member a shared claim is credited to is settled by
+    # member order, so two runs of the brief produce the same page.
+    member_rank: dict[str, int] = {}
+    for position, member in enumerate(members):
+        for (cid,) in conn.execute(
+            "SELECT claim_id FROM claim_node_refs WHERE node_id = ? "
+            "UNION SELECT id FROM claims WHERE speaker_id = ?",
+            (member, member),
+        ):
+            member_rank.setdefault(cid, position)
     slug_map = slug_map or {}
 
     def _slug(nid_: str, name_: str, meta_: object) -> str:
@@ -527,13 +554,25 @@ def build_entity_brief(
         FROM claims c
         LEFT JOIN records r ON r.id = c.record_id
         LEFT JOIN nodes sp ON sp.id = c.speaker_id
-        WHERE c.speaker_id = ?
-           OR c.id IN (SELECT claim_id FROM claim_node_refs WHERE node_id = ?)
+        WHERE c.speaker_id IN ({ids})
+           OR c.id IN (SELECT claim_id FROM claim_node_refs WHERE node_id IN ({ids}))
         ORDER BY r.date, c.location_in_record
-        """,
-        (node_id, node_id),
+        """.format(ids=",".join("?" * len(members))),
+        (*members, *members),
     ).fetchall()
 
+    # Deduped by claim_hash: one claim reached through two members is one
+    # claim. A naive union puts every count on a composed page out by the
+    # number its members share (26 for UFO and UAP).
+    if len(members) > 1:
+        best: dict[str, tuple] = {}
+        for row in rows:
+            key = row[_COL_HASH] or row[_COL_ID]
+            rank = (member_rank.get(row[_COL_ID], len(members)), row[_COL_ID])
+            if key not in best or rank < best[key][0]:
+                best[key] = (rank, row)
+        keep = {id(r) for _, r in best.values()}
+        rows = [r for r in rows if id(r) in keep]
     claim_count_total = len(rows)
     # A claim READ AND FOUND NOT TO BELONG is excluded from the brief, because
     # the brief is what the assembler builds a page from and master's rule is
@@ -677,12 +716,13 @@ def build_entity_brief(
         FROM claim_node_refs a
         JOIN claim_node_refs b ON b.claim_id = a.claim_id AND b.node_id != a.node_id
         JOIN nodes n ON n.id = b.node_id
-        WHERE a.node_id = ? AND n.retired_at IS NULL
+        WHERE a.node_id IN ({ids}) AND n.retired_at IS NULL
+          AND b.node_id NOT IN ({ids})
         GROUP BY b.node_id
         ORDER BY shared DESC, n.name
         LIMIT 30
-        """,
-        (node_id,),
+        """.format(ids=",".join("?" * len(members))),
+        (*members, *members),
     ).fetchall()
     related_nodes = [
         {
@@ -695,15 +735,36 @@ def build_entity_brief(
         for r in related
     ]
 
+    page = page or {}
+    member_rows = [
+        row
+        for row in (
+            conn.execute(
+                "SELECT id, name, node_type FROM nodes WHERE id = ?", (m,)
+            ).fetchone()
+            for m in members
+        )
+        if row
+    ]
     return {
         "schema": SCHEMA,
-        "brief_hash": brief_hash(nid, "entity", ordered_pairs),
+        "brief_hash": brief_hash(members, "entity", ordered_pairs),
         "page": {
             "kind": "entity",
-            "node_id": nid,
-            "node_type": node_type,
-            "title": page_title(name),
-            "slug": _slug(nid, name, metadata),
+            # A PAGE COVERS A LIST OF NODES (brief/2): one entry for an ordinary
+            # page, several for a composed one, never absent. A consumer acting
+            # on a covered node must act on EVERY entry - under the old singular
+            # field a page whose second member was retired or vetoed stayed up
+            # and kept publishing that member's claims.
+            "nodes": [
+                {"node_id": r[0], "name": r[1], "node_type": r[2]} for r in member_rows
+            ],
+            "node_type": page.get("node_type") or node_type,
+            # The PAGE's own name, never a member's: a title lifted from a
+            # member would silently rename the page, and move its URL, when a
+            # member is added or removed.
+            "title": page_title(page.get("name") or name),
+            "slug": page.get("slug") or _slug(nid, name, metadata),
             "claim_count": len(claims),
             "claim_count_total": claim_count_total,
         },
@@ -852,10 +913,22 @@ def brief_header(path: Path) -> dict | None:
     return doc if isinstance(doc, dict) else None
 
 
+def brief_node_ids(path: Path) -> list[str]:
+    """Every node the brief's page covers, in member order; empty if unreadable."""
+    page = (brief_header(path) or {}).get("page") or {}
+    return [
+        str(n.get("node_id"))
+        for n in (page.get("nodes") or [])
+        if isinstance(n, dict) and n.get("node_id")
+    ]
+
+
 def brief_node_id(path: Path) -> str | None:
-    """The page.node_id a brief file carries, or None."""
-    node_id = ((brief_header(path) or {}).get("page") or {}).get("node_id")
-    return str(node_id) if node_id else None
+    """The brief's PRIMARY node - its first member. A caller that ACTS on the
+    page (prunes it, retires it, rebuilds it) must use brief_node_ids and act
+    on every member; this is for the cases that need one identity."""
+    ids = brief_node_ids(path)
+    return ids[0] if ids else None
 
 
 def write_brief(brief: dict, out_dir: Path) -> Path:
@@ -945,22 +1018,39 @@ def prune_retired_briefs(
     if not slug_map:
         slug_map, _ = build_slug_map(conn)
     with_claims = nodes_with_claims(conn)
+    # A composed page's path comes from the PAGE, not from any member, and its
+    # members have no brief of their own.
+    from assimilator.pages import composed_pages
+
+    composed = {
+        tuple(p["node_ids"]): brief_relpath(p["node_type"], p["slug"])
+        for p in composed_pages(conn)
+    }
     removed: list[str] = []
     for path in sorted(out_dir.glob("*.yaml")) + brief_files(out_dir):
-        node_id = brief_node_id(path)
-        if not node_id:
+        members = brief_node_ids(path)
+        if not members:
             continue  # no readable identity: leave it for a human, never delete blind
-        if node_ids is not None and node_id not in node_ids:
+        if node_ids is not None and not (set(members) & set(node_ids)):
             continue
         rel = path.relative_to(out_dir)
-        if node_id not in live or node_id not in with_claims:
+        usable = [m for m in members if m in live and m in with_claims]
+        if not usable:
             path.unlink()
             removed.append(str(rel))
             continue
-        node_type, name, metadata = live[node_id]
-        current = brief_relpath(
-            node_type, slug_map.get(node_id) or node_slug(name, metadata)
-        )
+        current = composed.get(tuple(members))
+        if current is None:
+            if len(members) > 1:
+                # The composition is gone or its members changed; the page it
+                # described no longer exists in that shape.
+                path.unlink()
+                removed.append(str(rel))
+                continue
+            node_type, name, metadata = live[usable[0]]
+            current = brief_relpath(
+                node_type, slug_map.get(usable[0]) or node_slug(name, metadata)
+            )
         if rel != current:
             path.unlink()  # stranded by a rename, a retype, or the old flat layout
             removed.append(str(rel))
@@ -980,13 +1070,41 @@ def refile_briefs(
     page unowned). The brief follows the rename, whatever the proposal set says.
     """
     out_dir = out_dir or default_briefs_dir()
-    had = {brief_node_id(f) for f in brief_files(out_dir)} & set(node_ids)
+    had = {m for f in brief_files(out_dir) for m in brief_node_ids(f)} & set(node_ids)
     if not had:
         return {"written": [], "pruned": []}
     slug_map, _ = build_slug_map(conn)
-    written: list[str] = []
+    # NOT the proposal set: a rename of an UNPROPOSED node must still refile its
+    # brief, which is the hole this function exists to close. A covered node
+    # refiles the page that covers it; every other node refiles its own.
+    from assimilator.pages import composed_pages
+
+    covering = {
+        m: {
+            "node_ids": p["node_ids"],
+            "page": {"name": p["name"], "slug": p["slug"], "node_type": p["node_type"]},
+        }
+        for p in composed_pages(conn)
+        for m in p["node_ids"]
+    }
+    seen: set[tuple[str, ...]] = set()
+    plan = []
     for node_id in sorted(had):
-        brief = build_entity_brief(conn, node_id, slug_map)
+        entry = covering.get(node_id) or {"node_ids": [node_id], "page": None}
+        key = tuple(entry["node_ids"])
+        if key in seen:
+            continue
+        seen.add(key)
+        plan.append(entry)
+    written: list[str] = []
+    for page in plan:
+        brief = build_entity_brief(
+            conn,
+            page["node_ids"][0],
+            slug_map,
+            node_ids=page["node_ids"],
+            page=page["page"],
+        )
         if brief is None or not brief["claims"]:
             continue
         written.append(str(write_brief(brief, out_dir).relative_to(out_dir)))
@@ -994,12 +1112,39 @@ def refile_briefs(
     return {"written": written, "pruned": pruned}
 
 
+def page_set(conn: sqlite3.Connection) -> list[dict]:
+    """Every page to emit a brief for: each composed page (several members,
+    its own name and slug), then each proposed node on its own. A node covered
+    by a composed page is not proposed separately, so nothing is emitted twice."""
+    from assimilator.pages import composed_pages
+
+    out = [
+        {
+            "node_ids": p["node_ids"],
+            "page": {
+                "name": p["name"],
+                "slug": p["slug"],
+                "node_type": p["node_type"],
+            },
+        }
+        for p in composed_pages(conn)
+    ]
+    out.extend({"node_ids": [nid], "page": None} for nid in entity_node_ids(conn))
+    return out
+
+
 def emit_all(conn: sqlite3.Connection, out_dir: Path, on_progress=None) -> dict:
     log = on_progress or (lambda _: None)
     slug_map, collisions = build_slug_map(conn)
     written = 0
-    for node_id in entity_node_ids(conn):
-        brief = build_entity_brief(conn, node_id, slug_map)
+    for page in page_set(conn):
+        brief = build_entity_brief(
+            conn,
+            page["node_ids"][0],
+            slug_map,
+            node_ids=page["node_ids"],
+            page=page["page"],
+        )
         if brief is None or not brief["claims"]:
             continue
         write_brief(brief, out_dir)
@@ -1049,12 +1194,25 @@ def main(argv: list[str] | None = None) -> int:
             # collision loser emitted alone would otherwise land on the base
             # slug and overwrite the winner's brief.
             slug_map, _ = build_slug_map(conn)
-            brief = build_entity_brief(conn, args.node, slug_map)
+            # A covered node has no brief of its own: emit the page that covers it.
+            page = next(
+                (p for p in page_set(conn) if args.node in p["node_ids"]),
+                {"node_ids": [args.node], "page": None},
+            )
+            brief = build_entity_brief(
+                conn,
+                page["node_ids"][0],
+                slug_map,
+                node_ids=page["node_ids"],
+                page=page["page"],
+            )
             if brief is None:
                 print(f"No such node: {args.node}")
                 return 1
             print(f"Wrote {write_brief(brief, out_dir)}")
-            for name in prune_retired_briefs(conn, out_dir, slug_map, {args.node}):
+            for name in prune_retired_briefs(
+                conn, out_dir, slug_map, set(page["node_ids"])
+            ):
                 print(f"Pruned {name} - the node's brief moved")
         else:
             result = emit_all(conn, out_dir, on_progress=print)

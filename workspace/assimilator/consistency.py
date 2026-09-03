@@ -62,7 +62,17 @@ def check_all(
     }
     proposals = {r[0] for r in conn.execute("SELECT node_id FROM page_proposals")}
     briefs = _briefs(briefs_dir)
-    brief_node = {n: (d.get("page") or {}).get("node_id") for n, d in briefs.items()}
+    # EVERY member, not the first: a page covers a list of nodes (brief/2), and
+    # a check that reads one member misses a finding on the others.
+    brief_nodes = {
+        n: [
+            str(m.get("node_id"))
+            for m in ((d.get("page") or {}).get("nodes") or [])
+            if isinstance(m, dict) and m.get("node_id")
+        ]
+        for n, d in briefs.items()
+    }
+    brief_node = {n: (ids[0] if ids else None) for n, ids in brief_nodes.items()}
 
     # 1. A proposal for a node that no longer exists. A merge retires its victims
     # and page_proposals is derived, so it goes stale until propose-pages reruns -
@@ -89,7 +99,9 @@ def check_all(
     # 2. A brief describing a node that is gone. Emission only writes, so a brief
     # outlives its node; the assembler takes a brief by slug and will build a page
     # from a dead one.
-    dead_briefs = [n for n, nid in brief_node.items() if nid and nid not in live]
+    dead_briefs = [
+        n for n, ids in brief_nodes.items() if ids and not any(i in live for i in ids)
+    ]
     if dead_briefs:
         findings.append(
             Finding(
@@ -107,7 +119,7 @@ def check_all(
     stranded = [
         n
         for n, nid in brief_node.items()
-        if nid in live and n[:-5] != slugify(live[nid])
+        if nid in live and len(brief_nodes[n]) == 1 and n[:-5] != slugify(live[nid])
     ]
     if stranded:
         findings.append(
@@ -122,7 +134,7 @@ def check_all(
 
     # 4. A proposal with no brief. Synthesise skips a node with no claims, but a
     # proposal requires claims - so the two disagreeing means one of them is wrong.
-    have = {nid for nid in brief_node.values() if nid}
+    have = {i for ids in brief_nodes.values() for i in ids}
     missing = [n for n in proposals if n in live and n not in have]
     if missing:
         findings.append(

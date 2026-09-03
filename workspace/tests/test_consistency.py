@@ -59,7 +59,10 @@ def test_an_undone_veto_with_no_page_is_reported(tmp_path):
     briefs.mkdir(parents=True)
     (briefs / "telepathy.yaml").write_text(
         yaml.safe_dump(
-            {"page": {"node_id": "n1", "slug": "telepathy"}, "brief_hash": "h"}
+            {
+                "page": {"nodes": [{"node_id": "n1"}], "slug": "telepathy"},
+                "brief_hash": "h",
+            }
         )
     )
     content = tmp_path / "content"

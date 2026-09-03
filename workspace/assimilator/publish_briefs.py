@@ -226,7 +226,7 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
     """
     from assimilator.synthesise import (
         brief_files,
-        brief_node_id,
+        brief_node_ids,
         brief_relpath,
         build_slug_map,
         node_slug,
@@ -242,21 +242,35 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
     slug_map, _collisions = build_slug_map(conn)
     with_claims = nodes_with_claims(conn)
     findings: list[dict] = []
+    from assimilator.pages import composed_pages
+
+    composed = {
+        tuple(p["node_ids"]): brief_relpath(p["node_type"], p["slug"])
+        for p in composed_pages(conn)
+    }
     for path in sorted(out_dir.glob("*.yaml")) + brief_files(out_dir):
-        node_id = brief_node_id(path)
-        if not node_id:
+        members = brief_node_ids(path)
+        if not members:
             continue
         rel = str(path.relative_to(out_dir))
-        if node_id not in live:
+        if not any(m in live for m in members):
             findings.append({"file": rel, "why": "node retired or absent"})
             continue
-        if node_id not in with_claims:
+        usable = [m for m in members if m in live and m in with_claims]
+        if not usable:
             findings.append({"file": rel, "why": "node has no claims"})
             continue
-        node_type, name, metadata = live[node_id]
-        current = brief_relpath(
-            node_type, slug_map.get(node_id) or node_slug(name, metadata)
-        )
+        current = composed.get(tuple(members))
+        if current is None:
+            if len(members) > 1:
+                findings.append(
+                    {"file": rel, "why": "the composition it describes is gone"}
+                )
+                continue
+            node_type, name, metadata = live[usable[0]]
+            current = brief_relpath(
+                node_type, slug_map.get(usable[0]) or node_slug(name, metadata)
+            )
         if path.relative_to(out_dir) != current:
             findings.append(
                 {"file": rel, "why": f"stale path; the node's brief is now {current}"}
