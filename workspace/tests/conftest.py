@@ -14,3 +14,10 @@ def _curation_dir_is_throwaway(tmp_path_factory, monkeypatch):
     monkeypatch.setenv(
         "ANOMALICA_CURATION_DIR", str(tmp_path_factory.mktemp("curation"))
     )
+
+
+@pytest.fixture(autouse=True)
+def _data_dir_is_throwaway(tmp_path_factory, monkeypatch):
+    """The reranker memo, verdicts and run records under ~/.local/share/assimilator
+    are shared with the scheduler's chain; no test may append to them."""
+    monkeypatch.setenv("ASSIMILATOR_DATA_DIR", str(tmp_path_factory.mktemp("data")))

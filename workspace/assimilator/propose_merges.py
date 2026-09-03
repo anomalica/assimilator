@@ -205,21 +205,40 @@ def rerank_clusters(
                 entities[nid] = entity_from_graph(conn, nid)
     if not pairs:
         return {"pairs": 0, "prompts": 0, "device": None, "gpu_peak_mb": None}
-    reranker = get_reranker(model_id)
-    scores = reranker.score([(entities[a], entities[b]) for _, a, b in pairs])
+    # ONE MEMO with the shortlist chain (rerank-scores.jsonl): a pair scored
+    # once is never scored again by either path. Before this, every pass
+    # re-scored all 375 rule pairs - three passes in a morning, 750 prompts
+    # each, every one already on disk - and the scheduler saw the reranker
+    # make itself due again the moment it finished.
+    from assimilator.merge_pipeline import _key, load_scores, score_pairs, scores_path
+
+    memo_path = scores_path()
+    memo = load_scores(memo_path)
+    missing = sorted({_key((a, b)) for _, a, b in pairs if _key((a, b)) not in memo})
+    reranker = get_reranker(model_id) if missing else None
+    if missing:
+        score_pairs(conn, missing, reranker, memo_path, log=lambda _: None)
+        memo = load_scores(memo_path)
     for cluster in clusters:
         cluster["rule_score"] = cluster["score"]
         cluster["pairs"] = []
         cluster["score"] = 0.0
-    for (ci, a, b), s in zip(pairs, scores):
+    for ci, a, b in pairs:
+        s = memo.get(_key((a, b))) or {}
+        # with_claims where the names pass let it be computed; the names score
+        # otherwise - below the names filter a pair is not a merge either way.
+        value = s.get("with_claims")
+        if value is None:
+            value = s.get("names_only", 0.0) or 0.0
         cluster = clusters[ci]
-        cluster["pairs"].append({"node_ids": [a, b], "reranker": round(s, 4)})
-        cluster["score"] = max(cluster["score"], round(s, 4))
+        cluster["pairs"].append({"node_ids": [a, b], "reranker": round(value, 4)})
+        cluster["score"] = max(cluster["score"], round(value, 4))
     return {
         "pairs": len(pairs),
-        "prompts": len(pairs) * 2,  # both orders, averaged
-        "device": reranker.device,
-        "gpu_peak_mb": reranker.peak_memory_mb(),
+        "scored_now": len(missing),
+        "prompts": len(missing) * 2,  # both orders, averaged
+        "device": reranker.device if reranker else None,
+        "gpu_peak_mb": reranker.peak_memory_mb() if reranker else None,
     }
 
 

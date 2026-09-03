@@ -72,7 +72,23 @@ def test_rerank_orders_the_queue_and_keeps_the_rules_verdict(monkeypatch):
     run = propose_merges.rerank_clusters(conn, clusters)
     clusters.sort(key=lambda c: c["score"], reverse=True)
 
-    assert run == {"pairs": 2, "prompts": 4, "device": "cpu", "gpu_peak_mb": None}
+    assert run == {
+        "pairs": 2,
+        "scored_now": 2,
+        "prompts": 4,
+        "device": "cpu",
+        "gpu_peak_mb": None,
+    }
+    # The shared memo: a second pass scores nothing and loads no reranker.
+    monkeypatch.setattr(
+        er,
+        "get_reranker",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("memo miss")),
+    )
+    again = propose_merges.rerank_clusters(
+        conn, [dict(c, score=c["rule_score"]) for c in clusters]
+    )
+    assert again["scored_now"] == 0 and again["prompts"] == 0
 
     assert [c["node_ids"] for c in clusters] == [["b1", "b2"], ["a1", "a2"]]
     top, second = clusters
