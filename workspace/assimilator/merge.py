@@ -42,6 +42,40 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# Mark's rule (2026-09-03): NO SESSION APPLIES A MERGE. Every merge - a curation
+# session's, master's, an identity or fragment pass's - is a proposal in the
+# workbench queue, and only a merge Mark confirms there is applied and written
+# to the ledger. The confirmation travels in the ledger entry as
+# `confirmation: {by, at, via}` (via names which of his two entry points issued
+# it: the proposal queue, or the rename-onto-an-existing-name flow). Not a
+# security boundary - a guard against habit and mistake: 163 of the 164 merges
+# applied to the graph before this rule were made by AI sessions.
+#
+# Entries dated before the rule landed are GRANDFATHERED: they carry no block
+# and still replay, because "replay applies only confirmed entries" applied
+# literally would un-merge the whole graph on the next rebuild, and Mark's
+# instruction was to list them for review, not undo them.
+CONFIRMATION_REQUIRED_FROM = "2026-09-03T02:10:00Z"
+CONFIRMATION_VIAS = ("workbench-queue", "workbench-rename")
+
+
+def confirmation_block(by: str, at: str | None, via: str) -> dict:
+    if not by or not by.strip():
+        raise ValueError("a confirmation needs who confirmed")
+    if via not in CONFIRMATION_VIAS:
+        raise ValueError(f"via must be one of {CONFIRMATION_VIAS}, not {via!r}")
+    return {"by": by.strip(), "at": at or _now(), "via": via}
+
+
+def confirmed(entry: dict) -> bool:
+    """Whether a ledger merge entry may be applied: it carries a confirmation
+    block, or it predates the rule."""
+    block = entry.get("confirmation")
+    if isinstance(block, dict) and block.get("by"):
+        return True
+    return str(entry.get("at") or "") < CONFIRMATION_REQUIRED_FROM
+
+
 def _node(conn: sqlite3.Connection, node_id: str) -> tuple[str, str] | None:
     row = conn.execute(
         "SELECT name, node_type FROM nodes WHERE id = ?", (node_id,)
@@ -312,21 +346,72 @@ def append_merge_entry(
     merge_id: str,
     created_at: str,
     created_by: str | None,
+    confirmation: dict | None = None,
 ) -> None:
     """Append a merge entry to the durable ledger, keyed on natural identity
     (names), with ids as an audit snapshot. Captured BEFORE the live merge so the
-    victims still resolve to their own natural identity."""
+    victims still resolve to their own natural identity.
+
+    Refuses an entry with no confirmation block: an unconfirmed merge is a
+    proposal, and a proposal is not a ledger entry (see propose_merge)."""
+    if not confirmation:
+        raise ValueError(
+            "a merge is written to the ledger only with Mark's confirmation; "
+            "without one it is a proposal (propose_merge)"
+        )
     entry = {
         "op": "merge",
         "merge_id": merge_id,
         "at": created_at,
         "by": created_by,
+        "confirmation": dict(confirmation),
         "canonical_name": canonical_name,
         "survivor": _natural(conn, survivor_id),
         "victims": [_natural(conn, v) for v in victim_ids if _node(conn, v)],
         "audit": {"survivor_id": survivor_id, "victim_ids": list(victim_ids)},
     }
     _append(entry)
+
+
+def propose_merge(
+    conn: sqlite3.Connection,
+    survivor_id: str,
+    victim_ids: list[str],
+    canonical_name: str,
+    proposed_by: str | None,
+    path: Path | None = None,
+) -> dict | None:
+    """What an unconfirmed merge becomes: one cluster in the reviewer queue.
+    Idempotent on the node set; returns the entry written, None if present."""
+    path = path or (data_dir() / "merge-candidates-manual.json")
+    try:
+        existing = json.loads(path.read_text()) if path.exists() else []
+    except (OSError, json.JSONDecodeError):
+        existing = []
+    if not isinstance(existing, list):
+        existing = []
+    node_ids = sorted({survivor_id, *victim_ids})
+    if any(
+        set(c.get("node_ids") or []) == set(node_ids)
+        for c in existing
+        if isinstance(c, dict)
+    ):
+        return None
+    survivor = _node(conn, survivor_id)
+    entry = {
+        "node_ids": node_ids,
+        "suggested_survivor": survivor_id,
+        "suggested_canonical": canonical_name,
+        "score": 0.9,
+        "node_type": survivor[1] if survivor else None,
+        "reason": f"proposed by {proposed_by or 'an unnamed session'}; "
+        "applies only when Mark confirms it in the workbench",
+        "proposed_at": _now(),
+    }
+    existing.append(entry)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(existing, indent=1, ensure_ascii=False))
+    return entry
 
 
 def append_undo_entry(
@@ -434,8 +519,16 @@ def replay_ledger(conn: sqlite3.Connection, on_progress=None) -> dict:
     entries = read_ledger()
     undone = {e["merge_id"] for e in entries if e.get("op") == "undo"}
     applied = absorbed = lost = 0
+    unconfirmed = 0
     for e in entries:
         if e.get("op") != "merge" or e["merge_id"] in undone:
+            continue
+        if not confirmed(e):
+            log(
+                f"  replay UNCONFIRMED {e['merge_id']}: no confirmation block and "
+                f"dated after the rule - not applied ({e.get('canonical_name')!r})"
+            )
+            unconfirmed += 1
             continue
         survivor_id = _resolve_natural(conn, e["survivor"])
         resolved = [survivor_id] if survivor_id else []
@@ -490,9 +583,15 @@ def replay_ledger(conn: sqlite3.Connection, on_progress=None) -> dict:
         )
         applied += 1
     summary = f"Replayed {applied} merges ({absorbed} already single-node"
-    summary += f", {lost} LOST)" if lost else ")"
-    log(summary)
-    return {"applied": applied, "absorbed": absorbed, "lost": lost}
+    summary += f", {lost} LOST" if lost else ""
+    summary += f", {unconfirmed} unconfirmed" if unconfirmed else ""
+    log(summary + ")")
+    return {
+        "applied": applied,
+        "absorbed": absorbed,
+        "lost": lost,
+        "unconfirmed": unconfirmed,
+    }
 
 
 # --- Rejections ("not a duplicate"): the negative-signal curation ledger ---
@@ -726,6 +825,19 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--name", help="canonical name for the survivor")
     p.add_argument("--undo", help="merge_id to reverse")
     p.add_argument("--by", default=None, help="actor (email)")
+    p.add_argument(
+        "--confirmed-by",
+        default=None,
+        help="who confirmed this merge in the workbench; without it the merge is "
+        "PROPOSED into the reviewer queue and nothing is applied",
+    )
+    p.add_argument("--confirmed-at", default=None, help="ISO UTC of the confirmation")
+    p.add_argument(
+        "--confirmed-via",
+        default="workbench-queue",
+        choices=CONFIRMATION_VIAS,
+        help="which workbench flow issued the confirmation",
+    )
     args = p.parse_args(argv)
 
     conn = sqlite3.connect(args.db)
@@ -744,12 +856,30 @@ def main(argv: list[str] | None = None) -> int:
         missing = [n for n in [args.survivor, *victim_ids] if _node(conn, n) is None]
         if missing:
             p.error(f"node id(s) not found: {', '.join(missing)}")
+        if not args.confirmed_by:
+            entry = propose_merge(conn, args.survivor, victim_ids, args.name, args.by)
+            print(
+                "PROPOSED, not applied: no --confirmed-by. The cluster is in the "
+                "reviewer queue and applies when Mark confirms it in the workbench."
+                + ("" if entry else " (It was already queued.)")
+            )
+            return 0
+        confirmation = confirmation_block(
+            args.confirmed_by, args.confirmed_at, args.confirmed_via
+        )
         merge_id = str(uuid.uuid4())
         created_at = _now()
         # Ledger first (captures victims' natural identity before they retire),
         # then the live mutation.
         append_merge_entry(
-            conn, args.survivor, victim_ids, args.name, merge_id, created_at, args.by
+            conn,
+            args.survivor,
+            victim_ids,
+            args.name,
+            merge_id,
+            created_at,
+            args.by,
+            confirmation=confirmation,
         )
         merged = merge_nodes(
             conn, args.survivor, victim_ids, args.name, merge_id, created_at, args.by

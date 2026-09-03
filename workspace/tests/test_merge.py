@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 
+import yaml
+
 from assimilator import merge
+
 from assimilator.database import init_db, insert_claim, insert_node, insert_record
-from anomalica_common.digest.models import Claim, Node, Record
+from anomalica_common.digest.models import Claim, Node, NodeType, Record
+
+_CONFIRMED = {"by": "test", "at": "2026-09-03T03:00:00Z", "via": "workbench-queue"}
 
 
 def _graph():
@@ -132,7 +138,14 @@ def test_replay_by_natural_identity(tmp_path, monkeypatch):
     # name, not id.
     src = _graph()
     merge.append_merge_entry(
-        src, "A", ["B"], "2004 Nimitz Encounter", "m1", merge._now(), None
+        src,
+        "A",
+        ["B"],
+        "2004 Nimitz Encounter",
+        "m1",
+        merge._now(),
+        None,
+        confirmation=_CONFIRMED,
     )
 
     fresh = _graph()  # same names, ids happen to match here, but replay uses names
@@ -151,7 +164,9 @@ def test_replay_by_natural_identity(tmp_path, monkeypatch):
 def test_replay_skips_undone(tmp_path, monkeypatch):
     monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
     src = _graph()
-    merge.append_merge_entry(src, "A", ["B"], "Canonical", "m1", merge._now(), None)
+    merge.append_merge_entry(
+        src, "A", ["B"], "Canonical", "m1", merge._now(), None, confirmation=_CONFIRMED
+    )
     merge.append_undo_entry("m1", None)
     fresh = _graph()
     assert merge.replay_ledger(fresh)["applied"] == 0
@@ -203,3 +218,111 @@ def test_resolve_natural_keeps_the_deterministic_tiers():
         merge._resolve_natural(conn, {"name": "Dave Saunders", "node_type": "person"})
         == "P"
     )
+
+
+def test_an_unconfirmed_merge_is_a_proposal_not_a_merge(tmp_path, monkeypatch):
+    """Mark's rule of 2026-09-03: no session applies a merge. Without a
+    confirmation the command queues the cluster for the workbench and touches
+    neither the ledger nor the graph."""
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    monkeypatch.setenv("ASSIMILATOR_DATA_DIR", str(tmp_path / "data"))
+    db = tmp_path / "g.db"
+    conn = sqlite3.connect(db)
+    init_db(conn)
+    insert_node(conn, Node(id="A", name="Nimitz", node_type=NodeType.event))
+    insert_node(conn, Node(id="B", name="Nimitz 2004", node_type=NodeType.event))
+    conn.commit()
+    conn.close()
+
+    rc = merge.main(
+        [
+            "--db",
+            str(db),
+            "--survivor",
+            "A",
+            "--victims",
+            "B",
+            "--name",
+            "Nimitz",
+            "--by",
+            "a-session",
+        ]
+    )
+
+    assert rc == 0
+    conn = sqlite3.connect(db)
+    assert (
+        conn.execute("SELECT retired_at FROM nodes WHERE id='B'").fetchone()[0] is None
+    )
+    assert merge.read_ledger() == []
+    queued = json.loads(
+        (tmp_path / "data" / "merge-candidates-manual.json").read_text()
+    )
+    assert queued[0]["node_ids"] == ["A", "B"] and "a-session" in queued[0]["reason"]
+
+    rc = merge.main(
+        [
+            "--db",
+            str(db),
+            "--survivor",
+            "A",
+            "--victims",
+            "B",
+            "--name",
+            "Nimitz",
+            "--confirmed-by",
+            "workbench/mark",
+            "--confirmed-via",
+            "workbench-queue",
+        ]
+    )
+
+    assert rc == 0
+    assert (
+        conn.execute("SELECT retired_at FROM nodes WHERE id='B'").fetchone()[0]
+        is not None
+    )
+    entry = merge.read_ledger()[0]
+    assert entry["confirmation"]["by"] == "workbench/mark"
+    assert entry["confirmation"]["via"] == "workbench-queue"
+
+
+def test_replay_applies_grandfathered_and_confirmed_entries_only(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    src = _graph()
+    merge.append_merge_entry(
+        src,
+        "A",
+        ["B"],
+        "Canonical",
+        "old",
+        "2026-08-01T00:00:00Z",
+        None,
+        confirmation=_CONFIRMED,
+    )
+    # strip the block to model a pre-rule entry
+    path = merge.ledger_path()
+    entries = merge.read_ledger()
+    entries[0].pop("confirmation")
+    entries.append(
+        {
+            "op": "merge",
+            "merge_id": "new",
+            "at": "2026-12-01T00:00:00Z",
+            "by": "a-session",
+            "canonical_name": "Canonical",
+            "survivor": entries[0]["survivor"],
+            "victims": entries[0]["victims"],
+            "audit": {},
+        }
+    )
+    path.write_text(
+        "".join("---\n" + yaml.safe_dump(e, sort_keys=False) for e in entries)
+    )
+    assert merge.confirmed(entries[0]) and not merge.confirmed(entries[1])
+
+    lines = []
+    result = merge.replay_ledger(_graph(), on_progress=lines.append)
+
+    assert result["applied"] == 1 and result["unconfirmed"] == 1
+    assert any("UNCONFIRMED" in ln for ln in lines)

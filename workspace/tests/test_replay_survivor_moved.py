@@ -16,6 +16,8 @@ from anomalica_common.digest.models import Claim, Node, Record
 from assimilator import merge
 from assimilator.database import init_db, insert_claim, insert_node, insert_record
 
+_CONFIRMED = {"by": "test", "at": "2026-09-03T03:00:00Z", "via": "workbench-queue"}
+
 
 def _ledger(tmp_path, monkeypatch, body: str) -> None:
     monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path))
@@ -73,7 +75,7 @@ def test_survivor_reclassified_away_still_merges_its_victims(tmp_path, monkeypat
     )
     result = merge.replay_ledger(conn)
 
-    assert result == {"applied": 1, "absorbed": 0, "lost": 0}
+    assert result == {"applied": 1, "absorbed": 0, "lost": 0, "unconfirmed": 0}
     # The most-cited resolved node takes over as survivor.
     assert conn.execute("SELECT retired_at FROM nodes WHERE id='proj'").fetchone()[0]
     assert (
@@ -94,7 +96,12 @@ def test_single_surviving_node_is_absorbed_not_merged(tmp_path, monkeypatch):
     conn = _graph(
         ("org", "organisation", "Unidentified Aerial Phenomena Task Force (UAPTF)", 9),
     )
-    assert merge.replay_ledger(conn) == {"applied": 0, "absorbed": 1, "lost": 0}
+    assert merge.replay_ledger(conn) == {
+        "applied": 0,
+        "absorbed": 1,
+        "lost": 0,
+        "unconfirmed": 0,
+    }
     assert (
         conn.execute("SELECT retired_at FROM nodes WHERE id='org'").fetchone()[0]
         is None
