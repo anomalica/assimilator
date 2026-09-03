@@ -295,3 +295,60 @@ def test_a_published_brief_the_graph_moved_past_is_reported(tmp_path):
     assert found["events/empty-event.yaml"] == "node has no claims"
     assert "stale path" in found["events/old-name.yaml"]
     assert "events/kept-event.yaml" in found["kept-event.yaml"]
+
+
+def test_a_members_brief_is_not_removable_until_the_composed_page_exists(tmp_path):
+    """The composition takes a member's brief away, but the member's ARTICLE is
+    published until the assembler retires it - and an article whose brief is
+    absent tells a reader the brief was never published. Which decision Mark
+    answers first must not decide whether that happens."""
+    from assimilator.pages import append_compose_entry, apply_pages
+    from assimilator.publish_briefs import unbuildable_in
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R", content_hash="sha256:aa"))
+    for nid, name in (("uap", "UAP topic"), ("ufo", "UFO topic")):
+        insert_node(conn, Node(id=nid, node_type=NodeType.topic, name=name))
+        insert_claim(
+            conn,
+            Claim(
+                id=f"{nid}-c",
+                content="x",
+                claim_type="testimony",
+                record_id="r1",
+                node_references=[nid],
+            ),
+        )
+    conn.commit()
+    append_compose_entry(
+        "UFOs / UAPs",
+        "topic",
+        [
+            {"name": "UAP topic", "node_type": "topic"},
+            {"name": "UFO topic", "node_type": "topic"},
+        ],
+        page_id="pg1",
+        confirmation={
+            "by": "workbench/mark",
+            "at": "2026-09-03T05:00:00Z",
+            "via": "workbench-compose",
+        },
+    )
+    apply_pages(conn)
+    out = tmp_path / "briefs"
+    (out / "topics").mkdir(parents=True)
+    for slug, node_id in (("uap-topic", "uap"), ("ufo-topic", "ufo")):
+        (out / "topics" / f"{slug}.yaml").write_text(
+            yaml.safe_dump({"page": {"nodes": [{"node_id": node_id}], "slug": slug}})
+        )
+    pages_dir = tmp_path / "pages"
+    (pages_dir / "topics").mkdir(parents=True)
+
+    # The composed page is not built: neither member brief may be removed.
+    assert unbuildable_in(out, conn, pages_dir=pages_dir) == []
+
+    (pages_dir / "topics" / "ufos-uaps.en.md").write_text("built")
+
+    found = {f["file"] for f in unbuildable_in(out, conn, pages_dir=pages_dir)}
+    assert found == {"topics/uap-topic.yaml", "topics/ufo-topic.yaml"}

@@ -202,7 +202,16 @@ def redact_brief(brief: dict, store_dir: Path) -> tuple[dict, dict]:
     return out, counts
 
 
-def unbuildable_in(out_dir: Path, conn) -> list[dict]:
+def article_exists(pages_dir: Path | None, section: str, slug: str) -> bool:
+    """Whether a built article stands at <section>/<slug>. Unknown pages_dir
+    reads as "it does", which is the cautious direction here: the caller uses
+    this to decide whether REMOVING a brief is safe."""
+    if pages_dir is None:
+        return True
+    return any(pages_dir.glob(f"{section}/{slug}.*.md"))
+
+
+def unbuildable_in(out_dir: Path, conn, pages_dir: Path | None = None) -> list[dict]:
     """Published briefs a consumer must not build from, and why.
 
     The published directory was never pruned. prune_retired_briefs runs during
@@ -215,6 +224,23 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
       away the same morning the published copies stayed);
     - the node is live but holds NO CLAIMS, so nothing could rebuild the brief
       and the file is a leftover from before its claims moved elsewhere;
+    A MEMBER'S BRIEF IS NOT REMOVABLE UNTIL THE PAGE COMPOSING IT EXISTS. The
+    composition takes a member's brief away and hands the subject to the
+    composed page - but the member's ARTICLE is still published until the
+    assembler builds and retires it, and an article whose brief is absent
+    renders "The brief for this article has not been published" on the live
+    site. That sentence contradicts the project's central promise and is true
+    only because of a publishing decision.
+
+    The exposure is an ORDERING one and nobody owns the order: on 2026-09-03
+    the site's deploy waited on one decision of Mark's and the composed page's
+    build on another, so whichever he answered first decided whether readers
+    saw it. The rule that survives any order is this: publish the composed
+    brief whenever - a brief with no article renders honestly - but do not
+    remove a member's brief until the composed page EXISTS as an article. So
+    a member brief is reported here only once that article is on disk, and
+    pages_dir is what makes it checkable rather than remembered.
+
     - the brief sits at a STALE PATH while the node has another brief at its
       current one, so one entity gets two pages. That is the Elizondo failure
       exactly. The path is <section>/<slug>.yaml (synthesise.brief_relpath), so
@@ -224,6 +250,9 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
     Identified from the graph rather than from a list of filenames, so it stays
     true as the graph moves. `file` is the path relative to out_dir.
     """
+    from anomalica_common.slug import section_for
+
+    from assimilator.pages import composed_pages
     from assimilator.synthesise import (
         brief_files,
         brief_node_ids,
@@ -242,8 +271,7 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
     slug_map, _collisions = build_slug_map(conn)
     with_claims = nodes_with_claims(conn)
     findings: list[dict] = []
-    from assimilator.pages import composed_pages
-
+    pages_by_member = {m: p for p in composed_pages(conn) for m in p["node_ids"]}
     composed = {
         tuple(p["node_ids"]): brief_relpath(p["node_type"], p["slug"])
         for p in composed_pages(conn)
@@ -259,6 +287,22 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
         usable = [m for m in members if m in live and m in with_claims]
         if not usable:
             findings.append({"file": rel, "why": "node has no claims"})
+            continue
+        covering = pages_by_member.get(usable[0]) if len(members) == 1 else None
+        if covering is not None:
+            if not article_exists(
+                pages_dir, section_for(covering["node_type"]), covering["slug"]
+            ):
+                # Its subject moved to a composed page that is not built yet.
+                # Removing this brief now would leave the member's own published
+                # article saying its brief was never published.
+                continue
+            findings.append(
+                {
+                    "file": rel,
+                    "why": f"its subject moved to the composed page {covering['name']!r}",
+                }
+            )
             continue
         current = composed.get(tuple(members))
         if current is None:

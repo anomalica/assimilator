@@ -1547,7 +1547,11 @@ def publish_briefs_cmd(
     # directory belongs to whoever consumes it.
     from assimilator.publish_briefs import unbuildable_in
 
-    stale = unbuildable_in(out_dir, sqlite3.connect(ctx.obj["db_path"]))
+    stale = unbuildable_in(
+        out_dir,
+        sqlite3.connect(ctx.obj["db_path"]),
+        pages_dir=out_dir.parent / "pages",
+    )
     if stale:
         click.echo(f"\n{len(stale)} published brief(s) the graph has moved past:")
         for item in stale[:10]:
