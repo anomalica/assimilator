@@ -152,5 +152,6 @@ def test_op_with_no_surviving_nodes_is_reported_as_lost(tmp_path, monkeypatch):
         "applied": 0,
         "absorbed": 0,
         "lost": 1,
+        "unconfirmed": 0,
     }
     assert any("ERROR" in m and "LOST" in m for m in messages)
