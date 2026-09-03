@@ -464,3 +464,28 @@ def test_page_title_writes_ufo_and_uap_bare_with_a_leading_capital():
     )
     assert page_title("telepathy") == "Telepathy"
     assert page_title("Cattle mutilation") == "Cattle mutilation"
+
+
+def test_a_renamed_node_with_a_brief_gets_it_refiled_at_the_new_slug(tmp_path):
+    """A rename of an unproposed node left its page with no brief: the old-slug
+    brief was pruned and nothing wrote the new one. The brief follows the name."""
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R", content_hash="sha256:aa"))
+    insert_node(conn, Node(id="act", name="Old Act Name", node_type=NodeType.document))
+    insert_node(
+        conn, Node(id="quiet", name="Never Had One", node_type=NodeType.document)
+    )
+    _claimed(conn, "act", 2)
+    _claimed(conn, "quiet", 2)
+    out = tmp_path / "briefs"
+    synthesise.write_brief(synthesise.build_entity_brief(conn, "act", {}), out)
+    assert (out / "documents" / "old-act-name.yaml").is_file()
+    conn.execute("UPDATE nodes SET name = 'New Act Name' WHERE id = 'act'")
+
+    moved = synthesise.refile_briefs(conn, {"act", "quiet"}, out)
+
+    assert moved["written"] == ["documents/new-act-name.yaml"]
+    assert moved["pruned"] == ["documents/old-act-name.yaml"]
+    assert not (out / "documents" / "old-act-name.yaml").exists()
+    assert not (out / "documents" / "never-had-one.yaml").exists()

@@ -1795,6 +1795,7 @@ def apply_renames_cmd(ctx: click.Context, dry_run: bool) -> None:
             raise SystemExit(1)
         return
     applied = lost = clashed = 0
+    renamed: set[str] = set()
     for p in proposals:
         row = conn.execute(
             "SELECT id, name FROM nodes WHERE id = ? AND retired_at IS NULL",
@@ -1838,12 +1839,23 @@ def apply_renames_cmd(ctx: click.Context, dry_run: bool) -> None:
                 created_by=p.get("proposed_by") or "operator/anomalica-curation",
             )
             resolve_rename(conn, p["id"], "applied")
+            renamed.add(row[0])
         applied += 1
     if not dry_run:
         conn.commit()
     click.echo(
         f"\n{'would apply' if dry_run else 'applied'} {applied}, lost {lost}, clashed {clashed}"
     )
+    if renamed:
+        # The brief follows the rename; otherwise an unproposed node's page is
+        # left with no brief until someone notices.
+        from assimilator.synthesise import refile_briefs
+
+        moved = refile_briefs(conn, renamed)
+        for rel in moved["written"]:
+            click.echo(f"  BRIEF   {rel}")
+        for rel in moved["pruned"]:
+            click.echo(f"  PRUNED  {rel}")
 
 
 @main.command("belonging")

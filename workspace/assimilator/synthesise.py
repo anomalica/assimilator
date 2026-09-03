@@ -967,6 +967,33 @@ def prune_retired_briefs(
     return removed
 
 
+def refile_briefs(
+    conn: sqlite3.Connection, node_ids: set[str], out_dir: Path | None = None
+) -> dict:
+    """After a rename: a node that HAD a brief gets it rewritten at its new slug
+    and the old one pruned; a node that had none gets none.
+
+    The per-node emit only runs for nodes the scheduler finds stale, and a node
+    with no brief on disk is never stale - so a rename left an unproposed node's
+    page with no brief at all (the Disclosure Act, 2026-09-03: the old-slug brief
+    was pruned, nothing wrote the new one, and the assembler's sweep found the
+    page unowned). The brief follows the rename, whatever the proposal set says.
+    """
+    out_dir = out_dir or default_briefs_dir()
+    had = {brief_node_id(f) for f in brief_files(out_dir)} & set(node_ids)
+    if not had:
+        return {"written": [], "pruned": []}
+    slug_map, _ = build_slug_map(conn)
+    written: list[str] = []
+    for node_id in sorted(had):
+        brief = build_entity_brief(conn, node_id, slug_map)
+        if brief is None or not brief["claims"]:
+            continue
+        written.append(str(write_brief(brief, out_dir).relative_to(out_dir)))
+    pruned = prune_retired_briefs(conn, out_dir, slug_map, had)
+    return {"written": written, "pruned": pruned}
+
+
 def emit_all(conn: sqlite3.Connection, out_dir: Path, on_progress=None) -> dict:
     log = on_progress or (lambda _: None)
     slug_map, collisions = build_slug_map(conn)
