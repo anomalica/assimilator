@@ -213,6 +213,8 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
     - the node is RETIRED or gone, so the brief builds a page for something that
       no longer exists (kenneth-arnold-sighting and phoenix-lights, both merged
       away the same morning the published copies stayed);
+    - the node is live but holds NO CLAIMS, so nothing could rebuild the brief
+      and the file is a leftover from before its claims moved elsewhere;
     - the brief sits at a STALE PATH while the node has another brief at its
       current one, so one entity gets two pages. That is the Elizondo failure
       exactly. The path is <section>/<slug>.yaml (synthesise.brief_relpath), so
@@ -228,6 +230,7 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
         brief_relpath,
         build_slug_map,
         node_slug,
+        nodes_with_claims,
     )
 
     live = {
@@ -237,6 +240,7 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
         )
     }
     slug_map, _collisions = build_slug_map(conn)
+    with_claims = nodes_with_claims(conn)
     findings: list[dict] = []
     for path in sorted(out_dir.glob("*.yaml")) + brief_files(out_dir):
         node_id = brief_node_id(path)
@@ -245,6 +249,9 @@ def unbuildable_in(out_dir: Path, conn) -> list[dict]:
         rel = str(path.relative_to(out_dir))
         if node_id not in live:
             findings.append({"file": rel, "why": "node retired or absent"})
+            continue
+        if node_id not in with_claims:
+            findings.append({"file": rel, "why": "node has no claims"})
             continue
         node_type, name, metadata = live[node_id]
         current = brief_relpath(

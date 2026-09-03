@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from anomalica_common.digest.models import Node, NodeType
-from assimilator.database import init_db, insert_node
+from anomalica_common.digest.models import Claim, Node, NodeType, Record
+from assimilator.database import init_db, insert_claim, insert_node, insert_record
 
 from assimilator.publish_briefs import (
     copyright_status,
@@ -253,8 +253,23 @@ def test_a_published_brief_the_graph_moved_past_is_reported(tmp_path):
     conn = sqlite3.connect(":memory:")
     init_db(conn)
     insert_node(conn, Node(id="LIVE", node_type=NodeType.event, name="Kept Event"))
+    insert_node(conn, Node(id="EMPTY", node_type=NodeType.event, name="Empty Event"))
+    insert_record(conn, Record(id="r1", title="R", content_hash="sha256:aa"))
+    insert_claim(
+        conn,
+        Claim(
+            id="c1",
+            content="x",
+            claim_type="testimony",
+            record_id="r1",
+            node_references=["LIVE"],
+        ),
+    )
     out = tmp_path / "published"
     (out / "events").mkdir(parents=True)
+    (out / "events" / "empty-event.yaml").write_text(
+        yaml.safe_dump({"page": {"node_id": "EMPTY", "slug": "empty-event"}})
+    )
     (out / "events" / "kept-event.yaml").write_text(
         yaml.safe_dump({"page": {"node_id": "LIVE", "slug": "kept-event"}})
     )
@@ -273,5 +288,6 @@ def test_a_published_brief_the_graph_moved_past_is_reported(tmp_path):
 
     assert "events/kept-event.yaml" not in found
     assert found["events/gone-event.yaml"] == "node retired or absent"
+    assert found["events/empty-event.yaml"] == "node has no claims"
     assert "stale path" in found["events/old-name.yaml"]
     assert "events/kept-event.yaml" in found["kept-event.yaml"]

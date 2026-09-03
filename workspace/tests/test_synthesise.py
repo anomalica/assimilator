@@ -30,6 +30,9 @@ def test_prune_removes_briefs_for_retired_and_renamed_nodes(tmp_path):
     )
     insert_node(conn, Node(id="dead-1", name="Lou Elizondo", node_type=NodeType.person))
     conn.execute("UPDATE nodes SET retired_at = '2026-08-20' WHERE id = 'dead-1'")
+    insert_node(conn, Node(id="empty-1", name="No Claims", node_type=NodeType.person))
+    insert_record(conn, Record(id="r1", title="R", content_hash="sha256:aa"))
+    _claimed(conn, "live-1", 1)
 
     for rel, node_id in (
         ("people/luis-elizondo", "live-1"),  # current: kept
@@ -38,6 +41,7 @@ def test_prune_removes_briefs_for_retired_and_renamed_nodes(tmp_path):
         ("people/someone-else", "absent-1"),  # node not in the graph at all: pruned
         ("luis-elizondo", "live-1"),  # the pre-section flat layout: pruned
         ("organisations/luis-elizondo", "live-1"),  # wrong section: pruned
+        ("people/no-claims", "empty-1"),  # live node, no claims: pruned
     ):
         path = tmp_path / f"{rel}.yaml"
         path.parent.mkdir(exist_ok=True)
@@ -54,6 +58,7 @@ def test_prune_removes_briefs_for_retired_and_renamed_nodes(tmp_path):
         "organisations/luis-elizondo.yaml",
         "people/lou-elizondo.yaml",
         "people/lue-elizondo.yaml",
+        "people/no-claims.yaml",
         "people/someone-else.yaml",
     ]
     assert (tmp_path / "people" / "luis-elizondo.yaml").exists()

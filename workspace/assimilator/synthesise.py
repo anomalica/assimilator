@@ -875,6 +875,18 @@ def default_briefs_dir() -> Path:
     )
 
 
+def nodes_with_claims(conn: sqlite3.Connection) -> set[str]:
+    """Every node a brief can be built for: named by a claim, or its speaker.
+    The same two routes build_entity_brief reads claims through."""
+    return {
+        r[0]
+        for r in conn.execute(
+            "SELECT DISTINCT node_id FROM claim_node_refs "
+            "UNION SELECT DISTINCT speaker_id FROM claims WHERE speaker_id IS NOT NULL"
+        )
+    }
+
+
 def prune_retired_briefs(
     conn: sqlite3.Connection,
     out_dir: Path,
@@ -906,9 +918,18 @@ def prune_retired_briefs(
     same rule: a node has exactly one brief, and the one at its current path is
     that brief.
 
-    Only RETIRED, ABSENT, or MOVED briefs are pruned. A brief for a live node at
-    its correct path that is merely unproposed today is left alone - the
-    proposal set moves with thresholds, and deleting on that basis would churn.
+    A node with NO CLAIMS strands its brief too. A brief is built from claims
+    and emission skips a node without any, so a brief for a claimless live node
+    can only be a leftover: the claims moved to another node (a re-import
+    re-resolved them, a twin took them) and nothing rewrote or removed the file.
+    Two such briefs sat on disk on 2026-09-03 - the MUFON expansion node and
+    "UAP Gerb", both at zero claims beside a twin holding them all - and both
+    published as pages under the old title after every other brief was rebuilt.
+
+    Only RETIRED, ABSENT, MOVED, or CLAIMLESS briefs are pruned. A brief for a
+    live node with claims at its correct path that is merely unproposed today is
+    left alone - the proposal set moves with thresholds, and deleting on that
+    basis would churn.
 
     slug_map must be the GLOBAL map (build_slug_map): a partial one would make a
     same-type collision loser look stranded at its own disambiguated slug. It is
@@ -923,6 +944,7 @@ def prune_retired_briefs(
     }
     if not slug_map:
         slug_map, _ = build_slug_map(conn)
+    with_claims = nodes_with_claims(conn)
     removed: list[str] = []
     for path in sorted(out_dir.glob("*.yaml")) + brief_files(out_dir):
         node_id = brief_node_id(path)
@@ -931,7 +953,7 @@ def prune_retired_briefs(
         if node_ids is not None and node_id not in node_ids:
             continue
         rel = path.relative_to(out_dir)
-        if node_id not in live:
+        if node_id not in live or node_id not in with_claims:
             path.unlink()
             removed.append(str(rel))
             continue
