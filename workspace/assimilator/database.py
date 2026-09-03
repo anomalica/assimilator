@@ -336,6 +336,42 @@ CREATE TABLE IF NOT EXISTS page_proposals (
 -- natural identity. Distinct from node_rejections ("not a duplicate"): a veto
 -- keeps the node in the graph but off the page list (e.g. a node that clears the
 -- floor yet is editorially a mention, not a subject).
+-- A PAGE over several nodes (curation/pages.yaml, replayed on rebuild). UFO and
+-- UAP are the same phenomenon under two vocabularies but share only 26 claims
+-- of 2,068, so the nodes stay separate - each source's choice of word survives -
+-- and one page covers both, unioning their claims at generation. A page is
+-- therefore a first-class thing with a name and a slug, not a node that earned
+-- a page. Members do not get pages of their own; propose_pages suppresses them.
+CREATE TABLE IF NOT EXISTS pages (
+    page_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    node_type TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    created_by TEXT,
+    note TEXT
+);
+CREATE TABLE IF NOT EXISTS page_members (
+    page_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (page_id, node_id)
+);
+CREATE INDEX IF NOT EXISTS idx_page_members_node ON page_members(node_id);
+
+-- A member page the composition SUPERSEDES: its slug is not the composed
+-- page's, so it must come down or the subject has two live pages. Derived from
+-- the composition, never written by hand - decomposing removes the row with the
+-- page - and read by the assembler on the same path it retires a vetoed page.
+CREATE TABLE IF NOT EXISTS superseded_pages (
+    section TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    page_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    PRIMARY KEY (section, slug)
+);
+
 CREATE TABLE IF NOT EXISTS page_vetoes (
     veto_id TEXT NOT NULL,
     node_id TEXT NOT NULL,

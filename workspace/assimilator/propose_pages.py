@@ -156,7 +156,18 @@ def propose(conn: sqlite3.Connection, computed_at: str | None = None) -> list[di
     Returns the proposal rows, strongest subjects first."""
     computed_at = computed_at or _now()
     vetoed = vetoed_node_ids(conn)
-    rows = [r for r in page_gate_rows(conn) if r["node_id"] not in vetoed]
+    # A node covered by a composed page does not earn a page of its own: the
+    # covering page is the reader's one destination and is proposed instead.
+    # Suppressed here rather than by writing a veto per member, so decomposing
+    # the page needs nothing undone.
+    from assimilator.pages import member_node_ids
+
+    covered = member_node_ids(conn)
+    rows = [
+        r
+        for r in page_gate_rows(conn)
+        if r["node_id"] not in vetoed and r["node_id"] not in covered
+    ]
     # Independence: distinct provenance roots, not distinct records. Computed in
     # one pass over the proposed nodes only, and reported alongside the count of
     # claims whose chain predates ADR 0044 and so cannot be scored at all.

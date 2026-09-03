@@ -208,6 +208,11 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
         from assimilator.tags import replay_tags
 
         replay_tags(domain_conn, on_progress=click.echo)
+        # Page composition resolves members by name too, so it follows renames;
+        # propose-pages then suppresses a covered node's own proposal.
+        from assimilator.pages import replay_pages
+
+        replay_pages(domain_conn, on_progress=click.echo)
         replay_vetoes(domain_conn, on_progress=click.echo)
     # Work identity is DERIVED from the ingests store, so a rebuild has to
     # recompute it or every rebuild silently drops the duplicate links and
@@ -1719,6 +1724,27 @@ def relate_cmd(
         click.echo(f"confirmed: {ccounts}")
     click.echo("usage: " + json.dumps(get_usage()))
     conn.close()
+
+
+@main.command("apply-pages")
+@click.pass_context
+def apply_pages_cmd(ctx: click.Context) -> None:
+    """Land the curation ledger's page compositions (pages.yaml).
+
+    One page over several nodes: the members stay separate in the graph and the
+    page unions their claims. Rebuilds the derived tables from the ledger, so it
+    is both the live apply and the post-rebuild replay. A member that no longer
+    resolves is dropped and reported, leaving the page composed of the rest.
+    """
+    from assimilator.pages import apply_pages, superseded
+
+    conn = sqlite3.connect(ctx.obj["db_path"])
+    init_db(conn)
+    result = apply_pages(conn, on_progress=click.echo)
+    for row in superseded(conn):
+        click.echo(f"  SUPERSEDED  {row['page']} - {row['reason']}")
+    if result["lost"]:
+        raise SystemExit(1)
 
 
 @main.command("apply-tags")
