@@ -114,15 +114,30 @@ def make_plan(
     k: int = K_NEIGHBOURS,
     band_floor: float | None = None,
     pairs_per_call: int = verify_band.PAIRS_PER_CALL,
+    cross_type: bool = False,
 ) -> dict:
-    """What a run would do, without the reranker or the model."""
+    """What a run would do, without the reranker or the model.
+
+    THE BAND IS SAME-TYPE ONLY unless cross_type is set. Measured on the 500
+    pairs Mark cleared (2026-09-03): the judge called 227 of 325 same-type
+    pairs the same entity (70%) and 20 of 175 cross-type pairs (11%) - an
+    event beside a place or a person with a similar name is the shape of the
+    misses. Cross-type twins reach a reviewer through the import-time queue on
+    exact name equality, which is the evidence that actually carries them.
+    Same-type filtering alone would have cut the 500 to 325 and the queue's
+    precision from 49% to 70%.
+    """
     sl = shortlist(conn, embed, k=k, rules_path=candidates_path())
     pairs = {_key(p) for p in sl["pairs"]}
     to_score = sorted(p for p in pairs if p not in scores)
+    types = {pr.node_id: pr.node_type for pr in sl["profiles"]}
     band = [
         p
         for p in pairs
-        if p in scores and in_band(scores[p], band_floor) and p not in verdicts
+        if p in scores
+        and in_band(scores[p], band_floor)
+        and p not in verdicts
+        and (cross_type or types.get(p[0]) == types.get(p[1]))
     ]
     band.sort(
         key=lambda p: (-min(scores[p]["names_only"], scores[p]["with_claims"]), p)
@@ -294,6 +309,7 @@ def run_pipeline(
     score_only: bool = False,
     band_floor: float | None = None,
     pairs_per_call: int = verify_band.PAIRS_PER_CALL,
+    cross_type: bool = False,
 ) -> int:
     """The whole chain with its dependencies injected; returns the exit code.
 
@@ -307,7 +323,9 @@ def run_pipeline(
     try:
         scores = load_scores(scores_path())
         verdicts = load_verdicts(verdicts_path())
-        plan = make_plan(conn, embed, scores, verdicts, k, band_floor, pairs_per_call)
+        plan = make_plan(
+            conn, embed, scores, verdicts, k, band_floor, pairs_per_call, cross_type
+        )
     except Exception as exc:  # noqa: BLE001 - the endpoint is the only network here
         log(f"embedding endpoint or shortlist failed: {exc}")
         return EXIT_ENDPOINT
@@ -348,7 +366,9 @@ def run_pipeline(
         stage["rerank"] = round(time.time() - t, 1)
         # Re-plan the band now that new pairs carry scores.
         scores = load_scores(scores_path())
-        plan = make_plan(conn, embed, scores, verdicts, k, band_floor, pairs_per_call)
+        plan = make_plan(
+            conn, embed, scores, verdicts, k, band_floor, pairs_per_call, cross_type
+        )
     counts["band"] = len(plan["to_verify"])
     outcome = "ok"
     t = time.time()
@@ -441,6 +461,11 @@ def main(argv: list[str] | None = None) -> int:
         help="both reranker scores must reach this to be judged (default 0.9)",
     )
     p.add_argument(
+        "--cross-type",
+        action="store_true",
+        help="judge cross-type pairs too (default: same node type only; 11%% precision measured)",
+    )
+    p.add_argument(
         "--pairs-per-call",
         type=int,
         default=verify_band.PAIRS_PER_CALL,
@@ -507,6 +532,7 @@ def main(argv: list[str] | None = None) -> int:
             score_only=args.score_only,
             band_floor=args.band_floor,
             pairs_per_call=args.pairs_per_call,
+            cross_type=args.cross_type,
         )
     finally:
         conn.close()

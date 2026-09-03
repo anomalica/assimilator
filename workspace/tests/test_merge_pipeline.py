@@ -190,3 +190,21 @@ def test_score_only_reranks_and_holds_the_verify_stage(monkeypatch, tmp_path, ca
         [ln for ln in out.splitlines() if ln.startswith("RUN_JSON ")][0][9:]
     )
     assert run["pairs"]["band"] == 1 and run["pairs"]["verified"] == 0
+
+
+def test_the_band_is_same_type_only_unless_asked(monkeypatch, tmp_path):
+    """Measured on the 500 judged pairs: 70% of same-type pairs were the same
+    entity, 11% of cross-type ones. Cross-type twins reach a reviewer through
+    the import-time queue on exact names instead."""
+    _env(monkeypatch, tmp_path)
+    conn = _graph()
+    hi = {"names_only": 0.99, "with_claims": 0.99}
+    scores = {("a", "b"): hi, ("a", "c"): hi, ("b", "c"): hi}
+
+    plan = mp.make_plan(conn, _embed, scores, {}, k=2)
+    judged = {tuple(i["pair"]) for i in plan["to_verify"]}
+    assert judged == {("a", "b")}
+
+    plan = mp.make_plan(conn, _embed, scores, {}, k=2, cross_type=True)
+    judged = {tuple(i["pair"]) for i in plan["to_verify"]}
+    assert judged == {("a", "b"), ("a", "c"), ("b", "c")}
