@@ -189,5 +189,4 @@ def test_score_only_reranks_and_holds_the_verify_stage(monkeypatch, tmp_path, ca
     run = json.loads(
         [ln for ln in out.splitlines() if ln.startswith("RUN_JSON ")][0][9:]
     )
-    counts = run.get("counts", run)
-    assert counts["band"] == 1 and counts["verified"] == 0
+    assert run["pairs"]["band"] == 1 and run["pairs"]["verified"] == 0
