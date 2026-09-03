@@ -34,6 +34,7 @@ from assimilator.brief_yaml import dump as dump_brief_yaml
 
 from anomalica_common.digest import attribution_mode as common_attribution_mode
 from anomalica_common.slug import node_slug, section_for
+from anomalica_common.titles import capitalise_first, collapse_bare_title_acronyms
 from assimilator.database import get_independent_source_count
 from assimilator.database import claim_ref_statuses
 from assimilator.propose_pages import proposed_node_ids
@@ -399,6 +400,15 @@ def _claim_node_refs(
     ]
 
 
+def page_title(name: str) -> str:
+    """The reader-facing headline for a node. The NAME keeps "Full Name (ACRONYM)"
+    for the matcher and the slug; the title alone writes UFO and UAP bare and
+    starts with a capital (anomalica_common.titles - the assembler applies the
+    same two rules to an article's title, so the headline cannot drift between
+    the brief page and the article)."""
+    return capitalise_first(collapse_bare_title_acronyms(name))
+
+
 def build_slug_map(conn: sqlite3.Connection) -> tuple[dict[str, str], list[dict]]:
     """Global node_id -> final URL slug, with collision disambiguation.
 
@@ -692,7 +702,7 @@ def build_entity_brief(
             "kind": "entity",
             "node_id": nid,
             "node_type": node_type,
-            "title": name,
+            "title": page_title(name),
             "slug": _slug(nid, name, metadata),
             "claim_count": len(claims),
             "claim_count_total": claim_count_total,

@@ -440,3 +440,22 @@ def test_the_size_estimate_models_what_a_consumer_renders_not_the_file(tmp_path)
     on_disk = len(synthesise.dump_brief_yaml(brief))
     assert on_disk > 3 * text  # the file is mostly not claim text
     assert brief["size"]["tokens_estimated"] < on_disk / CHARS_PER_TOKEN / 2
+
+
+def test_page_title_writes_ufo_and_uap_bare_with_a_leading_capital():
+    from assimilator.synthesise import page_title
+
+    assert (
+        page_title("Mutual Unidentified Flying Object (UFO) Network (MUFON)")
+        == "Mutual UFO Network (MUFON)"
+    )
+    assert (
+        page_title("Congressional Unidentified Aerial Phenomena (UAP) Caucus")
+        == "Congressional UAP Caucus"
+    )
+    assert (
+        page_title("Unidentified Aerial Phenomena Task Force (UAPTF)")
+        == "Unidentified Aerial Phenomena Task Force (UAPTF)"
+    )
+    assert page_title("telepathy") == "Telepathy"
+    assert page_title("Cattle mutilation") == "Cattle mutilation"
