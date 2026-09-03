@@ -914,13 +914,23 @@ def brief_header(path: Path) -> dict | None:
 
 
 def brief_node_ids(path: Path) -> list[str]:
-    """Every node the brief's page covers, in member order; empty if unreadable."""
+    """Every node the brief's page covers, in member order; empty if unreadable.
+
+    Reads brief/1's singular `page.node_id` as a one-member list. Emission only
+    ever writes brief/2, but a brief on disk is a FILE the emitter did not
+    necessarily write this run, and a reader that returns nothing for the old
+    shape silently treats an existing page as unknown - which skipped 552 of
+    the 806 briefs on the migration run rather than rewriting them.
+    """
     page = (brief_header(path) or {}).get("page") or {}
-    return [
+    out = [
         str(n.get("node_id"))
         for n in (page.get("nodes") or [])
         if isinstance(n, dict) and n.get("node_id")
     ]
+    if not out and page.get("node_id"):
+        out = [str(page["node_id"])]
+    return out
 
 
 def brief_node_id(path: Path) -> str | None:
@@ -1026,6 +1036,15 @@ def prune_retired_briefs(
         tuple(p["node_ids"]): brief_relpath(p["node_type"], p["slug"])
         for p in composed_pages(conn)
     }
+    # A COVERED node has no brief of its own: the page covering it is its brief.
+    # Without this the member's old brief stands beside the composed one and the
+    # assembler can build both, which is the duplicate page composition exists
+    # to remove (the UFO brief survived the first composition run this way).
+    covered = {
+        m: brief_relpath(p["node_type"], p["slug"])
+        for p in composed_pages(conn)
+        for m in p["node_ids"]
+    }
     removed: list[str] = []
     for path in sorted(out_dir.glob("*.yaml")) + brief_files(out_dir):
         members = brief_node_ids(path)
@@ -1045,6 +1064,11 @@ def prune_retired_briefs(
                 # The composition is gone or its members changed; the page it
                 # described no longer exists in that shape.
                 path.unlink()
+                removed.append(str(rel))
+                continue
+            covering = covered.get(usable[0])
+            if covering is not None and rel != covering:
+                path.unlink()  # a member's own brief, superseded by its page
                 removed.append(str(rel))
                 continue
             node_type, name, metadata = live[usable[0]]

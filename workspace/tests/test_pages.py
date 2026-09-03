@@ -134,3 +134,31 @@ def test_decomposing_removes_the_page_and_its_supersessions():
     assert result["composed"] == 0
     assert pages.composed_pages(conn) == [] and pages.superseded(conn) == []
     assert pages.member_node_ids(conn) == {}
+
+
+def test_a_covered_members_own_brief_is_pruned(tmp_path):
+    """The page covering a node IS that node's brief. Left standing, the
+    member's own brief lets the assembler build the duplicate page the
+    composition exists to remove."""
+    import yaml
+    from assimilator import synthesise
+
+    conn = _graph()
+    _compose()
+    pages.apply_pages(conn)
+    briefs = tmp_path / "topics"
+    briefs.mkdir()
+    for slug, node_id in (
+        ("unidentified-anomalous-phenomena-uap", "uap"),  # the composed page's path
+        ("unidentified-flying-object-ufo", "ufo"),  # the member's own: pruned
+        ("cattle-mutilation", "other"),  # uncovered: kept
+    ):
+        (briefs / f"{slug}.yaml").write_text(
+            yaml.safe_dump({"page": {"nodes": [{"node_id": node_id}], "slug": slug}})
+        )
+
+    removed = synthesise.prune_retired_briefs(conn, tmp_path)
+
+    assert removed == ["topics/unidentified-flying-object-ufo.yaml"]
+    assert (briefs / "unidentified-anomalous-phenomena-uap.yaml").exists()
+    assert (briefs / "cattle-mutilation.yaml").exists()
