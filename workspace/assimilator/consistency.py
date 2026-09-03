@@ -161,4 +161,40 @@ def check_all(
                     "assembler --brief <section>/<slug> (costs a model call each)",
                 )
             )
+
+        # 6. A veto undone, the node proposed again, and no page. The assembler
+        # retires a vetoed node's page; an undo makes the node eligible again
+        # but restores nothing, and a brief without a page is not a finding on
+        # the assembler's side - so this is the only place a person sees that
+        # the page is gone and only a rebuild (a metered run, Mark's) brings it
+        # back. Reported, never inferred into a rebuild.
+        try:
+            undone = {
+                r[0]: r[1]
+                for r in conn.execute(
+                    "SELECT node_id, veto_id FROM page_vetoes "
+                    "WHERE undone_at IS NOT NULL"
+                )
+            }
+        except sqlite3.OperationalError:
+            undone = {}
+        pages = {
+            f"{p.parent.name}/{p.name[:-6]}" for p in content_dir.glob("*/*.en.md")
+        }
+        brief_of = {nid: n[:-5] for n, nid in brief_node.items() if nid}
+        re_eligible = [
+            f"{brief_of[n]} (veto {undone[n][:8]})"
+            for n in proposals
+            if n in undone and n in brief_of and brief_of[n] not in pages
+        ]
+        if re_eligible:
+            findings.append(
+                Finding(
+                    "veto-undone-page-absent",
+                    "nodes proposed again after an undone veto whose page was retired",
+                    len(re_eligible),
+                    sorted(re_eligible)[:5],
+                    "assembler --brief <section>/<slug> once Mark clears a rebuild",
+                )
+            )
     return findings

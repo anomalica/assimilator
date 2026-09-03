@@ -2,6 +2,8 @@
 
 import sqlite3
 
+import yaml
+
 from anomalica_common.digest.models import Node, NodeType
 from assimilator.consistency import check_all
 from assimilator.database import init_db, insert_node
@@ -34,3 +36,37 @@ def test_a_consistent_graph_reports_nothing(tmp_path):
     conn = _db()
     insert_node(conn, Node(id="live", name="David Fravor", node_type=NodeType.person))
     assert check_all(conn, tmp_path, None) == []
+
+
+def test_an_undone_veto_with_no_page_is_reported(tmp_path):
+    """The assembler retires a vetoed node's page; an undo re-proposes the node
+    and restores nothing. Somebody has to see that."""
+    from assimilator.consistency import check_all
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(conn, Node(id="n1", name="Telepathy", node_type=NodeType.topic))
+    conn.execute(
+        "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, source_count, status, computed_at) "
+        "VALUES ('n1', 'topic', 'page-worthy', 9, 3, 'proposed', '2026-09-03')"
+    )
+    conn.execute(
+        "INSERT INTO page_vetoes (veto_id, node_id, reason, created_at, created_by, undone_at) "
+        "VALUES ('v-1234', 'n1', 'too generic', '2026-09-02', 'wb', '2026-09-03')"
+    )
+    conn.commit()
+    briefs = tmp_path / "briefs" / "topics"
+    briefs.mkdir(parents=True)
+    (briefs / "telepathy.yaml").write_text(
+        yaml.safe_dump(
+            {"page": {"node_id": "n1", "slug": "telepathy"}, "brief_hash": "h"}
+        )
+    )
+    content = tmp_path / "content"
+    (content / "topics").mkdir(parents=True)
+
+    names = {f.check: f for f in check_all(conn, tmp_path / "briefs", content)}
+
+    assert names["veto-undone-page-absent"].samples == [
+        "topics/telepathy (veto v-1234)"
+    ]
