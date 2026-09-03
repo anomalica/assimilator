@@ -32,6 +32,12 @@ untouched and retires only the smaller ones.
 
 NO SLUG REDIRECTS. Mark, 2026-09-03: nobody uses the site yet, so a member's
 old slug simply stops existing rather than redirecting.
+
+NO SESSION COMPOSES A PAGE, on the same rule as a merge (Mark, 2026-09-03): a
+composition decides what a reader sees, so it applies only with the workbench's
+confirmation record. Without one, a session writes a PROPOSAL for a reviewer.
+The first composition, over UFO and UAP, predates the rule and stands - Mark
+authorised that pair by name.
 """
 
 from __future__ import annotations
@@ -47,6 +53,11 @@ import yaml
 from anomalica_common.slug import node_slug, section_for, slugify
 
 from assimilator.matching import match_node
+
+# Compositions written before the rule landed still apply; a later one needs the
+# block. Same shape as the merge guard, for the same reason: not a security
+# boundary, a guard against habit and mistake.
+CONFIRMATION_REQUIRED_FROM = "2026-09-03T04:30:00Z"
 
 
 def _now() -> str:
@@ -83,12 +94,22 @@ def append_compose_entry(
     created_at: str | None = None,
     created_by: str | None = None,
     note: str | None = None,
+    confirmation: dict | None = None,
 ) -> dict:
+    """Append a composition to the durable ledger. Refuses without a
+    confirmation block: an unconfirmed composition is a proposal for a
+    reviewer, not a ledger entry (see propose_composition)."""
+    if not confirmation:
+        raise ValueError(
+            "a page composition is written to the ledger only with a reviewer's "
+            "confirmation; without one it is a proposal (propose_composition)"
+        )
     entry = {
         "op": "compose",
         "page_id": page_id or str(uuid.uuid4()),
         "at": created_at or _now(),
         "by": created_by,
+        "confirmation": dict(confirmation),
         "page": {"name": name, "slug": slug or slugify(name), "node_type": node_type},
         "members": [
             {
@@ -108,6 +129,50 @@ def append_decompose_entry(page_id: str, created_by: str | None = None) -> dict:
     entry = {"op": "decompose", "page_id": page_id, "at": _now(), "by": created_by}
     _append(entry)
     return entry
+
+
+def confirmed(entry: dict) -> bool:
+    """Whether a ledger composition may be applied: it carries a confirmation
+    block, or it predates the rule."""
+    block = entry.get("confirmation")
+    if isinstance(block, dict) and block.get("by"):
+        return True
+    return str(entry.get("at") or "") < CONFIRMATION_REQUIRED_FROM
+
+
+def proposals_dir() -> Path:
+    root = Path(__file__).resolve().parents[3]  # .../anomalica
+    base = Path(os.environ.get("ANOMALICA_CURATION_DIR", str(root / "curation")))
+    return base / "compose-proposals"
+
+
+def propose_composition(
+    name: str,
+    node_type: str,
+    members: list[dict],
+    proposed_by: str | None,
+    slug: str | None = None,
+    note: str | None = None,
+) -> Path:
+    """What an unconfirmed composition becomes: one file a reviewer decides on,
+    beside the rename proposals and read the same way."""
+    import json
+
+    directory = proposals_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    proposal = {
+        "id": str(uuid.uuid4()),
+        "page": {"name": name, "slug": slug or slugify(name), "node_type": node_type},
+        "members": members,
+        "note": note,
+        "proposed_by": proposed_by,
+        "proposed_at": _now(),
+    }
+    path = (
+        directory / f"{proposal['proposed_at'].replace(':', '-')}-{slugify(name)}.json"
+    )
+    path.write_text(json.dumps(proposal, indent=1, ensure_ascii=False))
+    return path
 
 
 def _resolve_member(conn: sqlite3.Connection, member: dict) -> str | None:
@@ -133,9 +198,17 @@ def apply_pages(conn: sqlite3.Connection, on_progress=None) -> dict:
     conn.execute("DELETE FROM page_members")
     conn.execute("DELETE FROM pages")
     conn.execute("DELETE FROM superseded_pages")
-    composed = dropped = lost = superseded = 0
+    composed = dropped = lost = superseded = unconfirmed = 0
     for e in entries:
         if e.get("op") != "compose" or e["page_id"] in undone:
+            continue
+        if not confirmed(e):
+            log(
+                f"  compose UNCONFIRMED {e['page_id']}: no reviewer confirmation "
+                f"and dated after the rule - not applied "
+                f"({(e.get('page') or {}).get('name')!r})"
+            )
+            unconfirmed += 1
             continue
         page = e.get("page") or {}
         resolved: list[str] = []
@@ -203,13 +276,14 @@ def apply_pages(conn: sqlite3.Connection, on_progress=None) -> dict:
     conn.commit()
     log(
         f"Composed {composed} pages ({superseded} member pages superseded, "
-        f"{dropped} members dropped, {lost} lost)"
+        f"{dropped} members dropped, {lost} lost, {unconfirmed} unconfirmed)"
     )
     return {
         "composed": composed,
         "superseded": superseded,
         "dropped": dropped,
         "lost": lost,
+        "unconfirmed": unconfirmed,
     }
 
 

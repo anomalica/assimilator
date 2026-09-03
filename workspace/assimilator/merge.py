@@ -56,7 +56,11 @@ def _now() -> str:
 # literally would un-merge the whole graph on the next rebuild, and Mark's
 # instruction was to list them for review, not undo them.
 CONFIRMATION_REQUIRED_FROM = "2026-09-03T02:10:00Z"
-CONFIRMATION_VIAS = ("workbench-queue", "workbench-rename")
+CONFIRMATION_VIAS = (
+    "workbench-queue",
+    "workbench-rename",
+    "workbench-compose",  # the same guard on a page composition
+)
 
 
 def confirmation_block(by: str, at: str | None, via: str) -> dict:

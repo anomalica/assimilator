@@ -51,6 +51,14 @@ def _compose(**kw):
         ),
         page_id=kw.get("page_id", "pg1"),
         created_by="workbench/mark",
+        confirmation=kw.get(
+            "confirmation",
+            {
+                "by": "workbench/mark",
+                "at": "2026-09-03T05:00:00Z",
+                "via": "workbench-compose",
+            },
+        ),
     )
 
 
@@ -162,3 +170,52 @@ def test_a_covered_members_own_brief_is_pruned(tmp_path):
     assert removed == ["topics/unidentified-flying-object-ufo.yaml"]
     assert (briefs / "unidentified-anomalous-phenomena-uap.yaml").exists()
     assert (briefs / "cattle-mutilation.yaml").exists()
+
+
+def test_an_unconfirmed_composition_is_a_proposal_not_a_page(tmp_path, monkeypatch):
+    """Mark's rule of 2026-09-03, the same as for merges: no session composes a
+    page. Without a reviewer's confirmation it is a proposal."""
+    import json
+
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    conn = _graph()
+    try:
+        pages.append_compose_entry(
+            "Anything", "topic", [{"name": "x", "node_type": "topic"}]
+        )
+    except ValueError as exc:
+        assert "confirmation" in str(exc)
+    else:
+        raise AssertionError("an unconfirmed composition reached the ledger")
+
+    path = pages.propose_composition(
+        "UFOs and UAPs",
+        "topic",
+        [{"name": "Unidentified Flying Object (UFO)", "node_type": "topic"}],
+        proposed_by="a-session",
+    )
+
+    assert json.loads(path.read_text())["proposed_by"] == "a-session"
+    assert pages.read_pages() == []
+    assert pages.apply_pages(conn)["composed"] == 0
+
+
+def test_replay_applies_confirmed_and_pre_rule_compositions_only(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    conn = _graph()
+    _compose()  # confirmed
+    old = dict(_compose(page_id="pg-old"), at="2026-09-01T00:00:00Z")
+    later = dict(old, page_id="pg-late", at="2026-12-01T00:00:00Z")
+    old.pop("confirmation")
+    later.pop("confirmation")
+    import yaml as _yaml
+
+    pages.pages_ledger_path().write_text(
+        "".join("---\n" + _yaml.safe_dump(e, sort_keys=False) for e in (old, later))
+    )
+    lines = []
+
+    result = pages.apply_pages(conn, on_progress=lines.append)
+
+    assert result["composed"] == 1 and result["unconfirmed"] == 1
+    assert any("UNCONFIRMED" in ln for ln in lines)
