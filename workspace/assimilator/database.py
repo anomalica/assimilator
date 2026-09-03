@@ -212,6 +212,35 @@ CREATE TABLE IF NOT EXISTS record_nodes (
 );
 CREATE INDEX IF NOT EXISTS idx_record_nodes_node ON record_nodes(node_id);
 
+-- A record_nodes row a HUMAN asserted through the curation ledger (tags.yaml),
+-- as opposed to one the importer derived from the record's claims. The
+-- importer rewrites record_nodes per record on every import and the ledger is
+-- replayed after, so this table is what tells the two apart - and what lets an
+-- untag remove only its own row. Record-level only: a tag attaches no claim.
+-- Every ledger tag has a row here from the moment apply-tags first sees it, so
+-- a reviewer can read the OUTCOME by tag_id the way a rename's status is read:
+--   pending  - the record hash or the node does not resolve YET (a record that
+--              is not digested has no graph row; a non-topic name that matches
+--              nothing is not minted). Retried on every apply; lands the moment
+--              the graph catches up. Not an error.
+--   applied  - the record_nodes row is in place.
+--   lost     - malformed and will never resolve (unknown node type, empty name
+--              or hash). Reported as an ERROR.
+-- undone_at marks a withdrawn tag; its record_nodes row is removed unless the
+-- importer would have made the same link from the record's claims.
+CREATE TABLE IF NOT EXISTS record_tags (
+    tag_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'applied', 'lost')),
+    record_id TEXT,
+    node_id TEXT,
+    created_at TEXT NOT NULL,
+    created_by TEXT,
+    note TEXT,
+    reason TEXT,
+    undone_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_record_tags_node ON record_tags(node_id);
+
 -- Whether a claim BELONGS on a node, as distinct from being ATTACHED to it.
 -- ADR-worthy distinction, and the whole reason this table exists: a claim's
 -- presence in claim_node_refs is evidence the importer put it there, not that

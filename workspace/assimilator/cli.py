@@ -204,6 +204,10 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
         # Renames run AFTER merges - a renamed node may be a merge survivor whose
         # name the merge replay set first (ADR 0038).
         replay_renames(domain_conn, on_progress=click.echo)
+        # Tags resolve a node by its name, so they run after renames too.
+        from assimilator.tags import replay_tags
+
+        replay_tags(domain_conn, on_progress=click.echo)
         replay_vetoes(domain_conn, on_progress=click.echo)
     # Work identity is DERIVED from the ingests store, so a rebuild has to
     # recompute it or every rebuild silently drops the duplicate links and
@@ -1715,6 +1719,26 @@ def relate_cmd(
         click.echo(f"confirmed: {ccounts}")
     click.echo("usage: " + json.dumps(get_usage()))
     conn.close()
+
+
+@main.command("apply-tags")
+@click.pass_context
+def apply_tags_cmd(ctx: click.Context) -> None:
+    """Land the curation ledger's record tags (tags.yaml) in the live graph.
+
+    A tag says a record is ABOUT a node, asserted by a person; the workbench
+    appends the entry and this lands it: one record_nodes row plus a record_tags
+    row. Idempotent - an entry already landed is skipped - and loud: a tag whose
+    record hash or node type does not resolve is reported as LOST, never
+    dropped. The same function replays after every rebuild.
+    """
+    from assimilator.tags import apply_tags
+
+    conn = sqlite3.connect(ctx.obj["db_path"])
+    init_db(conn)
+    result = apply_tags(conn, on_progress=click.echo)
+    if result["lost"]:
+        raise SystemExit(1)
 
 
 @main.command("apply-renames")
