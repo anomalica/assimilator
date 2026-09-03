@@ -106,6 +106,10 @@ MIN_SOURCE_CLAIMS = 5
 _CLAIM_OVERHEAD_TOKENS = 20
 _COL_ID = 0
 _COL_HASH = 8
+_COL_LOCATION = 5
+_COL_RECORD_ID = 11
+_COL_RECORD_DATE = 13
+_COL_RECORD_HASH = 15
 _COL_CONTENT = 1
 _COL_EXCERPT = 2
 _COL_ATTESTATION = 4
@@ -143,6 +147,42 @@ def _entailment_summary(rows) -> dict:
     return summarise_entailment(
         [(r[_COL_ENTAILMENT], r[_COL_ENTAILMENT + 3], 1) for r in rows]
     )
+
+
+def _reading_order(row) -> tuple:
+    """Source by date, then position within the source, each source contiguous.
+
+    The tie-break is the record's CONTENT HASH, not its id: ids are minted per
+    extraction, so an id tie-break would reorder briefs on every rebuild for no
+    reason. Records frequently share a date and ten in the graph have none, and
+    sorting by date alone let their claims interleave by timecode across
+    different recordings - 72 sources arriving as 156 blocks in the UFOs/UAPs
+    brief, its first fourteen claims alternating between four tapes. A record
+    with no date sorts after the dated ones: an unknown date is not an early
+    one.
+
+    NOT a cross-source chronology. Only 21% of claims carry an event date, so
+    ordering by event time would scatter the other four fifths; the sequence a
+    source tells is the only sequence information the corpus reliably holds.
+    """
+    record_date = row[_COL_RECORD_DATE]
+    return (
+        record_date is None,
+        str(record_date or ""),
+        str(row[_COL_RECORD_HASH] or row[_COL_RECORD_ID] or ""),
+        _location_key(row[_COL_LOCATION]),
+        str(row[_COL_ID]),
+    )
+
+
+def _location_key(location) -> tuple:
+    """Sorts a location the way a reader would: numerically where it is a
+    number (a word timestamp, a page), lexically otherwise. "10" after "9"."""
+    text = str(location or "")
+    try:
+        return (0, float(text), "")
+    except ValueError:
+        return (1, 0.0, text)
 
 
 def _importance(
@@ -607,6 +647,15 @@ def build_entity_brief(
         budget=token_budget,
         cost=_claim_token_cost,
     )
+    # WHICH claims survive the cap is decided above, by importance and spread
+    # across sources. The ORDER they are written in is decided here, and it is
+    # not the same question: the model reads the brief top to bottom and cites
+    # by position, so a deck shuffled across sources is read as one shuffled
+    # narrative. Grouped by source, sources oldest first, and within a source
+    # the order the claims appear in the record. The UFOs/UAPs brief was 2,068
+    # claims from 72 sources in 156 contiguous blocks before this - its first
+    # ten claims came from four different records.
+    selected_rows = sorted(selected_rows, key=_reading_order)
     for row in selected_rows:
         (
             cid,

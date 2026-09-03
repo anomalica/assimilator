@@ -545,3 +545,56 @@ def test_a_composed_pages_brief_hash_covers_its_member_list():
     a = synthesise.brief_hash(["n1"], "entity", [("c1", "h1")])
     b = synthesise.brief_hash(["n1", "n2"], "entity", [("c1", "h1")])
     assert a != b  # adding a member changes what the page should say
+
+
+def test_claims_are_written_grouped_by_source_oldest_first(tmp_path):
+    """The model reads a brief top to bottom and cites by position, so the
+    order is part of what the page says. Which claims survive the cap is a
+    different question, decided by importance; this is the reading order."""
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(
+        conn, Record(id="late", title="B", content_hash="sha256:bb", date="2004-11-14")
+    )
+    insert_record(
+        conn, Record(id="early", title="A", content_hash="sha256:aa", date="1947-06-24")
+    )
+    insert_record(conn, Record(id="undated", title="C", content_hash="sha256:cc"))
+    # Two records sharing a date: the tie-break is the content hash, which
+    # survives a rebuild where a record id does not.
+    insert_record(
+        conn,
+        Record(id="same-day", title="D", content_hash="sha256:aa0", date="1947-06-24"),
+    )
+    insert_node(conn, Node(id="n1", name="Nimitz", node_type=NodeType.event))
+    for rec, locs in (
+        ("late", ["9", "10", "2"]),
+        ("early", ["5", "1"]),
+        ("undated", ["1"]),
+        ("same-day", ["3"]),
+    ):
+        for loc in locs:
+            insert_claim(
+                conn,
+                Claim(
+                    id=f"{rec}-{loc}",
+                    content=f"claim {loc} of {rec}",
+                    claim_type="testimony",
+                    record_id=rec,
+                    location_in_record=loc,
+                    node_references=["n1"],
+                ),
+            )
+    conn.commit()
+
+    brief = synthesise.build_entity_brief(conn, "n1", {})
+
+    assert [c["claim_id"] for c in brief["claims"]] == [
+        "early-1",
+        "early-5",  # oldest source first, in the record's own order
+        "same-day-3",  # same date: sha256:aa < sha256:aa0, and the block stays whole
+        "late-2",
+        "late-9",
+        "late-10",  # 10 after 9, not lexically before it
+        "undated-1",  # an unknown date is not an early one
+    ]
