@@ -213,3 +213,43 @@ def test_the_band_is_same_type_only_unless_asked(monkeypatch, tmp_path):
     plan = mp.make_plan(conn, _embed, scores, {}, k=2, cross_type=True)
     judged = {tuple(i["pair"]) for i in plan["to_verify"]}
     assert judged == {("a", "b"), ("a", "c"), ("b", "c")}
+
+
+def test_scoring_reports_progress_and_stops_at_a_deadline(monkeypatch, tmp_path):
+    """Outside the container the only visible signs are the memo and the log.
+    A chunk that takes hours with neither moving is indistinguishable from a
+    wedged process, and gets killed as one - holding the card as it goes."""
+    import time
+
+    _env(monkeypatch, tmp_path)
+    conn = _graph()
+    pairs = [("a", "b"), ("a", "c"), ("b", "c")]
+    lines = []
+
+    counts = mp.score_pairs(
+        conn, pairs, _Reranker(), tmp_path / "scores.jsonl", lines.append
+    )
+
+    progress = [
+        json.loads(ln[len("SCORE_PROGRESS ") :])
+        for ln in lines
+        if ln.startswith("SCORE_PROGRESS ")
+    ]
+    assert counts["scored"] == 3
+    assert {p["stage"] for p in progress} == {"names", "chunk"}
+    assert progress[-1]["scored"] == 3 and progress[-1]["total"] == 3
+    assert progress[-1]["rate_per_s"] is not None
+
+    lines.clear()
+    stopped = mp.score_pairs(
+        conn,
+        pairs,
+        _Reranker(),
+        tmp_path / "scores2.jsonl",
+        lines.append,
+        deadline=time.monotonic() - 1,
+    )
+
+    assert stopped["scored"] == 0 and stopped["stopped_early"] is True
+    assert any("deadline" in ln for ln in lines)
+    assert not (tmp_path / "scores2.jsonl").read_text()

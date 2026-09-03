@@ -37,6 +37,13 @@ EXIT_VERIFY = 6
 
 NAMES_FILTER = 0.3  # below this the with-claims score is not computed
 NAMES_BATCH = 48
+# Pairs per memo write. Was 4,000, which is 20 minutes of card on an ordinary
+# chunk and over two hours on one where most pairs pass the names filter - and
+# nothing reached the memo or the log in between, so a long chunk was
+# indistinguishable from a hang and got killed as one (2026-09-03, four hours
+# holding 3.4 GB of a 6 GB card). Small enough that progress lands every few
+# minutes and a kill loses minutes of work, not hours.
+SCORE_CHUNK = 500
 CLAIMS_BATCH = 16
 
 
@@ -192,10 +199,26 @@ def score_pairs(
     reranker,
     path: Path,
     log=print,
+    deadline: float | None = None,
 ) -> dict:
     """Both reranker scores for each pair, appended to the memo as they land.
     with-claims only where names-only passes NAMES_FILTER; below it the pair
-    can never reach the band, so the expensive pass is not spent on it."""
+    can never reach the band, so the expensive pass is not spent on it.
+
+    Progress is PARSEABLE and frequent (SCORE_PROGRESS lines), because the only
+    thing a watcher outside the container can see is the memo file and the log:
+    without either moving, slow work and a wedged process look identical, and
+    the run that holds the card gets killed on the assumption. Measured rates on
+    the 20 W laptop card: the names pass is cheap, the claims pass is about half
+    a pair a second, so a chunk where most pairs pass the names filter is hours.
+
+    deadline is a monotonic clock value at which the run STOPS between chunks
+    and returns what it scored. The memo is append-only and keyed by pair, so a
+    stopped run resumes exactly where it left off - stopping cleanly frees the
+    card, where being killed leaves the container holding it.
+    """
+    import time
+
     entities = {}
     for a, b in pairs:
         for nid in (a, b):
@@ -205,15 +228,38 @@ def score_pairs(
     bare = lambda e: Entity(e.name, e.node_type, [])  # noqa: E731
     counts = {"scored": 0, "with_claims": 0}
     path.parent.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
     with path.open("a") as f:
-        for i in range(0, len(pairs), 4000):
-            chunk = pairs[i : i + 4000]
+        for i in range(0, len(pairs), SCORE_CHUNK):
+            if deadline is not None and time.monotonic() >= deadline:
+                counts["stopped_early"] = True
+                log(
+                    f"  stopping at the deadline with {counts['scored']} of "
+                    f"{len(pairs)} scored; the memo resumes from here"
+                )
+                break
+            chunk = pairs[i : i + SCORE_CHUNK]
+            t0 = time.monotonic()
             names = reranker.score(
                 [(bare(entities[a]), bare(entities[b])) for a, b in chunk],
                 batch_size=NAMES_BATCH,
                 symmetric=False,
             )
             keep = [(p, s) for p, s in zip(chunk, names) if s >= NAMES_FILTER]
+            log(
+                "SCORE_PROGRESS "
+                + json.dumps(
+                    {
+                        "stage": "names",
+                        "scored": counts["scored"],
+                        "total": len(pairs),
+                        "chunk": len(chunk),
+                        "to_claims": len(keep),
+                        "chunk_s": round(time.monotonic() - t0, 1),
+                        "elapsed_s": round(time.monotonic() - started, 1),
+                    }
+                )
+            )
             claims = (
                 reranker.score(
                     [(entities[a], entities[b]) for (a, b), _ in keep],
@@ -238,8 +284,27 @@ def score_pairs(
             f.flush()
             counts["scored"] += len(chunk)
             counts["with_claims"] += len(keep)
+            elapsed = time.monotonic() - started
             log(
-                f"  scored {counts['scored']}/{len(pairs)} ({counts['with_claims']} with claims)"
+                "SCORE_PROGRESS "
+                + json.dumps(
+                    {
+                        "stage": "chunk",
+                        "scored": counts["scored"],
+                        "total": len(pairs),
+                        "with_claims": counts["with_claims"],
+                        "chunk_s": round(time.monotonic() - t0, 1),
+                        "elapsed_s": round(elapsed, 1),
+                        "rate_per_s": round(counts["scored"] / elapsed, 2)
+                        if elapsed
+                        else None,
+                        "eta_s": round(
+                            (len(pairs) - counts["scored"]) * elapsed / counts["scored"]
+                        )
+                        if counts["scored"]
+                        else None,
+                    }
+                )
             )
     return counts
 
@@ -315,6 +380,7 @@ def run_pipeline(
     band_floor: float | None = None,
     pairs_per_call: int = verify_band.PAIRS_PER_CALL,
     cross_type: bool = False,
+    max_seconds: float | None = None,
 ) -> int:
     """The whole chain with its dependencies injected; returns the exit code.
 
@@ -323,6 +389,7 @@ def run_pipeline(
     ready the day judging is cleared; the plan line still reports the band.
     """
     started = time.time()
+    started_monotonic = time.monotonic()
     stage: dict[str, float] = {}
     t = time.time()
     try:
@@ -362,9 +429,16 @@ def run_pipeline(
             return EXIT_WEIGHTS
         try:
             rerank_model = getattr(reranker, "model_id", None)
-            counts["scored"] = score_pairs(
-                conn, plan["to_score"], reranker, scores_path(), log
-            )["scored"]
+            scored = score_pairs(
+                conn,
+                plan["to_score"],
+                reranker,
+                scores_path(),
+                log,
+                deadline=(started_monotonic + max_seconds) if max_seconds else None,
+            )
+            counts["scored"] = scored["scored"]
+            counts["stopped_early"] = bool(scored.get("stopped_early"))
         except Exception as exc:  # noqa: BLE001 - out of memory, Triton, anything on the card
             log(f"GPU stage failed: {exc}")
             return EXIT_GPU
@@ -455,6 +529,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--k", type=int, default=K_NEIGHBOURS)
     p.add_argument(
+        "--max-seconds",
+        type=float,
+        default=None,
+        help="stop between chunks after this long and exit cleanly, so the card "
+        "is released rather than held by a killed container",
+    )
+    p.add_argument(
         "--score-only",
         action="store_true",
         help="shortlist and rerank only (GPU, no model calls); hold the verify stage",
@@ -538,6 +619,7 @@ def main(argv: list[str] | None = None) -> int:
             band_floor=args.band_floor,
             pairs_per_call=args.pairs_per_call,
             cross_type=args.cross_type,
+            max_seconds=args.max_seconds,
         )
     finally:
         conn.close()
