@@ -1,0 +1,82 @@
+[
+  {
+    "node_id": "079d4381-4273-418b-bc9a-468623f95c6e",
+    "type": "person",
+    "name": "Jesse Mitchells",
+    "name_uses": 0,
+    "alias": "Jesse Michels",
+    "alias_uses": 315
+  },
+  {
+    "node_id": "9ee765f0-15bc-4d03-9bfa-c1d6b015a860",
+    "type": "person",
+    "name": "Luigi Venditelli",
+    "name_uses": 5,
+    "alias": "Luigi Vendittelli",
+    "alias_uses": 281
+  },
+  {
+    "node_id": "beb9eb48-6799-4f9b-a465-6fccb65370bd",
+    "type": "document",
+    "name": "Secret Machines",
+    "name_uses": 4,
+    "alias": "Sekret Machines",
+    "alias_uses": 27
+  },
+  {
+    "node_id": "bbb5b561-9e28-49d2-b469-e6cbd085b289",
+    "type": "person",
+    "name": "John Brandenberg",
+    "name_uses": 5,
+    "alias": "John Brandenburg",
+    "alias_uses": 17
+  },
+  {
+    "node_id": "025270b1-d5bc-4fbd-a423-b5e58b124973",
+    "type": "person",
+    "name": "David Marler",
+    "name_uses": 0,
+    "alias": "David Mahler",
+    "alias_uses": 11
+  },
+  {
+    "node_id": "52eb1243-51be-4c3d-b032-59dfc6b7f083",
+    "type": "topic",
+    "name": "Hyper-dimensional physics theory",
+    "name_uses": 2,
+    "alias": "Hyperdimensional physics theory",
+    "alias_uses": 11
+  },
+  {
+    "node_id": "a4e23c30-3b72-4690-b855-906d80d76a17",
+    "type": "person",
+    "name": "John Kleinberg",
+    "name_uses": 2,
+    "alias": "John Klineberg",
+    "alias_uses": 10
+  },
+  {
+    "node_id": "daacb8de-c73b-4265-b271-064a637aab7a",
+    "type": "topic",
+    "name": "Astrobiology",
+    "name_uses": 4,
+    "alias": "astrology",
+    "alias_uses": 12
+  },
+  {
+    "node_id": "135df6ee-8e0c-4913-a7bb-f696f64c5cde",
+    "type": "person",
+    "name": "Howard Monger",
+    "name_uses": 2,
+    "alias": "Howard Menger",
+    "alias_uses": 9
+  },
+  {
+    "node_id": "3577713c-b79b-4e25-9c24-d83f45c7555d",
+    "type": "topic",
+    "name": "Human-alien hybridization",
+    "name_uses": 0,
+    "alias": "human-alien hybridisation",
+    "alias_uses": 7
+  }
+]
