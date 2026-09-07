@@ -420,16 +420,29 @@ def _orphan_tokens(src: list[str], other: list[str]) -> list[str]:
     """Distinctive (non-hard, non-stop) src tokens with no counterpart in other.
 
     A token counts as having a counterpart if it appears verbatim in `other`, is
-    an initial of some other token ("k." vs "kevin"), or is a near-spelling of
-    one (>= _TOKEN_COUNTERPART_THRESHOLD, e.g. "centre" vs "center").
+    an initial of a POSITIONALLY ALIGNED token ("k." vs "kevin"), or is a
+    near-spelling of one (>= _TOKEN_COUNTERPART_THRESHOLD, "centre" vs
+    "center").
+
+    The alignment is what stops an initial excusing a surname. Unaligned, "h"
+    counts as a counterpart for "hunt", so "E. Howard Hunt" and "E. H. Lamont"
+    disagree on nothing in one direction and the pair passes as the same
+    person - which is how the graph acquired "E. Howard Hunt" as an alias of E.
+    H. Lamont. An initial stands for a given name in the position a given name
+    occupies; it does not stand for whatever word happens to start with that
+    letter. Verbatim and near-spelling counterparts stay position-free, so a
+    reordered name still matches.
     """
     orphans = []
-    for token in src:
+    for index, token in enumerate(src):
         if token in _STOPWORDS or _is_hard_token(token):
             continue
         if token in other:
             continue
-        if any(_initials_compatible(token, candidate) for candidate in other):
+        if any(
+            _initials_compatible(token, candidate)
+            for candidate in _aligned_counterparts(index, src, other)
+        ):
             continue
         if any(
             levenshtein_ratio(token, candidate) >= _TOKEN_COUNTERPART_THRESHOLD
@@ -438,6 +451,19 @@ def _orphan_tokens(src: list[str], other: list[str]) -> list[str]:
             continue
         orphans.append(token)
     return orphans
+
+
+def _aligned_counterparts(index: int, src: list[str], other: list[str]) -> list[str]:
+    """The tokens of `other` that occupy the same position as src[index], counted
+    from the front and from the back. "K. Day" aligns k with kevin at the front;
+    "MacDonald, J." aligns j with james at the back."""
+    picks = []
+    if index < len(other):
+        picks.append(other[index])
+    from_back = len(src) - index
+    if 0 < from_back <= len(other):
+        picks.append(other[len(other) - from_back])
+    return picks
 
 
 def _distinctive_tokens_disagree(a: str, b: str) -> bool:

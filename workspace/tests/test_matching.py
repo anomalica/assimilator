@@ -1244,3 +1244,26 @@ def test_the_fuller_person_name_wins():
     # A description that fuzzy-matches a name is not a fuller name.
     assert not is_fuller_person_name("Lionel Browning's wife", "Lionel Browning")
     assert not is_fuller_person_name("Lionel Browning the elder", "Lionel Browning")
+
+
+def test_an_initial_does_not_stand_in_for_a_surname():
+    """An initial stands for a given name in the position a given name occupies.
+    Unaligned, "H." counted as a counterpart for "Hunt", so "E. Howard Hunt"
+    and "E. H. Lamont" disagreed on nothing in one direction and merged - which
+    is how the graph acquired "E. Howard Hunt" as an alias of E. H. Lamont."""
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    for nid, name in (
+        ("lamont", "E. H. Lamont"),
+        ("day", "Kevin Day"),
+        ("mac", "MacDonald, James"),
+    ):
+        insert_node(conn, Node(id=nid, name=name, node_type=NodeType.person))
+    conn.commit()
+
+    assert match_node(conn, "E. Howard Hunt", "person") is None
+    assert match_node(conn, "E. H. Hunt", "person") is None
+    # The cases the initials rule exists for still resolve, front and back.
+    assert match_node(conn, "E. Howard Lamont", "person")[0] == "lamont"
+    assert match_node(conn, "K. Day", "person")[0] == "day"
+    assert match_node(conn, "MacDonald, J.", "person")[0] == "mac"
