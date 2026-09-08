@@ -768,7 +768,7 @@ def enumerate_assemble_jobs(briefs: list[dict], content_dir: Path | None) -> lis
     to the assembler as-is and the assembler resolves it as a path under the
     briefs directory. A slug alone named two pages where an event and a project
     share a name (Apollo 14), so two jobs carried one id."""
-    from anomalica_common.slug import section_for
+    from assimilator.synthesise import section_of
 
     assembled, existing_pages = _article_brief_hashes(content_dir)
     jobs: list[Job] = []
@@ -778,7 +778,7 @@ def enumerate_assemble_jobs(briefs: list[dict], content_dir: Path | None) -> lis
         if not brief_hash or brief_hash in assembled:
             continue
         ref = (
-            f"{section_for(page.get('node_type') or '')}/{page['slug']}"
+            f"{section_of(page.get('node_type'))}/{page['slug']}"
             if page.get("slug")
             else brief_hash[:12]
         )

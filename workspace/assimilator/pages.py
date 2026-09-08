@@ -50,9 +50,10 @@ from pathlib import Path
 
 import yaml
 
-from anomalica_common.slug import node_slug, section_for, slugify
+from anomalica_common.slug import node_slug, slugify
 
 from assimilator.matching import match_node
+from assimilator.synthesise import section_of
 
 # Compositions written before the rule landed still apply; a later one needs the
 # block. Same shape as the merge guard, for the same reason: not a security
@@ -245,7 +246,7 @@ def apply_pages(conn: sqlite3.Connection, on_progress=None) -> dict:
             ),
         )
         page_slug = page.get("slug") or slugify(page.get("name") or "")
-        page_section = section_for(page.get("node_type") or "")
+        page_section = section_of(page.get("node_type"))
         for position, node_id in enumerate(resolved):
             conn.execute(
                 "INSERT INTO page_members (page_id, node_id, position) VALUES (?, ?, ?)",
@@ -257,7 +258,7 @@ def apply_pages(conn: sqlite3.Connection, on_progress=None) -> dict:
             if row is None:
                 continue
             member_slug = node_slug(row[0], row[2])
-            member_section = section_for(row[1])
+            member_section = section_of(row[1])
             if (member_section, member_slug) == (page_section, page_slug):
                 continue
             conn.execute(

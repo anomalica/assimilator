@@ -259,13 +259,12 @@ def unbuildable_in(out_dir: Path, conn, pages_dir: Path | None = None) -> list[d
     Identified from the graph rather than from a list of filenames, so it stays
     true as the graph moves. `file` is the path relative to out_dir.
     """
-    from anomalica_common.slug import section_for
-
     from assimilator.pages import composed_pages
     from assimilator.synthesise import (
         brief_files,
         brief_node_ids,
         brief_relpath,
+        section_of,
         build_slug_map,
         node_slug,
         nodes_with_claims,
@@ -303,7 +302,7 @@ def unbuildable_in(out_dir: Path, conn, pages_dir: Path | None = None) -> list[d
             # article exists, so it must not license a deletion: the member's
             # brief stands until a caller that CAN see says otherwise.
             if pages_dir is None or not article_exists(
-                pages_dir, section_for(covering["node_type"]), covering["slug"]
+                pages_dir, section_of(covering["node_type"]), covering["slug"]
             ):
                 # Its subject moved to a composed page that is not built yet.
                 # Removing this brief now would leave the member's own published

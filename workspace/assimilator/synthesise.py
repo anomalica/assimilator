@@ -908,6 +908,20 @@ def entity_node_ids(conn: sqlite3.Connection) -> list[str]:
     return proposed_node_ids(conn)
 
 
+def section_of(node_type: str | None) -> str:
+    """The section a page of this type files under, refusing a type it does not
+    know. anomalica_common.slug.section_for pluralises whatever it is handed, so
+    an empty or unknown type silently yields the section "s" and the page files
+    itself under /s/ - visible to nobody until a reader finds it. A page whose
+    type we cannot place is a bug in whatever produced it, so it stops here."""
+    section = section_for(node_type or "")
+    if not node_type or section in ("s", ""):
+        raise ValueError(
+            f"no section for node type {node_type!r} - a page cannot be filed"
+        )
+    return section
+
+
 def brief_relpath(node_type: str, slug: str) -> Path:
     """Where a page's brief lives under a briefs directory: <section>/<slug>.yaml.
 
@@ -922,7 +936,7 @@ def brief_relpath(node_type: str, slug: str) -> Path:
     brief REFERENCE is "<section>/<slug>" - which the assembler's load_brief
     resolves as a direct path.
     """
-    return Path(section_for(node_type)) / f"{slug}.yaml"
+    return Path(section_of(node_type)) / f"{slug}.yaml"
 
 
 def brief_files(briefs_dir: Path) -> list[Path]:

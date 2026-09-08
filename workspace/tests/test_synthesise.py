@@ -482,14 +482,14 @@ def test_a_renamed_node_with_a_brief_gets_it_refiled_at_the_new_slug(tmp_path):
     _claimed(conn, "quiet", 2)
     out = tmp_path / "briefs"
     synthesise.write_brief(synthesise.build_entity_brief(conn, "act", {}), out)
-    assert (out / "documents" / "old-act-name.yaml").is_file()
+    assert (out / "records" / "old-act-name.yaml").is_file()
     conn.execute("UPDATE nodes SET name = 'New Act Name' WHERE id = 'act'")
 
     moved = synthesise.refile_briefs(conn, {"act", "quiet"}, out)
 
-    assert moved["written"] == ["documents/new-act-name.yaml"]
-    assert moved["pruned"] == ["documents/old-act-name.yaml"]
-    assert not (out / "documents" / "old-act-name.yaml").exists()
+    assert moved["written"] == ["records/new-act-name.yaml"]
+    assert moved["pruned"] == ["records/old-act-name.yaml"]
+    assert not (out / "records" / "old-act-name.yaml").exists()
     assert not (out / "documents" / "never-had-one.yaml").exists()
 
 
@@ -598,3 +598,14 @@ def test_claims_are_written_grouped_by_source_oldest_first(tmp_path):
         "late-10",  # 10 after 9, not lexically before it
         "undated-1",  # an unknown date is not an early one
     ]
+
+
+def test_a_page_whose_type_has_no_section_is_refused_not_filed_under_s():
+    """section_for pluralises whatever it is handed, so an empty or unknown type
+    yields the section "s" and the page files itself under /s/ in silence."""
+    import pytest
+
+    assert synthesise.section_of("topic") == "topics"
+    for bad in ("", None):
+        with pytest.raises(ValueError, match="no section"):
+            synthesise.section_of(bad)
