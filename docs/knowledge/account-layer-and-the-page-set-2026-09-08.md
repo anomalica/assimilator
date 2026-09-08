@@ -169,3 +169,29 @@ The design answer given to master:
 
 It also gives composition the test it lacks: two topics whose subject edges
 overlap are one subject; two that merely co-occur are not.
+
+## 6. Naming the population, every time
+
+A number must never leave the population it was measured on without that
+population named beside it. Four instances from one day, all of them plausible
+until the population was stated:
+
+- The entity reranker scores 0.987 AUC on the labelled set (182 real merges
+  against 333 constructed surname collisions) and its threshold of 0.95 implies
+  94% precision. On the LIVE shortlist, every one of the 500 pairs a reviewer
+  judged scored above 0.95 and 49% were the same entity. The labelled negatives
+  are traps we built; the live negatives are nearest neighbours, which are
+  harder. Both numbers are true of their own population and neither transfers.
+- The with-claims score looked merely weaker (0.876 against 0.987). Measured
+  against the positives it actually vetoed, it excluded 62 of 182 real merges -
+  a third - concentrated on acronym identities: NPR with National Public Radio
+  scored 1.00 on names and 0.15 with claims.
+- Five page-worthiness signals each separated the node they were designed
+  against and none separated the labelled set. They were only shown to fail
+  because the labelled set existed first.
+- 44 aliases share no substantive word with their node, which looked like 44
+  false merges; measured against today's matcher, 54 of 59 would not be
+  recreated and the 5 that would are legitimate variants.
+
+The cheap habit that catches all four: name the population in the sentence, and
+keep a labelled set that is not the thing being tuned.
