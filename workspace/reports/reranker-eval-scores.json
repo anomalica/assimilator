@@ -13269,7 +13269,7 @@
       "reranker_names_only": 0.3415825068950653
     },
     {
-      "label": 0,
+      "label": 1,
       "source": "surname",
       "note": "garrett",
       "a": {
@@ -13297,7 +13297,8 @@
       "rule_score": 0.0,
       "rule_reason": "not-a-candidate (fuzzy 0.68)",
       "reranker_ab": 0.9959298968315125,
-      "reranker_names_only": 0.9868786931037903
+      "reranker_names_only": 0.9868786931037903,
+      "relabelled": "2026-09-08: labelled a negative in error - the same Fatima witness, one name a short form of the other."
     },
     {
       "label": 0,
