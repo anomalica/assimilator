@@ -94,9 +94,28 @@ CREATE TABLE IF NOT EXISTS claims (
     entailment_premise TEXT
 );
 
+-- salience: what ROLE the node plays in this claim, which the edge alone never
+-- said. A claim mentions 2.19 nodes on average and is about roughly one of
+-- them, so reading every edge as aboutness is how "Unidentified Flying Object"
+-- became an edge on 1,414 claims in a UFO corpus, and why no page-worthiness
+-- rule could separate a place a thing happened AT from a place a thing happened
+-- TO. Defined by a deletion test, not by the word "about":
+--   subject      delete it and the claim has no subject
+--   participant  the node acts, but the claim is about an event or another node
+--   setting      where or when; delete it and the claim asserts the same thing
+--                less precisely
+--   mentioned    context, comparison, aside; delete it and nothing changes
+-- NULL MEANS NOT ASSESSED, NEVER "not salient" - the same rule as
+-- claim_ref_status, and for the same reason: a consumer that reads absence as a
+-- verdict rebuilds the fault the column exists to record. The extractor emits
+-- the value per edge; the corpus statistic in salience.py is a CHECK on it, not
+-- an input.
 CREATE TABLE IF NOT EXISTS claim_node_refs (
     claim_id TEXT NOT NULL REFERENCES claims(id),
     node_id TEXT NOT NULL REFERENCES nodes(id),
+    salience TEXT CHECK (
+        salience IN ('subject', 'participant', 'setting', 'mentioned')
+    ),
     PRIMARY KEY (claim_id, node_id)
 );
 
@@ -411,6 +430,14 @@ def init_db(conn: sqlite3.Connection) -> None:
     ).fetchone()
     if claims_exists:
         cols = {row[1] for row in conn.execute("PRAGMA table_info(claims)").fetchall()}
+        refs_cols = {
+            row[1] for row in conn.execute("PRAGMA table_info(claim_node_refs)")
+        }
+        if refs_cols and "salience" not in refs_cols:
+            conn.execute(
+                "ALTER TABLE claim_node_refs ADD COLUMN salience TEXT CHECK ("
+                "salience IN ('subject', 'participant', 'setting', 'mentioned'))"
+            )
         if "claim_role" not in cols:
             conn.execute(
                 "ALTER TABLE claims ADD COLUMN claim_role TEXT CHECK ("

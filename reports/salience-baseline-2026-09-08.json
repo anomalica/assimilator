@@ -1,0 +1,358 @@
+{
+  "generated": "2026-09-08",
+  "edges": 83798,
+  "nodes": 9335,
+  "sole_reference_edges": 10343,
+  "top": [
+    {
+      "name": "Whitley Strieber",
+      "type": "person",
+      "edges": 1752,
+      "records": 16,
+      "sole_reference": 389
+    },
+    {
+      "name": "Unidentified Anomalous Phenomena (UAP)",
+      "type": "topic",
+      "edges": 1510,
+      "records": 66,
+      "sole_reference": 164
+    },
+    {
+      "name": "Unidentified Flying Object (UFO)",
+      "type": "topic",
+      "edges": 1414,
+      "records": 72,
+      "sole_reference": 109
+    },
+    {
+      "name": "Robert Monroe",
+      "type": "person",
+      "edges": 905,
+      "records": 10,
+      "sole_reference": 223
+    },
+    {
+      "name": "Luis Elizondo",
+      "type": "person",
+      "edges": 879,
+      "records": 34,
+      "sole_reference": 118
+    },
+    {
+      "name": "Richard C. Hoagland",
+      "type": "person",
+      "edges": 878,
+      "records": 4,
+      "sole_reference": 35
+    },
+    {
+      "name": "Ross Coulthart",
+      "type": "person",
+      "edges": 871,
+      "records": 22,
+      "sole_reference": 104
+    },
+    {
+      "name": "National Aeronautics and Space Administration (NASA)",
+      "type": "organisation",
+      "edges": 796,
+      "records": 37,
+      "sole_reference": 35
+    },
+    {
+      "name": "Chris Ramsay",
+      "type": "person",
+      "edges": 718,
+      "records": 14,
+      "sole_reference": 84
+    },
+    {
+      "name": "Peter Khoury",
+      "type": "person",
+      "edges": 715,
+      "records": 2,
+      "sole_reference": 120
+    },
+    {
+      "name": "Jacques Vall\u00e9e",
+      "type": "person",
+      "edges": 655,
+      "records": 13,
+      "sole_reference": 145
+    },
+    {
+      "name": "David Fravor",
+      "type": "person",
+      "edges": 599,
+      "records": 13,
+      "sole_reference": 154
+    },
+    {
+      "name": "Remote viewing (RV)",
+      "type": "topic",
+      "edges": 453,
+      "records": 18,
+      "sole_reference": 77
+    },
+    {
+      "name": "David Charles Grusch",
+      "type": "person",
+      "edges": 451,
+      "records": 23,
+      "sole_reference": 115
+    },
+    {
+      "name": "Cydonia",
+      "type": "place",
+      "edges": 435,
+      "records": 1,
+      "sole_reference": 21
+    },
+    {
+      "name": "2004 USS Nimitz UAP encounter",
+      "type": "event",
+      "edges": 410,
+      "records": 13,
+      "sole_reference": 71
+    },
+    {
+      "name": "Robert Bigelow",
+      "type": "person",
+      "edges": 407,
+      "records": 10,
+      "sole_reference": 29
+    },
+    {
+      "name": "Joseph McMoneagle",
+      "type": "person",
+      "edges": 388,
+      "records": 6,
+      "sole_reference": 113
+    },
+    {
+      "name": "Out-of-Body Experience (OBE)",
+      "type": "topic",
+      "edges": 372,
+      "records": 12,
+      "sole_reference": 20
+    },
+    {
+      "name": "Jeremy Corbell",
+      "type": "person",
+      "edges": 368,
+      "records": 11,
+      "sole_reference": 90
+    },
+    {
+      "name": "United States Air Force (USAF)",
+      "type": "organisation",
+      "edges": 361,
+      "records": 52,
+      "sole_reference": 19
+    },
+    {
+      "name": "Julia Mossbridge",
+      "type": "person",
+      "edges": 358,
+      "records": 1,
+      "sole_reference": 78
+    },
+    {
+      "name": "United States Department of Defense (DoD)",
+      "type": "organisation",
+      "edges": 354,
+      "records": 48,
+      "sole_reference": 21
+    },
+    {
+      "name": "Face on Mars",
+      "type": "object",
+      "edges": 336,
+      "records": 2,
+      "sole_reference": 29
+    },
+    {
+      "name": "Central Intelligence Agency (CIA)",
+      "type": "organisation",
+      "edges": 323,
+      "records": 45,
+      "sole_reference": 22
+    },
+    {
+      "name": "Non-Human Intelligence",
+      "type": "topic",
+      "edges": 322,
+      "records": 21,
+      "sole_reference": 2
+    },
+    {
+      "name": "Luigi Venditelli",
+      "type": "person",
+      "edges": 314,
+      "records": 2,
+      "sole_reference": 54
+    },
+    {
+      "name": "Bill Chalker",
+      "type": "person",
+      "edges": 308,
+      "records": 4,
+      "sole_reference": 19
+    },
+    {
+      "name": "Leslie Kean",
+      "type": "person",
+      "edges": 307,
+      "records": 9,
+      "sole_reference": 31
+    },
+    {
+      "name": "United States Congress",
+      "type": "organisation",
+      "edges": 299,
+      "records": 48,
+      "sole_reference": 12
+    },
+    {
+      "name": "Advanced Aerospace Threat Identification Program (AATIP)",
+      "type": "project",
+      "edges": 297,
+      "records": 27,
+      "sole_reference": 20
+    },
+    {
+      "name": "L\u00facia (Fatima seer)",
+      "type": "person",
+      "edges": 295,
+      "records": 1,
+      "sole_reference": 21
+    },
+    {
+      "name": "Jesse Mitchells",
+      "type": "person",
+      "edges": 270,
+      "records": 5,
+      "sole_reference": 23
+    },
+    {
+      "name": "All-domain Anomaly Resolution Office (AARO)",
+      "type": "organisation",
+      "edges": 264,
+      "records": 28,
+      "sole_reference": 62
+    },
+    {
+      "name": "Alien abduction",
+      "type": "topic",
+      "edges": 264,
+      "records": 17,
+      "sole_reference": 30
+    },
+    {
+      "name": "Garry Nolan",
+      "type": "person",
+      "edges": 262,
+      "records": 3,
+      "sole_reference": 40
+    },
+    {
+      "name": "Edgar Mitchell",
+      "type": "person",
+      "edges": 256,
+      "records": 12,
+      "sole_reference": 41
+    },
+    {
+      "name": "Thomas Wilson",
+      "type": "person",
+      "edges": 254,
+      "records": 4,
+      "sole_reference": 18
+    },
+    {
+      "name": "Donald Trump",
+      "type": "person",
+      "edges": 250,
+      "records": 33,
+      "sole_reference": 24
+    },
+    {
+      "name": "Tom DeLonge",
+      "type": "person",
+      "edges": 246,
+      "records": 17,
+      "sole_reference": 49
+    },
+    {
+      "name": "The visitors (nonhuman beings)",
+      "type": "topic",
+      "edges": 243,
+      "records": 1,
+      "sole_reference": 6
+    },
+    {
+      "name": "Anne Strieber",
+      "type": "person",
+      "edges": 238,
+      "records": 5,
+      "sole_reference": 20
+    },
+    {
+      "name": "Maaneli \"Max\" Derakhshani",
+      "type": "person",
+      "edges": 231,
+      "records": 3,
+      "sole_reference": 16
+    },
+    {
+      "name": "Erik Nanstiel",
+      "type": "person",
+      "edges": 227,
+      "records": 1,
+      "sole_reference": 48
+    },
+    {
+      "name": "Ryan Hammons",
+      "type": "person",
+      "edges": 220,
+      "records": 1,
+      "sole_reference": 55
+    },
+    {
+      "name": "Harold E. Puthoff",
+      "type": "person",
+      "edges": 213,
+      "records": 18,
+      "sole_reference": 24
+    },
+    {
+      "name": "Daryl Johnson",
+      "type": "person",
+      "edges": 212,
+      "records": 1,
+      "sole_reference": 36
+    },
+    {
+      "name": "United States Navy (USN)",
+      "type": "organisation",
+      "edges": 212,
+      "records": 33,
+      "sole_reference": 14
+    },
+    {
+      "name": "Tyler D.",
+      "type": "person",
+      "edges": 212,
+      "records": 1,
+      "sole_reference": 83
+    },
+    {
+      "name": "Advanced Aerospace Weapon System Applications Program (AAWSAP)",
+      "type": "project",
+      "edges": 211,
+      "records": 12,
+      "sole_reference": 19
+    }
+  ]
+}
