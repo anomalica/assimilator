@@ -31,6 +31,9 @@ from assimilator.data_dir import data_dir
 STAGE = "consolidate"
 DEFAULT_MODEL = "claude-haiku-4-5"
 BAND_NAMES_MIN = 0.9
+# Display only. The band is names-only: measured on 515 labelled pairs the
+# with-claims score reaches 0.867 AUC against names-only's 0.980, with a
+# precision curve flat wherever the threshold sits.
 BAND_CLAIMS_MIN = 0.9
 PAIRS_PER_CALL = 20
 CHARS_PER_TOKEN = (

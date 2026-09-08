@@ -22,7 +22,7 @@
         "claims": [
           "Thomas Crosson, a Pentagon spokesman, said in an email that it was determined there were other higher priority issues that merited funding, and it was in the best interest of the Department of Defense (DoD) to make a change.",
           "The Pentagon wanted the Advanced Aerospace Threat Identification Program's funding to be difficult to find within the Department of Defense budget.",
-          "Jacques Vallée considers that UFO enthusiasts trying to expose the government through Freedom of Information Act lawsuits may be playing into the hands of the manipulators of the phenomenon."
+          "Jacques Vall\u00e9e considers that UFO enthusiasts trying to expose the government through Freedom of Information Act lawsuits may be playing into the hands of the manipulators of the phenomenon."
         ],
         "n_claims": 13
       },
@@ -53,7 +53,7 @@
         "claims": [
           "Thomas Crosson, a Pentagon spokesman, said in an email that it was determined there were other higher priority issues that merited funding, and it was in the best interest of the Department of Defense (DoD) to make a change.",
           "The Pentagon wanted the Advanced Aerospace Threat Identification Program's funding to be difficult to find within the Department of Defense budget.",
-          "Jacques Vallée considers that UFO enthusiasts trying to expose the government through Freedom of Information Act lawsuits may be playing into the hands of the manipulators of the phenomenon."
+          "Jacques Vall\u00e9e considers that UFO enthusiasts trying to expose the government through Freedom of Information Act lawsuits may be playing into the hands of the manipulators of the phenomenon."
         ],
         "n_claims": 13
       },
@@ -84,7 +84,7 @@
         "claims": [
           "Thomas Crosson, a Pentagon spokesman, said in an email that it was determined there were other higher priority issues that merited funding, and it was in the best interest of the Department of Defense (DoD) to make a change.",
           "The Pentagon wanted the Advanced Aerospace Threat Identification Program's funding to be difficult to find within the Department of Defense budget.",
-          "Jacques Vallée considers that UFO enthusiasts trying to expose the government through Freedom of Information Act lawsuits may be playing into the hands of the manipulators of the phenomenon."
+          "Jacques Vall\u00e9e considers that UFO enthusiasts trying to expose the government through Freedom of Information Act lawsuits may be playing into the hands of the manipulators of the phenomenon."
         ],
         "n_claims": 13
       },
@@ -115,7 +115,7 @@
         "claims": [
           "Thomas Crosson, a Pentagon spokesman, said in an email that it was determined there were other higher priority issues that merited funding, and it was in the best interest of the Department of Defense (DoD) to make a change.",
           "The Pentagon wanted the Advanced Aerospace Threat Identification Program's funding to be difficult to find within the Department of Defense budget.",
-          "Jacques Vallée considers that UFO enthusiasts trying to expose the government through Freedom of Information Act lawsuits may be playing into the hands of the manipulators of the phenomenon."
+          "Jacques Vall\u00e9e considers that UFO enthusiasts trying to expose the government through Freedom of Information Act lawsuits may be playing into the hands of the manipulators of the phenomenon."
         ],
         "n_claims": 13
       },
@@ -5338,7 +5338,7 @@
       "reranker_names_only": 0.9982859492301941
     },
     {
-      "label": 0,
+      "label": 1,
       "source": "rejected",
       "note": "",
       "a": {
@@ -5363,7 +5363,8 @@
       "rule_reason": "fuzzy",
       "reranker_ab": 0.9888418912887573,
       "reranker_names_only": 0.9972207546234131,
-      "reranker_ba": 0.9934102296829224
+      "reranker_ba": 0.9934102296829224,
+      "relabelled": "2026-09-08: labelled a negative in error - the same entity (pseudonym, given-name form, truncation). A test set that marks real merges as negatives punishes the behaviour we want."
     },
     {
       "label": 0,
@@ -8383,7 +8384,7 @@
         "claims": [
           "Hereward Carrington considered the episode where John King contradicted Eusapia Palladino's own wish to end the session as evidence of an external intelligence, differing from that of Eusapia, expressing wishes in direct opposition to her own.",
           "John King would sometimes tap answers to questions by table tilting or rapping on the table, and would touch a specific person immediately when asked while both of Eusapia Palladino's hands were under control.",
-          "Hereward Carrington described John King as supposed to regulate Eusapia Palladino's séances and produce most of the phenomena."
+          "Hereward Carrington described John King as supposed to regulate Eusapia Palladino's s\u00e9ances and produce most of the phenomena."
         ],
         "n_claims": 6
       },
@@ -8434,7 +8435,7 @@
         "claims": [
           "Hereward Carrington considered the episode where John King contradicted Eusapia Palladino's own wish to end the session as evidence of an external intelligence, differing from that of Eusapia, expressing wishes in direct opposition to her own.",
           "John King would sometimes tap answers to questions by table tilting or rapping on the table, and would touch a specific person immediately when asked while both of Eusapia Palladino's hands were under control.",
-          "Hereward Carrington described John King as supposed to regulate Eusapia Palladino's séances and produce most of the phenomena."
+          "Hereward Carrington described John King as supposed to regulate Eusapia Palladino's s\u00e9ances and produce most of the phenomena."
         ],
         "n_claims": 6
       },
@@ -9847,7 +9848,7 @@
         "claims": [
           "Frederick W. Smith wrote that NORAD's Combat Operations Center is carved into the solid heart of Cheyenne Mountain, requiring approximately 34,000 cubic metres of granite to be blasted out, with some free-standing steel buildings up to three storeys high mounted on large coil springs.",
           "Frederick W. Smith wrote that someone has been delivering a message to the American people, the government, and the intelligence community through the cattle mutilations.",
-          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vallée considered the only one that made sense to him."
+          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vall\u00e9e considered the only one that made sense to him."
         ],
         "n_claims": 6
       },
@@ -10005,7 +10006,7 @@
         "claims": [
           "Frederick W. Smith wrote that NORAD's Combat Operations Center is carved into the solid heart of Cheyenne Mountain, requiring approximately 34,000 cubic metres of granite to be blasted out, with some free-standing steel buildings up to three storeys high mounted on large coil springs.",
           "Frederick W. Smith wrote that someone has been delivering a message to the American people, the government, and the intelligence community through the cattle mutilations.",
-          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vallée considered the only one that made sense to him."
+          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vall\u00e9e considered the only one that made sense to him."
         ],
         "n_claims": 6
       },
@@ -10129,7 +10130,7 @@
         "claims": [
           "Frederick W. Smith wrote that NORAD's Combat Operations Center is carved into the solid heart of Cheyenne Mountain, requiring approximately 34,000 cubic metres of granite to be blasted out, with some free-standing steel buildings up to three storeys high mounted on large coil springs.",
           "Frederick W. Smith wrote that someone has been delivering a message to the American people, the government, and the intelligence community through the cattle mutilations.",
-          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vallée considered the only one that made sense to him."
+          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vall\u00e9e considered the only one that made sense to him."
         ],
         "n_claims": 6
       },
@@ -10222,7 +10223,7 @@
         "claims": [
           "Frederick W. Smith wrote that NORAD's Combat Operations Center is carved into the solid heart of Cheyenne Mountain, requiring approximately 34,000 cubic metres of granite to be blasted out, with some free-standing steel buildings up to three storeys high mounted on large coil springs.",
           "Frederick W. Smith wrote that someone has been delivering a message to the American people, the government, and the intelligence community through the cattle mutilations.",
-          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vallée considered the only one that made sense to him."
+          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vall\u00e9e considered the only one that made sense to him."
         ],
         "n_claims": 6
       },
@@ -10285,7 +10286,7 @@
         "claims": [
           "Frederick W. Smith wrote that NORAD's Combat Operations Center is carved into the solid heart of Cheyenne Mountain, requiring approximately 34,000 cubic metres of granite to be blasted out, with some free-standing steel buildings up to three storeys high mounted on large coil springs.",
           "Frederick W. Smith wrote that someone has been delivering a message to the American people, the government, and the intelligence community through the cattle mutilations.",
-          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vallée considered the only one that made sense to him."
+          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vall\u00e9e considered the only one that made sense to him."
         ],
         "n_claims": 6
       },
@@ -10336,7 +10337,7 @@
         "claims": [
           "Frederick W. Smith wrote that NORAD's Combat Operations Center is carved into the solid heart of Cheyenne Mountain, requiring approximately 34,000 cubic metres of granite to be blasted out, with some free-standing steel buildings up to three storeys high mounted on large coil springs.",
           "Frederick W. Smith wrote that someone has been delivering a message to the American people, the government, and the intelligence community through the cattle mutilations.",
-          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vallée considered the only one that made sense to him."
+          "Frederick W. Smith, who lives in Colorado, offered an interpretation of the cattle mutilation mystery that Jacques Vall\u00e9e considered the only one that made sense to him."
         ],
         "n_claims": 6
       },
@@ -10547,26 +10548,26 @@
     {
       "label": 0,
       "source": "surname",
-      "note": "vallée",
+      "note": "vall\u00e9e",
       "a": {
         "id": "06412ca6-a1b6-411b-9e8b-2100b8c961bd",
-        "name": "Jacques Vallée",
+        "name": "Jacques Vall\u00e9e",
         "type": "person",
         "claims": [
           "The anonymous engineer is withdrawn and secretive with a greatest wish to remain unknown, unlike Uri Geller who is a showman.",
-          "Jacques Vallée believes it would be dangerous to jump to premature conclusions about the origin and nature of UFOs, because the phenomenon serves as a vehicle for images that can be manipulated to promote belief systems aimed at long-term transformation of human society.",
+          "Jacques Vall\u00e9e believes it would be dangerous to jump to premature conclusions about the origin and nature of UFOs, because the phenomenon serves as a vehicle for images that can be manipulated to promote belief systems aimed at long-term transformation of human society.",
           "The group of scientists that Jacques Vallee's early experience brought him into contact with, whimsically calls itself the 'Invisible College'."
         ],
         "n_claims": 634
       },
       "b": {
         "id": "a4382072-aedb-441f-90ba-9aa7b3ce81cc",
-        "name": "Janine Vallée",
+        "name": "Janine Vall\u00e9e",
         "type": "person",
         "claims": [
           "Janine Vallee and Jacques Vallee investigated the Carteret UFO sighting during a research trip through the west of France in December 1973.",
-          "Grace Hooper Pettipher told her audience, including Jacques Vallée and Janine Vallée, that some people in the room had come from outside the planet, that there are beings who come in UFOs, and that people go away with them.",
-          "Jacques Vallée and his wife, Janine Vallée, attended an Order of Melchizedek meeting at the Hyatt Hotel in San Francisco and each paid three dollars."
+          "Grace Hooper Pettipher told her audience, including Jacques Vall\u00e9e and Janine Vall\u00e9e, that some people in the room had come from outside the planet, that there are beings who come in UFOs, and that people go away with them.",
+          "Jacques Vall\u00e9e and his wife, Janine Vall\u00e9e, attended an Order of Melchizedek meeting at the Hyatt Hotel in San Francisco and each paid three dollars."
         ],
         "n_claims": 5
       },
@@ -10785,8 +10786,8 @@
         "type": "person",
         "claims": [
           "After the sitting later described as \"Sitting where a grieving woman told Stewart Alexander 'Thank you for saving my life'\", the woman embraced Stewart Alexander in the lounge and told him \"Thank you for saving my life.\"",
-          "Leslie Kean attended two séances with Stewart Alexander's circle in April 2015 and returned for two more the following August 2015.",
-          "Stewart Alexander had heard repeatedly from sitters about Walter Stinson materialising his physical hand from a cloud of ectoplasm before personally witnessing it himself at a public demonstration séance."
+          "Leslie Kean attended two s\u00e9ances with Stewart Alexander's circle in April 2015 and returned for two more the following August 2015.",
+          "Stewart Alexander had heard repeatedly from sitters about Walter Stinson materialising his physical hand from a cloud of ectoplasm before personally witnessing it himself at a public demonstration s\u00e9ance."
         ],
         "n_claims": 196
       },
@@ -10836,8 +10837,8 @@
         "type": "person",
         "claims": [
           "After the sitting later described as \"Sitting where a grieving woman told Stewart Alexander 'Thank you for saving my life'\", the woman embraced Stewart Alexander in the lounge and told him \"Thank you for saving my life.\"",
-          "Leslie Kean attended two séances with Stewart Alexander's circle in April 2015 and returned for two more the following August 2015.",
-          "Stewart Alexander had heard repeatedly from sitters about Walter Stinson materialising his physical hand from a cloud of ectoplasm before personally witnessing it himself at a public demonstration séance."
+          "Leslie Kean attended two s\u00e9ances with Stewart Alexander's circle in April 2015 and returned for two more the following August 2015.",
+          "Stewart Alexander had heard repeatedly from sitters about Walter Stinson materialising his physical hand from a cloud of ectoplasm before personally witnessing it himself at a public demonstration s\u00e9ance."
         ],
         "n_claims": 196
       },
@@ -11818,9 +11819,9 @@
         "name": "Ferreira (Father)",
         "type": "person",
         "claims": [
-          "News that Artur Santos had abducted the children spread to the crowd waiting at the Cova da Iria, provoking anger, and some in the crowd called for marching to Ourém to attack Artur Santos and Father Ferreira.",
+          "News that Artur Santos had abducted the children spread to the crowd waiting at the Cova da Iria, provoking anger, and some in the crowd called for marching to Our\u00e9m to attack Artur Santos and Father Ferreira.",
           "Father Ferreira's notice stated that thousands of witnesses of every age and social class had seen the events at the Cova da Iria with their own eyes, showing that the children's presence was not essential for the apparition to occur.",
-          "After Father Ferreira's scepticism, Lúcia began to doubt that what she had seen at Fatima was real."
+          "After Father Ferreira's scepticism, L\u00facia began to doubt that what she had seen at Fatima was real."
         ],
         "n_claims": 16
       },
@@ -11849,9 +11850,9 @@
         "name": "Fuentes (Father)",
         "type": "person",
         "claims": [
-          "Sister Lúcia told Father Fuentes that the Most Holy Virgin did not tell her they were living through the last days of the world, but that Lúcia understood that they are.",
-          "Father Fuentes reported that Sister Lúcia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
-          "Father Fuentes recounted that when he met Sister Lúcia at her convent she was very pale, exhausted, and sad, and told him that the Most Holy Virgin was filled with sorrow because no one paid attention to her message."
+          "Sister L\u00facia told Father Fuentes that the Most Holy Virgin did not tell her they were living through the last days of the world, but that L\u00facia understood that they are.",
+          "Father Fuentes reported that Sister L\u00facia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
+          "Father Fuentes recounted that when he met Sister L\u00facia at her convent she was very pale, exhausted, and sad, and told him that the Most Holy Virgin was filled with sorrow because no one paid attention to her message."
         ],
         "n_claims": 7
       },
@@ -11881,7 +11882,7 @@
         "name": "Schweigl (Father)",
         "type": "person",
         "claims": [
-          "Father Schweigl interviewed Sister Lúcia on 1952-09-02 at her convent at Coimbra on instructions from Pope Pius XII.",
+          "Father Schweigl interviewed Sister L\u00facia on 1952-09-02 at her convent at Coimbra on instructions from Pope Pius XII.",
           "Father Schweigl said the other part of the Third Secret of Fatima must be the continuation of the words \"In Portugal the doctrine of faith will always be preserved,\" implying faith would be lost in the rest of the world.",
           "On his return to Rome, Father Schweigl said he could not reveal what he learned at Fatima about the Third Secret, but that it has two parts, one of which refers to the pope."
         ],
@@ -11901,9 +11902,9 @@
         "name": "Ferreira (Father)",
         "type": "person",
         "claims": [
-          "News that Artur Santos had abducted the children spread to the crowd waiting at the Cova da Iria, provoking anger, and some in the crowd called for marching to Ourém to attack Artur Santos and Father Ferreira.",
+          "News that Artur Santos had abducted the children spread to the crowd waiting at the Cova da Iria, provoking anger, and some in the crowd called for marching to Our\u00e9m to attack Artur Santos and Father Ferreira.",
           "Father Ferreira's notice stated that thousands of witnesses of every age and social class had seen the events at the Cova da Iria with their own eyes, showing that the children's presence was not essential for the apparition to occur.",
-          "After Father Ferreira's scepticism, Lúcia began to doubt that what she had seen at Fatima was real."
+          "After Father Ferreira's scepticism, L\u00facia began to doubt that what she had seen at Fatima was real."
         ],
         "n_claims": 16
       },
@@ -11912,9 +11913,9 @@
         "name": "Fuentes (Father)",
         "type": "person",
         "claims": [
-          "Sister Lúcia told Father Fuentes that the Most Holy Virgin did not tell her they were living through the last days of the world, but that Lúcia understood that they are.",
-          "Father Fuentes reported that Sister Lúcia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
-          "Father Fuentes recounted that when he met Sister Lúcia at her convent she was very pale, exhausted, and sad, and told him that the Most Holy Virgin was filled with sorrow because no one paid attention to her message."
+          "Sister L\u00facia told Father Fuentes that the Most Holy Virgin did not tell her they were living through the last days of the world, but that L\u00facia understood that they are.",
+          "Father Fuentes reported that Sister L\u00facia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
+          "Father Fuentes recounted that when he met Sister L\u00facia at her convent she was very pale, exhausted, and sad, and told him that the Most Holy Virgin was filled with sorrow because no one paid attention to her message."
         ],
         "n_claims": 7
       },
@@ -11932,9 +11933,9 @@
         "name": "Ferreira (Father)",
         "type": "person",
         "claims": [
-          "News that Artur Santos had abducted the children spread to the crowd waiting at the Cova da Iria, provoking anger, and some in the crowd called for marching to Ourém to attack Artur Santos and Father Ferreira.",
+          "News that Artur Santos had abducted the children spread to the crowd waiting at the Cova da Iria, provoking anger, and some in the crowd called for marching to Our\u00e9m to attack Artur Santos and Father Ferreira.",
           "Father Ferreira's notice stated that thousands of witnesses of every age and social class had seen the events at the Cova da Iria with their own eyes, showing that the children's presence was not essential for the apparition to occur.",
-          "After Father Ferreira's scepticism, Lúcia began to doubt that what she had seen at Fatima was real."
+          "After Father Ferreira's scepticism, L\u00facia began to doubt that what she had seen at Fatima was real."
         ],
         "n_claims": 16
       },
@@ -11943,7 +11944,7 @@
         "name": "Schweigl (Father)",
         "type": "person",
         "claims": [
-          "Father Schweigl interviewed Sister Lúcia on 1952-09-02 at her convent at Coimbra on instructions from Pope Pius XII.",
+          "Father Schweigl interviewed Sister L\u00facia on 1952-09-02 at her convent at Coimbra on instructions from Pope Pius XII.",
           "Father Schweigl said the other part of the Third Secret of Fatima must be the continuation of the words \"In Portugal the doctrine of faith will always be preserved,\" implying faith would be lost in the rest of the world.",
           "On his return to Rome, Father Schweigl said he could not reveal what he learned at Fatima about the Third Secret, but that it has two parts, one of which refers to the pope."
         ],
@@ -11963,9 +11964,9 @@
         "name": "Fuentes (Father)",
         "type": "person",
         "claims": [
-          "Sister Lúcia told Father Fuentes that the Most Holy Virgin did not tell her they were living through the last days of the world, but that Lúcia understood that they are.",
-          "Father Fuentes reported that Sister Lúcia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
-          "Father Fuentes recounted that when he met Sister Lúcia at her convent she was very pale, exhausted, and sad, and told him that the Most Holy Virgin was filled with sorrow because no one paid attention to her message."
+          "Sister L\u00facia told Father Fuentes that the Most Holy Virgin did not tell her they were living through the last days of the world, but that L\u00facia understood that they are.",
+          "Father Fuentes reported that Sister L\u00facia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
+          "Father Fuentes recounted that when he met Sister L\u00facia at her convent she was very pale, exhausted, and sad, and told him that the Most Holy Virgin was filled with sorrow because no one paid attention to her message."
         ],
         "n_claims": 7
       },
@@ -11974,7 +11975,7 @@
         "name": "Schweigl (Father)",
         "type": "person",
         "claims": [
-          "Father Schweigl interviewed Sister Lúcia on 1952-09-02 at her convent at Coimbra on instructions from Pope Pius XII.",
+          "Father Schweigl interviewed Sister L\u00facia on 1952-09-02 at her convent at Coimbra on instructions from Pope Pius XII.",
           "Father Schweigl said the other part of the Third Secret of Fatima must be the continuation of the words \"In Portugal the doctrine of faith will always be preserved,\" implying faith would be lost in the rest of the world.",
           "On his return to Rome, Father Schweigl said he could not reveal what he learned at Fatima about the Third Secret, but that it has two parts, one of which refers to the pope."
         ],
@@ -11988,26 +11989,26 @@
     {
       "label": 0,
       "source": "surname",
-      "note": "uchôa",
+      "note": "uch\u00f4a",
       "a": {
         "id": "dd893753-5498-4513-9300-701a809a49ba",
-        "name": "Alfredo Moacyr Uchôa",
+        "name": "Alfredo Moacyr Uch\u00f4a",
         "type": "person",
         "claims": [
-          "In the 1970s Alfredo Moacyr de Mendonça Uchôa launched the Brazilian Center for UAP Studies.",
-          "Alfredo Moacyr de Mendonça Uchôa devoted more than thirty years of his life to Unidentified Aerial Phenomena (UAP) and other paranormal and mystical studies.",
-          "Alfredo Moacyr de Mendonça Uchôa was known as \"the Star General.\""
+          "In the 1970s Alfredo Moacyr de Mendon\u00e7a Uch\u00f4a launched the Brazilian Center for UAP Studies.",
+          "Alfredo Moacyr de Mendon\u00e7a Uch\u00f4a devoted more than thirty years of his life to Unidentified Aerial Phenomena (UAP) and other paranormal and mystical studies.",
+          "Alfredo Moacyr de Mendon\u00e7a Uch\u00f4a was known as \"the Star General.\""
         ],
         "n_claims": 3
       },
       "b": {
         "id": "af9aeb57-f7bd-4b2f-8add-3e173d217a43",
-        "name": "Paulo Roberto Yog de Miranda Uchôa",
+        "name": "Paulo Roberto Yog de Miranda Uch\u00f4a",
         "type": "person",
         "claims": [
-          "Paulo Roberto Yog de Miranda Uchôa distributed vintage photographs of evidence compiled by Uyrange Hollanda's team documenting Colares Incidents victims.",
-          "Paulo Roberto Yog de Miranda Uchôa had befriended a still-living Brazilian colonel who had originally investigated Brazil's most fascinating cases, spanning thirty years.",
-          "Paulo Roberto Yog de Miranda Uchôa was Brazil's top drug czar and a four-star general."
+          "Paulo Roberto Yog de Miranda Uch\u00f4a distributed vintage photographs of evidence compiled by Uyrange Hollanda's team documenting Colares Incidents victims.",
+          "Paulo Roberto Yog de Miranda Uch\u00f4a had befriended a still-living Brazilian colonel who had originally investigated Brazil's most fascinating cases, spanning thirty years.",
+          "Paulo Roberto Yog de Miranda Uch\u00f4a was Brazil's top drug czar and a four-star general."
         ],
         "n_claims": 7
       },
@@ -12399,9 +12400,9 @@
         "name": "George (Helen's UFO abduction witness)",
         "type": "person",
         "claims": [
-          "Jacques Vallée had a lengthy telephone conversation with George (Helen's UFO abduction witness), who had not seen Helen (contactee interviewed by Jacques Vallée) in several years but remembered the 1968 Lompoc-to-Los Angeles UFO abduction of Helen as a turning point in his life.",
-          "Helen (contactee interviewed by Jacques Vallée) said George (Helen's UFO abduction witness) was driving the car and sat up front during the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
-          "Helen (contactee interviewed by Jacques Vallée) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it."
+          "Jacques Vall\u00e9e had a lengthy telephone conversation with George (Helen's UFO abduction witness), who had not seen Helen (contactee interviewed by Jacques Vall\u00e9e) in several years but remembered the 1968 Lompoc-to-Los Angeles UFO abduction of Helen as a turning point in his life.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said George (Helen's UFO abduction witness) was driving the car and sat up front during the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it."
         ],
         "n_claims": 4
       },
@@ -12410,9 +12411,9 @@
         "name": "Dave (Helen's UFO abduction witness)",
         "type": "person",
         "claims": [
-          "A friend of Jacques Vallée who was a psychiatrist contacted Dave (Helen's UFO abduction witness), who had moved to another city, and obtained his statement about the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
-          "Helen (contactee interviewed by Jacques Vallée) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it.",
-          "Helen (contactee interviewed by Jacques Vallée) said that upon returning to her body she saw light shimmering around Barbara (Helen's UFO abduction witness) and Dave (Helen's UFO abduction witness) as all four were slowly dissipated back into their bodies."
+          "A friend of Jacques Vall\u00e9e who was a psychiatrist contacted Dave (Helen's UFO abduction witness), who had moved to another city, and obtained his statement about the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said that upon returning to her body she saw light shimmering around Barbara (Helen's UFO abduction witness) and Dave (Helen's UFO abduction witness) as all four were slowly dissipated back into their bodies."
         ],
         "n_claims": 4
       },
@@ -12431,9 +12432,9 @@
         "name": "George (Helen's UFO abduction witness)",
         "type": "person",
         "claims": [
-          "Jacques Vallée had a lengthy telephone conversation with George (Helen's UFO abduction witness), who had not seen Helen (contactee interviewed by Jacques Vallée) in several years but remembered the 1968 Lompoc-to-Los Angeles UFO abduction of Helen as a turning point in his life.",
-          "Helen (contactee interviewed by Jacques Vallée) said George (Helen's UFO abduction witness) was driving the car and sat up front during the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
-          "Helen (contactee interviewed by Jacques Vallée) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it."
+          "Jacques Vall\u00e9e had a lengthy telephone conversation with George (Helen's UFO abduction witness), who had not seen Helen (contactee interviewed by Jacques Vall\u00e9e) in several years but remembered the 1968 Lompoc-to-Los Angeles UFO abduction of Helen as a turning point in his life.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said George (Helen's UFO abduction witness) was driving the car and sat up front during the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it."
         ],
         "n_claims": 4
       },
@@ -12463,9 +12464,9 @@
         "name": "George (Helen's UFO abduction witness)",
         "type": "person",
         "claims": [
-          "Jacques Vallée had a lengthy telephone conversation with George (Helen's UFO abduction witness), who had not seen Helen (contactee interviewed by Jacques Vallée) in several years but remembered the 1968 Lompoc-to-Los Angeles UFO abduction of Helen as a turning point in his life.",
-          "Helen (contactee interviewed by Jacques Vallée) said George (Helen's UFO abduction witness) was driving the car and sat up front during the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
-          "Helen (contactee interviewed by Jacques Vallée) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it."
+          "Jacques Vall\u00e9e had a lengthy telephone conversation with George (Helen's UFO abduction witness), who had not seen Helen (contactee interviewed by Jacques Vall\u00e9e) in several years but remembered the 1968 Lompoc-to-Los Angeles UFO abduction of Helen as a turning point in his life.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said George (Helen's UFO abduction witness) was driving the car and sat up front during the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it."
         ],
         "n_claims": 4
       },
@@ -12495,9 +12496,9 @@
         "name": "Dave (Helen's UFO abduction witness)",
         "type": "person",
         "claims": [
-          "A friend of Jacques Vallée who was a psychiatrist contacted Dave (Helen's UFO abduction witness), who had moved to another city, and obtained his statement about the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
-          "Helen (contactee interviewed by Jacques Vallée) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it.",
-          "Helen (contactee interviewed by Jacques Vallée) said that upon returning to her body she saw light shimmering around Barbara (Helen's UFO abduction witness) and Dave (Helen's UFO abduction witness) as all four were slowly dissipated back into their bodies."
+          "A friend of Jacques Vall\u00e9e who was a psychiatrist contacted Dave (Helen's UFO abduction witness), who had moved to another city, and obtained his statement about the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said that upon returning to her body she saw light shimmering around Barbara (Helen's UFO abduction witness) and Dave (Helen's UFO abduction witness) as all four were slowly dissipated back into their bodies."
         ],
         "n_claims": 4
       },
@@ -12526,9 +12527,9 @@
         "name": "Dave (Helen's UFO abduction witness)",
         "type": "person",
         "claims": [
-          "A friend of Jacques Vallée who was a psychiatrist contacted Dave (Helen's UFO abduction witness), who had moved to another city, and obtained his statement about the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
-          "Helen (contactee interviewed by Jacques Vallée) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it.",
-          "Helen (contactee interviewed by Jacques Vallée) said that upon returning to her body she saw light shimmering around Barbara (Helen's UFO abduction witness) and Dave (Helen's UFO abduction witness) as all four were slowly dissipated back into their bodies."
+          "A friend of Jacques Vall\u00e9e who was a psychiatrist contacted Dave (Helen's UFO abduction witness), who had moved to another city, and obtained his statement about the 1968 Lompoc-to-Los Angeles UFO abduction of Helen.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said Dave (Helen's UFO abduction witness) and Barbara (Helen's UFO abduction witness) were afraid of the object, while she and George (Helen's UFO abduction witness) were encouraging the encounter and enjoying it.",
+          "Helen (contactee interviewed by Jacques Vall\u00e9e) said that upon returning to her body she saw light shimmering around Barbara (Helen's UFO abduction witness) and Dave (Helen's UFO abduction witness) as all four were slowly dissipated back into their bodies."
         ],
         "n_claims": 4
       },
@@ -12617,12 +12618,12 @@
       "note": "friend)",
       "a": {
         "id": "7b0843a1-1889-44e8-bc58-c4658fbc731f",
-        "name": "Steve (Jacques Vallée's friend)",
+        "name": "Steve (Jacques Vall\u00e9e's friend)",
         "type": "person",
         "claims": [
-          "Steve told Jacques Vallée that Grace Hooper Pettipher recounted an experience near Glastonbury, England, in which her room filled with bizarre beings during the night who motioned her toward a window, and where a marsh appeared transformed into a beautiful lake.",
-          "Steve told Jacques Vallée that at an Order of Melchizedek meeting he met a girl who had also attended meetings of a group called Urantia that assembled at a house in the Mission district of San Francisco.",
-          "Jacques Vallée had a friend, referred to as Steve, who joined the Order of Melchizedek enthusiastically after learning of it from Vallée and read Dr. Grace Hooper Pettipher's pamphlets, but was disappointed by their lack of verifiable or scientific content."
+          "Steve told Jacques Vall\u00e9e that Grace Hooper Pettipher recounted an experience near Glastonbury, England, in which her room filled with bizarre beings during the night who motioned her toward a window, and where a marsh appeared transformed into a beautiful lake.",
+          "Steve told Jacques Vall\u00e9e that at an Order of Melchizedek meeting he met a girl who had also attended meetings of a group called Urantia that assembled at a house in the Mission district of San Francisco.",
+          "Jacques Vall\u00e9e had a friend, referred to as Steve, who joined the Order of Melchizedek enthusiastically after learning of it from Vall\u00e9e and read Dr. Grace Hooper Pettipher's pamphlets, but was disappointed by their lack of verifiable or scientific content."
         ],
         "n_claims": 5
       },
@@ -12805,12 +12806,12 @@
       "note": "seer)",
       "a": {
         "id": "bbddfa81-653b-4aa6-8e98-3ba0d1485044",
-        "name": "Lúcia (Fatima seer)",
+        "name": "L\u00facia (Fatima seer)",
         "type": "person",
         "claims": [
-          "Archbishop Tarcisio Bertone asked Sister Lúcia in April 2000 why she stated the Third Secret should be published after 1960, but he does not understand her answer.",
-          "In the spring of 1916, Lúcia, Francisco Marto, and Jacinta Marto were watching their herds on the eastern slope of the Loca do Cabeço mountain when a first apparition of an angel of peace occurred.",
-          "Lúcia asked the Lady during the Fifth apparition of Our Lady of Fatima (1917-09-13) to cure some sick people and heal a deaf-mute person."
+          "Archbishop Tarcisio Bertone asked Sister L\u00facia in April 2000 why she stated the Third Secret should be published after 1960, but he does not understand her answer.",
+          "In the spring of 1916, L\u00facia, Francisco Marto, and Jacinta Marto were watching their herds on the eastern slope of the Loca do Cabe\u00e7o mountain when a first apparition of an angel of peace occurred.",
+          "L\u00facia asked the Lady during the Fifth apparition of Our Lady of Fatima (1917-09-13) to cure some sick people and heal a deaf-mute person."
         ],
         "n_claims": 295
       },
@@ -12836,12 +12837,12 @@
       "note": "seer)",
       "a": {
         "id": "bbddfa81-653b-4aa6-8e98-3ba0d1485044",
-        "name": "Lúcia (Fatima seer)",
+        "name": "L\u00facia (Fatima seer)",
         "type": "person",
         "claims": [
-          "Archbishop Tarcisio Bertone asked Sister Lúcia in April 2000 why she stated the Third Secret should be published after 1960, but he does not understand her answer.",
-          "In the spring of 1916, Lúcia, Francisco Marto, and Jacinta Marto were watching their herds on the eastern slope of the Loca do Cabeço mountain when a first apparition of an angel of peace occurred.",
-          "Lúcia asked the Lady during the Fifth apparition of Our Lady of Fatima (1917-09-13) to cure some sick people and heal a deaf-mute person."
+          "Archbishop Tarcisio Bertone asked Sister L\u00facia in April 2000 why she stated the Third Secret should be published after 1960, but he does not understand her answer.",
+          "In the spring of 1916, L\u00facia, Francisco Marto, and Jacinta Marto were watching their herds on the eastern slope of the Loca do Cabe\u00e7o mountain when a first apparition of an angel of peace occurred.",
+          "L\u00facia asked the Lady during the Fifth apparition of Our Lady of Fatima (1917-09-13) to cure some sick people and heal a deaf-mute person."
         ],
         "n_claims": 295
       },
@@ -12868,12 +12869,12 @@
       "note": "seer)",
       "a": {
         "id": "bbddfa81-653b-4aa6-8e98-3ba0d1485044",
-        "name": "Lúcia (Fatima seer)",
+        "name": "L\u00facia (Fatima seer)",
         "type": "person",
         "claims": [
-          "Archbishop Tarcisio Bertone asked Sister Lúcia in April 2000 why she stated the Third Secret should be published after 1960, but he does not understand her answer.",
-          "In the spring of 1916, Lúcia, Francisco Marto, and Jacinta Marto were watching their herds on the eastern slope of the Loca do Cabeço mountain when a first apparition of an angel of peace occurred.",
-          "Lúcia asked the Lady during the Fifth apparition of Our Lady of Fatima (1917-09-13) to cure some sick people and heal a deaf-mute person."
+          "Archbishop Tarcisio Bertone asked Sister L\u00facia in April 2000 why she stated the Third Secret should be published after 1960, but he does not understand her answer.",
+          "In the spring of 1916, L\u00facia, Francisco Marto, and Jacinta Marto were watching their herds on the eastern slope of the Loca do Cabe\u00e7o mountain when a first apparition of an angel of peace occurred.",
+          "L\u00facia asked the Lady during the Fifth apparition of Our Lady of Fatima (1917-09-13) to cure some sick people and heal a deaf-mute person."
         ],
         "n_claims": 295
       },
@@ -12996,9 +12997,9 @@
         "name": "Jacinta Marto",
         "type": "person",
         "claims": [
-          "After a journey of about an hour and a half, Artur Santos brought the three children to his house in Ourém, locked them in a room, and told them he would only release them once they told him the secret.",
-          "Father Fuentes reported that Sister Lúcia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
-          "In the autumn of 1919, Jacinta Marto told Lúcia (Fatima seer) that the Madonna had told her she would be taken to a hospital in Lisbon, that she would not see Lúcia or her parents again, that she would die alone after much suffering, but that she should not be afraid because the Madonna would come herself to take her to heaven."
+          "After a journey of about an hour and a half, Artur Santos brought the three children to his house in Our\u00e9m, locked them in a room, and told them he would only release them once they told him the secret.",
+          "Father Fuentes reported that Sister L\u00facia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
+          "In the autumn of 1919, Jacinta Marto told L\u00facia (Fatima seer) that the Madonna had told her she would be taken to a hospital in Lisbon, that she would not see L\u00facia or her parents again, that she would die alone after much suffering, but that she should not be afraid because the Madonna would come herself to take her to heaven."
         ],
         "n_claims": 137
       },
@@ -13008,8 +13009,8 @@
         "type": "person",
         "claims": [
           "Father Ferreira listened to the children's account of the Fatima apparitions in disbelief and was annoyed that there were details they would not or could not explain.",
-          "The hamlet of Aljustrel, where Lúcia, Jacinta Marto, and Francisco Marto lived, was part of the village of Fatima.",
-          "During the first apparition of Our Lady of Fatima, the Lady asked Lúcia if she was prepared to offer herself to God and accept all sufferings He would send to help make up for the sins of the world, and Lúcia answered on behalf of all three children that they were ready."
+          "The hamlet of Aljustrel, where L\u00facia, Jacinta Marto, and Francisco Marto lived, was part of the village of Fatima.",
+          "During the first apparition of Our Lady of Fatima, the Lady asked L\u00facia if she was prepared to offer herself to God and accept all sufferings He would send to help make up for the sins of the world, and L\u00facia answered on behalf of all three children that they were ready."
         ],
         "n_claims": 96
       },
@@ -13027,9 +13028,9 @@
         "name": "Jacinta Marto",
         "type": "person",
         "claims": [
-          "After a journey of about an hour and a half, Artur Santos brought the three children to his house in Ourém, locked them in a room, and told them he would only release them once they told him the secret.",
-          "Father Fuentes reported that Sister Lúcia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
-          "In the autumn of 1919, Jacinta Marto told Lúcia (Fatima seer) that the Madonna had told her she would be taken to a hospital in Lisbon, that she would not see Lúcia or her parents again, that she would die alone after much suffering, but that she should not be afraid because the Madonna would come herself to take her to heaven."
+          "After a journey of about an hour and a half, Artur Santos brought the three children to his house in Our\u00e9m, locked them in a room, and told them he would only release them once they told him the secret.",
+          "Father Fuentes reported that Sister L\u00facia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
+          "In the autumn of 1919, Jacinta Marto told L\u00facia (Fatima seer) that the Madonna had told her she would be taken to a hospital in Lisbon, that she would not see L\u00facia or her parents again, that she would die alone after much suffering, but that she should not be afraid because the Madonna would come herself to take her to heaven."
         ],
         "n_claims": 137
       },
@@ -13058,9 +13059,9 @@
         "name": "Jacinta Marto",
         "type": "person",
         "claims": [
-          "After a journey of about an hour and a half, Artur Santos brought the three children to his house in Ourém, locked them in a room, and told them he would only release them once they told him the secret.",
-          "Father Fuentes reported that Sister Lúcia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
-          "In the autumn of 1919, Jacinta Marto told Lúcia (Fatima seer) that the Madonna had told her she would be taken to a hospital in Lisbon, that she would not see Lúcia or her parents again, that she would die alone after much suffering, but that she should not be afraid because the Madonna would come herself to take her to heaven."
+          "After a journey of about an hour and a half, Artur Santos brought the three children to his house in Our\u00e9m, locked them in a room, and told them he would only release them once they told him the secret.",
+          "Father Fuentes reported that Sister L\u00facia told him the Most Holy Virgin had told her, Francisco Marto, and Jacinta Marto that many nations would vanish from the face of the earth, and that Russia would be the instrument of punishment if the world did not convert that nation.",
+          "In the autumn of 1919, Jacinta Marto told L\u00facia (Fatima seer) that the Madonna had told her she would be taken to a hospital in Lisbon, that she would not see L\u00facia or her parents again, that she would die alone after much suffering, but that she should not be afraid because the Madonna would come herself to take her to heaven."
         ],
         "n_claims": 137
       },
@@ -13090,8 +13091,8 @@
         "type": "person",
         "claims": [
           "Father Ferreira listened to the children's account of the Fatima apparitions in disbelief and was annoyed that there were details they would not or could not explain.",
-          "The hamlet of Aljustrel, where Lúcia, Jacinta Marto, and Francisco Marto lived, was part of the village of Fatima.",
-          "During the first apparition of Our Lady of Fatima, the Lady asked Lúcia if she was prepared to offer herself to God and accept all sufferings He would send to help make up for the sins of the world, and Lúcia answered on behalf of all three children that they were ready."
+          "The hamlet of Aljustrel, where L\u00facia, Jacinta Marto, and Francisco Marto lived, was part of the village of Fatima.",
+          "During the first apparition of Our Lady of Fatima, the Lady asked L\u00facia if she was prepared to offer herself to God and accept all sufferings He would send to help make up for the sins of the world, and L\u00facia answered on behalf of all three children that they were ready."
         ],
         "n_claims": 96
       },
@@ -13121,8 +13122,8 @@
         "type": "person",
         "claims": [
           "Father Ferreira listened to the children's account of the Fatima apparitions in disbelief and was annoyed that there were details they would not or could not explain.",
-          "The hamlet of Aljustrel, where Lúcia, Jacinta Marto, and Francisco Marto lived, was part of the village of Fatima.",
-          "During the first apparition of Our Lady of Fatima, the Lady asked Lúcia if she was prepared to offer herself to God and accept all sufferings He would send to help make up for the sins of the world, and Lúcia answered on behalf of all three children that they were ready."
+          "The hamlet of Aljustrel, where L\u00facia, Jacinta Marto, and Francisco Marto lived, was part of the village of Fatima.",
+          "During the first apparition of Our Lady of Fatima, the Lady asked L\u00facia if she was prepared to offer herself to God and accept all sufferings He would send to help make up for the sins of the world, and L\u00facia answered on behalf of all three children that they were ready."
         ],
         "n_claims": 96
       },
@@ -13182,8 +13183,8 @@
         "name": "Maria Rosa dos Santos",
         "type": "person",
         "claims": [
-          "Olimpia Marto began telling everyone in the village about the vision the morning after Jacinta Marto's disclosure, and the rumours reached Maria Rosa dos Santos, who questioned her daughter Lúcia.",
-          "After smelling the branch from Portugal, Valinhos, Maria Rosa dos Santos's scepticism toward the Fatima apparitions changed completely, and she later defended Lúcia when others teased her about the visions.",
+          "Olimpia Marto began telling everyone in the village about the vision the morning after Jacinta Marto's disclosure, and the rumours reached Maria Rosa dos Santos, who questioned her daughter L\u00facia.",
+          "After smelling the branch from Portugal, Valinhos, Maria Rosa dos Santos's scepticism toward the Fatima apparitions changed completely, and she later defended L\u00facia when others teased her about the visions.",
           "Maria Rosa dos Santos smelled the branch that the children brought back from Portugal, Valinhos and described it as having a fine, unidentifiable perfume, not smelling of spice or roses."
         ],
         "n_claims": 13
@@ -13193,9 +13194,9 @@
         "name": "Artur Santos",
         "type": "person",
         "claims": [
-          "After a journey of about an hour and a half, Artur Santos brought the three children to his house in Ourém, locked them in a room, and told them he would only release them once they told him the secret.",
-          "Artur Santos, administrator of the province of Vila Nova de Ourém, was the bitterest enemy of the Fatima apparitions.",
-          "An emergency meeting was held at the Ourém town hall, at which Administrator Artur Santos decided to ask for military help from Santarém."
+          "After a journey of about an hour and a half, Artur Santos brought the three children to his house in Our\u00e9m, locked them in a room, and told them he would only release them once they told him the secret.",
+          "Artur Santos, administrator of the province of Vila Nova de Our\u00e9m, was the bitterest enemy of the Fatima apparitions.",
+          "An emergency meeting was held at the Our\u00e9m town hall, at which Administrator Artur Santos decided to ask for military help from Santar\u00e9m."
         ],
         "n_claims": 25
       },
@@ -13213,8 +13214,8 @@
         "name": "Maria Rosa dos Santos",
         "type": "person",
         "claims": [
-          "Olimpia Marto began telling everyone in the village about the vision the morning after Jacinta Marto's disclosure, and the rumours reached Maria Rosa dos Santos, who questioned her daughter Lúcia.",
-          "After smelling the branch from Portugal, Valinhos, Maria Rosa dos Santos's scepticism toward the Fatima apparitions changed completely, and she later defended Lúcia when others teased her about the visions.",
+          "Olimpia Marto began telling everyone in the village about the vision the morning after Jacinta Marto's disclosure, and the rumours reached Maria Rosa dos Santos, who questioned her daughter L\u00facia.",
+          "After smelling the branch from Portugal, Valinhos, Maria Rosa dos Santos's scepticism toward the Fatima apparitions changed completely, and she later defended L\u00facia when others teased her about the visions.",
           "Maria Rosa dos Santos smelled the branch that the children brought back from Portugal, Valinhos and described it as having a fine, unidentifiable perfume, not smelling of spice or roses."
         ],
         "n_claims": 13
@@ -13245,9 +13246,9 @@
         "name": "Artur Santos",
         "type": "person",
         "claims": [
-          "After a journey of about an hour and a half, Artur Santos brought the three children to his house in Ourém, locked them in a room, and told them he would only release them once they told him the secret.",
-          "Artur Santos, administrator of the province of Vila Nova de Ourém, was the bitterest enemy of the Fatima apparitions.",
-          "An emergency meeting was held at the Ourém town hall, at which Administrator Artur Santos decided to ask for military help from Santarém."
+          "After a journey of about an hour and a half, Artur Santos brought the three children to his house in Our\u00e9m, locked them in a room, and told them he would only release them once they told him the secret.",
+          "Artur Santos, administrator of the province of Vila Nova de Our\u00e9m, was the bitterest enemy of the Fatima apparitions.",
+          "An emergency meeting was held at the Our\u00e9m town hall, at which Administrator Artur Santos decided to ask for military help from Santar\u00e9m."
         ],
         "n_claims": 25
       },
@@ -13284,12 +13285,12 @@
       },
       "b": {
         "id": "c591a126-a6b7-4d3e-b1a5-69820bfe3628",
-        "name": "José Maria de Almeida Garrett",
+        "name": "Jos\u00e9 Maria de Almeida Garrett",
         "type": "person",
         "claims": [
-          "José Maria de Almeida Garrett observed that during the solar phenomenon at Fatima, everything he looked at, from nearby objects to the horizon, took on an amethyst colour.",
-          "José Maria de Almeida Garrett observed the multitude at Fatima turn away from the apparition spot to look at the sun, which appeared as a very clear disc with a sharp edge that could be stared at without hurting the eyes.",
-          "José Maria de Almeida Garrett observed a thin, fine, bluish column of smoke rise at the spot where the Fatima children stood, extending up to approximately two metres above their heads before evaporating, lasting a few seconds."
+          "Jos\u00e9 Maria de Almeida Garrett observed that during the solar phenomenon at Fatima, everything he looked at, from nearby objects to the horizon, took on an amethyst colour.",
+          "Jos\u00e9 Maria de Almeida Garrett observed the multitude at Fatima turn away from the apparition spot to look at the sun, which appeared as a very clear disc with a sharp edge that could be stared at without hurting the eyes.",
+          "Jos\u00e9 Maria de Almeida Garrett observed a thin, fine, bluish column of smoke rise at the spot where the Fatima children stood, extending up to approximately two metres above their heads before evaporating, lasting a few seconds."
         ],
         "n_claims": 7
       },
@@ -13336,12 +13337,12 @@
       "note": "silva",
       "a": {
         "id": "bcf2064d-2e0d-4d33-9abc-278aaae68bec",
-        "name": "José Alves Correira da Silva",
+        "name": "Jos\u00e9 Alves Correira da Silva",
         "type": "person",
         "claims": [
           "Bishop da Silva wanted to send the Third Secret to Rome, but the Vatican instructed him to keep the envelope at Leiria for the present.",
           "The bishop of Leiria's secretary urged him to open the sealed envelope containing the Third Secret so it could be photocopied, but the bishop refused, saying it was a secret and he did not want to read it.",
-          "Early in 1957 the Holy Office asked the bishop of Leiria for photocopies of everything written by Sister Lúcia, including the sealed Third Secret."
+          "Early in 1957 the Holy Office asked the bishop of Leiria for photocopies of everything written by Sister L\u00facia, including the sealed Third Secret."
         ],
         "n_claims": 20
       },
@@ -13367,12 +13368,12 @@
       "note": "silva",
       "a": {
         "id": "bcf2064d-2e0d-4d33-9abc-278aaae68bec",
-        "name": "José Alves Correira da Silva",
+        "name": "Jos\u00e9 Alves Correira da Silva",
         "type": "person",
         "claims": [
           "Bishop da Silva wanted to send the Third Secret to Rome, but the Vatican instructed him to keep the envelope at Leiria for the present.",
           "The bishop of Leiria's secretary urged him to open the sealed envelope containing the Third Secret so it could be photocopied, but the bishop refused, saying it was a secret and he did not want to read it.",
-          "Early in 1957 the Holy Office asked the bishop of Leiria for photocopies of everything written by Sister Lúcia, including the sealed Third Secret."
+          "Early in 1957 the Holy Office asked the bishop of Leiria for photocopies of everything written by Sister L\u00facia, including the sealed Third Secret."
         ],
         "n_claims": 20
       },
@@ -13399,12 +13400,12 @@
       "note": "silva",
       "a": {
         "id": "bcf2064d-2e0d-4d33-9abc-278aaae68bec",
-        "name": "José Alves Correira da Silva",
+        "name": "Jos\u00e9 Alves Correira da Silva",
         "type": "person",
         "claims": [
           "Bishop da Silva wanted to send the Third Secret to Rome, but the Vatican instructed him to keep the envelope at Leiria for the present.",
           "The bishop of Leiria's secretary urged him to open the sealed envelope containing the Third Secret so it could be photocopied, but the bishop refused, saying it was a secret and he did not want to read it.",
-          "Early in 1957 the Holy Office asked the bishop of Leiria for photocopies of everything written by Sister Lúcia, including the sealed Third Secret."
+          "Early in 1957 the Holy Office asked the bishop of Leiria for photocopies of everything written by Sister L\u00facia, including the sealed Third Secret."
         ],
         "n_claims": 20
       },
@@ -13569,7 +13570,7 @@
         "name": "Oddi (Cardinal)",
         "type": "person",
         "claims": [
-          "Sister Lúcia told Cardinal Oddi that she had a long talk with the pope and they both decided not to publish the Third Message since it could be misunderstood.",
+          "Sister L\u00facia told Cardinal Oddi that she had a long talk with the pope and they both decided not to publish the Third Message since it could be misunderstood.",
           "Cardinal Oddi reported that Pope John Paul II replied he had done everything he could for Fatima and did not consider it necessary to intervene further, since the Third Secret was no longer a secret because it had already been revealed many times.",
           "Giorgio Bongiovanni requested that Cardinal Oddi ask Pope John Paul II about the Third Secret of Fatima during an official breakfast meeting scheduled for 1991-11-05."
         ],
@@ -13600,7 +13601,7 @@
         "name": "Oddi (Cardinal)",
         "type": "person",
         "claims": [
-          "Sister Lúcia told Cardinal Oddi that she had a long talk with the pope and they both decided not to publish the Third Message since it could be misunderstood.",
+          "Sister L\u00facia told Cardinal Oddi that she had a long talk with the pope and they both decided not to publish the Third Message since it could be misunderstood.",
           "Cardinal Oddi reported that Pope John Paul II replied he had done everything he could for Fatima and did not consider it necessary to intervene further, since the Third Secret was no longer a secret because it had already been revealed many times.",
           "Giorgio Bongiovanni requested that Cardinal Oddi ask Pope John Paul II about the Third Secret of Fatima during an official breakfast meeting scheduled for 1991-11-05."
         ],
@@ -13860,7 +13861,7 @@
       "reranker_names_only": 0.1710612028837204
     },
     {
-      "label": 0,
+      "label": 1,
       "source": "surname",
       "note": "keech",
       "a": {
@@ -13888,7 +13889,8 @@
       "rule_score": 0.0,
       "rule_reason": "not-a-candidate (fuzzy 0.00)",
       "reranker_ab": 0.9835969805717468,
-      "reranker_names_only": 0.9863631129264832
+      "reranker_names_only": 0.9863631129264832,
+      "relabelled": "2026-09-08: labelled a negative in error - the same entity (pseudonym, given-name form, truncation). A test set that marks real merges as negatives punishes the behaviour we want."
     },
     {
       "label": 0,
@@ -13941,9 +13943,9 @@
         "name": "Louie Harris",
         "type": "person",
         "claims": [
-          "Louie Harris wrote that the journalist at the 1961 séance was obviously convinced he had captured the draped medium in the act of duplicity, masquerading as a spirit form.",
-          "According to Louie Harris, Alec Harris's \"guide\" materialized during the 1961 séance and walked among the sitters, taking their hands in his, and showed them the entranced Alec Harris to establish his separate identity.",
-          "According to Louie Harris, when the materialized guide walked over to one of the journalists at the 1961 séance, the journalist threw his arms around the solid figure, grabbed him, and held on tightly, shouting \"I've got you!\""
+          "Louie Harris wrote that the journalist at the 1961 s\u00e9ance was obviously convinced he had captured the draped medium in the act of duplicity, masquerading as a spirit form.",
+          "According to Louie Harris, Alec Harris's \"guide\" materialized during the 1961 s\u00e9ance and walked among the sitters, taking their hands in his, and showed them the entranced Alec Harris to establish his separate identity.",
+          "According to Louie Harris, when the materialized guide walked over to one of the journalists at the 1961 s\u00e9ance, the journalist threw his arms around the solid figure, grabbed him, and held on tightly, shouting \"I've got you!\""
         ],
         "n_claims": 4
       },
@@ -13972,9 +13974,9 @@
         "name": "Louie Harris",
         "type": "person",
         "claims": [
-          "Louie Harris wrote that the journalist at the 1961 séance was obviously convinced he had captured the draped medium in the act of duplicity, masquerading as a spirit form.",
-          "According to Louie Harris, Alec Harris's \"guide\" materialized during the 1961 séance and walked among the sitters, taking their hands in his, and showed them the entranced Alec Harris to establish his separate identity.",
-          "According to Louie Harris, when the materialized guide walked over to one of the journalists at the 1961 séance, the journalist threw his arms around the solid figure, grabbed him, and held on tightly, shouting \"I've got you!\""
+          "Louie Harris wrote that the journalist at the 1961 s\u00e9ance was obviously convinced he had captured the draped medium in the act of duplicity, masquerading as a spirit form.",
+          "According to Louie Harris, Alec Harris's \"guide\" materialized during the 1961 s\u00e9ance and walked among the sitters, taking their hands in his, and showed them the entranced Alec Harris to establish his separate identity.",
+          "According to Louie Harris, when the materialized guide walked over to one of the journalists at the 1961 s\u00e9ance, the journalist threw his arms around the solid figure, grabbed him, and held on tightly, shouting \"I've got you!\""
         ],
         "n_claims": 4
       },
@@ -13984,7 +13986,7 @@
       "reranker_names_only": 0.6757646799087524
     },
     {
-      "label": 0,
+      "label": 1,
       "source": "surname",
       "note": "cernan",
       "a": {
@@ -14013,7 +14015,8 @@
       "rule_reason": "not-a-candidate (fuzzy 0.00)",
       "reranker_ab": 0.949669361114502,
       "reranker_names_only": 0.9732407331466675,
-      "reranker_ba": 0.929440438747406
+      "reranker_ba": 0.929440438747406,
+      "relabelled": "2026-09-08: labelled a negative in error - the same entity (pseudonym, given-name form, truncation). A test set that marks real merges as negatives punishes the behaviour we want."
     },
     {
       "label": 0,
@@ -15378,7 +15381,7 @@
         "type": "person",
         "claims": [
           "Freda told Reville Mohr that she had his wife Marilyn with her, along with his daughter Kimberley and son Thomas, whom Reville Mohr never got to meet.",
-          "No one else in the séance room besides Reville Mohr's sister Leone Holdsworth knew about the deaths of Reville Mohr's children Kimberley and Thomas.",
+          "No one else in the s\u00e9ance room besides Reville Mohr's sister Leone Holdsworth knew about the deaths of Reville Mohr's children Kimberley and Thomas.",
           "Reville Mohr broke down and cried upon hearing Freda's message, since he and his wife Marilyn had lost their infant daughter Kimberley to crib death, which Reville Mohr had discovered."
         ],
         "n_claims": 3
@@ -15409,7 +15412,7 @@
         "type": "person",
         "claims": [
           "Freda told Reville Mohr that she had his wife Marilyn with her, along with his daughter Kimberley and son Thomas, whom Reville Mohr never got to meet.",
-          "No one else in the séance room besides Reville Mohr's sister Leone Holdsworth knew about the deaths of Reville Mohr's children Kimberley and Thomas.",
+          "No one else in the s\u00e9ance room besides Reville Mohr's sister Leone Holdsworth knew about the deaths of Reville Mohr's children Kimberley and Thomas.",
           "Reville Mohr broke down and cried upon hearing Freda's message, since he and his wife Marilyn had lost their infant daughter Kimberley to crib death, which Reville Mohr had discovered."
         ],
         "n_claims": 3
@@ -15598,7 +15601,7 @@
         "type": "person",
         "claims": [
           "Freda told Reville Mohr that she had his wife Marilyn with her, along with his daughter Kimberley and son Thomas, whom Reville Mohr never got to meet.",
-          "No one else in the séance room besides Reville Mohr's sister Leone Holdsworth knew about the deaths of Reville Mohr's children Kimberley and Thomas.",
+          "No one else in the s\u00e9ance room besides Reville Mohr's sister Leone Holdsworth knew about the deaths of Reville Mohr's children Kimberley and Thomas.",
           "Marilyn, Reville Mohr's wife, had miscarried their baby boy Thomas at five months."
         ],
         "n_claims": 3
@@ -15625,10 +15628,10 @@
       },
       "b": {
         "id": "fcabfb6b-12fc-4631-ae20-254d7d9d7252",
-        "name": "François Eugène Malibran",
+        "name": "Fran\u00e7ois Eug\u00e8ne Malibran",
         "type": "person",
         "claims": [
-          "François Eugène Malibran went bankrupt three months after marrying Maria Felicia Malibran, after which she divorced him and returned to Europe.",
+          "Fran\u00e7ois Eug\u00e8ne Malibran went bankrupt three months after marrying Maria Felicia Malibran, after which she divorced him and returned to Europe.",
           "None of those present at the sitting had any idea about \"Madame Malibran\" and her husband, but the next day some of them looked for the name in encyclopedias and found that in the USA there had been a wealthy French plantation owner named Malibran who had married the singer Maria Felicia, of Spanish descent, born in Paris in 1808 and who died in Manchester in 1836.",
           "The sitting's control explained that the man who used the name to address the French singer was Malibran, who had been the husband of the French singer, and that they had not seen each other since their passings; he had learned about her whereabouts and came to the meeting to get her to go with him, but she refused, causing the uproar."
         ],

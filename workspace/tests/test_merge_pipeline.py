@@ -253,3 +253,14 @@ def test_scoring_reports_progress_and_stops_at_a_deadline(monkeypatch, tmp_path)
     assert stopped["scored"] == 0 and stopped["stopped_early"] is True
     assert any("deadline" in ln for ln in lines)
     assert not (tmp_path / "scores2.jsonl").read_text()
+
+
+def test_the_band_is_decided_by_names_only():
+    """Measured on 515 labelled pairs: names-only 0.980 AUC, names-with-claims
+    0.867 with a precision curve flat at 66-72%. The claims context scores real
+    merges - USA against United States of America - at 0.10."""
+    assert mp.in_band({"names_only": 0.95, "with_claims": 0.10})
+    assert mp.in_band({"names_only": 0.95, "with_claims": None})
+    assert not mp.in_band({"names_only": 0.80, "with_claims": 0.99})
+    assert mp.in_band({"names_only": 0.96, "with_claims": None}, floor=0.95)
+    assert not mp.in_band({"names_only": 0.94, "with_claims": 0.99}, floor=0.95)

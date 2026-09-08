@@ -115,14 +115,29 @@ def load_verdicts(path: Path) -> dict[tuple[str, str], dict]:
 
 
 def in_band(s: dict, floor: float | None = None) -> bool:
-    """Both scores at or above the band floor. The default floor is the 0.9 the
-    band was defined with; a run may raise it (master, 2026-09-03: judge the
-    rest of the band in one go at 0.95 once Mark's queue is worked down, rather
-    than creep the threshold up)."""
-    wc = s.get("with_claims")
+    """The NAMES-ONLY score at or above the band floor.
+
+    The band used to require the with-claims score too, and that was the weaker
+    instrument. Measured on the 515 labelled pairs (178 real merges, 337 hard
+    negatives): names-only reaches 0.980 area under the ROC curve, names with
+    claims 0.867, the rules 0.716. The with-claims precision curve is FLAT at
+    66-72% wherever the threshold sits, which is what a signal that does not
+    separate looks like - raising it sheds true positives without shedding
+    false ones. Names-only climbs 87% to 97% as the threshold rises, and at 0.90
+    it catches 171 of 178 real merges at 91% precision.
+
+    The claims context actively destroys correct identities: it scores "USA"
+    against "United States of America" at 0.10 and "UK" against "Great Britain"
+    at 0.54, both real merges. A merge asks whether two NAMES are one entity;
+    attaching a page of claim text buries that question. (Composition is a
+    different question - whether two subjects are one - and neither score
+    answers it; salience does.)
+
+    The with-claims score is still computed for pairs that reach the band,
+    because a reviewer reads it. It no longer decides the band.
+    """
     names_min = verify_band.BAND_NAMES_MIN if floor is None else floor
-    claims_min = verify_band.BAND_CLAIMS_MIN if floor is None else floor
-    return wc is not None and s.get("names_only", 0.0) >= names_min and wc >= claims_min
+    return s.get("names_only", 0.0) >= names_min
 
 
 def make_plan(
@@ -257,7 +272,14 @@ def score_pairs(
                 batch_size=NAMES_BATCH,
                 symmetric=False,
             )
-            keep = [(p, s) for p, s in zip(chunk, names) if s >= NAMES_FILTER]
+            # The expensive pass runs only where a reviewer will read it - the
+            # pairs that reach the band - not on everything above a low filter.
+            # It decides nothing now (see in_band), and it was the entire cost
+            # of a scoring run: half a pair a second, and the four-hour stall
+            # that looked like a hang.
+            keep = [
+                (p, s) for p, s in zip(chunk, names) if s >= verify_band.BAND_NAMES_MIN
+            ]
             log(
                 "SCORE_PROGRESS "
                 + json.dumps(
