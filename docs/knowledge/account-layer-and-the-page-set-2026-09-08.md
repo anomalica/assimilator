@@ -89,6 +89,11 @@ South Carolina, Cuba):
   Sydney 0 - but Time travel 0 as well. Does not separate.
 - **Concentration** (share of claims from the dominant record or event):
   Sydney 0.66, Roswell 0.39. Separates in the wrong direction.
+- **Claims not tied to an event** ("does the place carry anything of its own"):
+  San Francisco 90%, Roswell 49%. Separates in the wrong direction.
+- **Container** (a bare name that heads other place names): catches France (39)
+  and Cuba (4) correctly, and Mars (4) wrongly - a celestial body is both a
+  container and a subject.
 
 None of the three works, and the reason is structural: the graph records that a
 claim REFERENCES a node, never the role the node plays in it. Sydney is a
@@ -104,3 +109,25 @@ should be answered there: a place attached to an account as its LOCATION is not
 thereby page-worthy, while an account whose subject is that place is. Until
 then the gate should not be widened on any of the three signals above, because
 each one deletes good pages to reach the bad ones.
+
+## 4. What the place sweep did find
+
+The place convention is largest-unit-first, so a bare name that repeats the last
+component of a compound is the same site written twice. Live on 2026-09-08: 45
+such pairs - Area 51, Pine Gap, RAF Bentwaters, Woomera, Maralinga, Skinwalker
+Ranch. Most bare copies hold no claims and are harmless leftovers, but Westall
+High School splits 5 claims from 14, and any of them can earn a second page for
+one place. This is now reported by the consistency check as
+`one-place-two-nodes`; it proposes nothing, because a merge is Mark's to confirm.
+
+## What to take from this
+
+The three strands are one question. An account layer would give the graph the
+distinction it lacks everywhere else: what a claim is ABOUT, as opposed to what
+it mentions. Corroboration wants it (106 occurrences have two or more sources
+and only 57 corroborations exist). The page set wants it (five signals tested,
+none separates a subject from a setting). Composition wants it (the reranker
+scores name similarity and cannot tell a shared subject from a shared
+vocabulary). Building any of the three as a rule over today's edges means
+guessing at the missing field, and each guess deletes good pages to reach bad
+ones.
