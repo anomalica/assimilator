@@ -73,3 +73,29 @@ def test_an_undone_veto_with_no_page_is_reported(tmp_path):
     assert names["veto-undone-page-absent"].samples == [
         "topics/telepathy (veto v-1234)"
     ]
+
+
+def test_a_place_held_twice_is_reported(tmp_path):
+    """The place convention is largest-unit-first, so "Skinwalker Ranch" beside
+    "USA, Utah, Skinwalker Ranch" is one site written two ways: the claims
+    split and either node can earn a page. Three such pairs were live on
+    2026-09-08."""
+    from assimilator.consistency import check_all
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    for nid, name in (
+        ("compound", "USA, Utah, Skinwalker Ranch"),
+        ("bare", "Skinwalker Ranch"),
+        ("site", "D&M Pyramid"),  # bare, repeats nothing: kept
+        ("other", "USA, New Mexico, Roswell"),
+    ):
+        insert_node(conn, Node(id=nid, name=name, node_type=NodeType.place))
+    conn.commit()
+
+    found = {f.check: f for f in check_all(conn, tmp_path, None)}
+
+    assert found["one-place-two-nodes"].count == 1
+    assert found["one-place-two-nodes"].samples == [
+        "Skinwalker Ranch = USA, Utah, Skinwalker Ranch"
+    ]

@@ -209,4 +209,44 @@ def check_all(
                     "assembler --brief <section>/<slug> once Mark clears a rebuild",
                 )
             )
+    # 7. One place, two nodes: a bare name that is also the last component of a
+    # compound place ("Skinwalker Ranch" beside "USA, Utah, Skinwalker Ranch").
+    # The place convention is largest-unit-first, so the compound is the node
+    # and the bare one is the same site written another way - it splits the
+    # claims and can earn a second page for one place. Found live: Skinwalker
+    # Ranch, Cydonia and Phobos each existed twice on 2026-09-08. Reported
+    # rather than merged: a merge is Mark's to confirm.
+    doubled = _doubled_places(conn)
+    if doubled:
+        findings.append(
+            Finding(
+                "one-place-two-nodes",
+                "bare place nodes that repeat the last component of a compound place",
+                len(doubled),
+                sorted(f"{bare} = {compound}" for bare, compound in doubled)[:5],
+                "propose the pair for merge in the workbench",
+            )
+        )
     return findings
+
+
+def _doubled_places(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """(bare name, compound name) for places the graph holds twice."""
+    places = [
+        (r[0], r[1])
+        for r in conn.execute(
+            "SELECT id, name FROM nodes WHERE retired_at IS NULL AND node_type = 'place'"
+        )
+    ]
+    tails: dict[str, str] = {}
+    for _nid, name in places:
+        if "," in name:
+            tails.setdefault(name.rsplit(",", 1)[-1].strip().lower(), name)
+    out = []
+    for _nid, name in places:
+        if "," in name:
+            continue
+        compound = tails.get(name.strip().lower())
+        if compound:
+            out.append((name, compound))
+    return out
