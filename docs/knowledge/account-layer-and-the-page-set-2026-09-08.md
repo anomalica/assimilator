@@ -131,3 +131,41 @@ scores name similarity and cannot tell a shared subject from a shared
 vocabulary). Building any of the three as a rule over today's edges means
 guessing at the missing field, and each guess deletes good pages to reach bad
 ones.
+
+## 5. Salience: the field all five signals were missing
+
+Found twice on 2026-09-08 from opposite ends - here, that no signal separates a
+subject place from a setting place, and by the assembler, that half of every
+page is about something else. Both reduce to the same absence: `claim_node_refs`
+is (claim_id, node_id) with no role, so nothing records whether a claim is ABOUT
+a node or merely NAMES it. The literature calls it entity salience or aboutness
+and treats it as either binary or graded.
+
+The shape of the corpus, measured: 83,798 edges over 9,335 nodes; the top 10
+nodes hold 12.5% of all edges, the top 50 hold 27.6%, the top 200 hold 45.4%;
+12 nodes carry 500 edges or more and 3,348 carry exactly one. Claims reference
+2.19 nodes on average, and 10,343 claims reference exactly one node - those
+edges are certainly aboutness. "Unidentified Flying Object" is an edge on 1,414
+claims in a UFO corpus, which is a mention edge being read as an aboutness edge
+at scale.
+
+The design answer given to master:
+
+- **A column on the edge table, not a table.** Salience is a property of the
+  edge, every edge has exactly one, and it has no identity of its own. The
+  contrast with the account layer is the test: a new object with its own
+  identity gets a table, a property of an existing row gets a column. NULL means
+  not assessed, never not salient - the mistake `claim_ref_status` records.
+- **Graded, as a small ordered set** - `subject`, `participant`, `setting` -
+  rather than binary or a float. Binary decides page-worthiness but gives the
+  assembler nothing to rank 2,068 claims by; a float invites precision the
+  extractor does not have and makes every threshold arbitrary.
+- **Both sources, for different jobs.** The extractor emits the per-edge role,
+  because only reading the claim distinguishes this edge from that one: 22% of
+  Whitley Strieber's 1,752 edges are on single-node claims and are certainly
+  about him, and the other 78% cannot be judged from structure. The corpus
+  statistic is free and is a CHECK on the extractor rather than an input: a node
+  marked `subject` on 1,400 edges is a prompt fault, not a fact.
+
+It also gives composition the test it lacks: two topics whose subject edges
+overlap are one subject; two that merely co-occur are not.
