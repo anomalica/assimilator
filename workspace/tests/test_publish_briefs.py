@@ -407,3 +407,57 @@ def test_without_a_pages_directory_no_members_brief_is_removable(tmp_path):
     )
 
     assert unbuildable_in(out, conn) == []
+
+
+def test_publishing_commits_only_its_own_paths_on_the_expected_branch(tmp_path):
+    """content/ is one working tree shared by every session: a publish that
+    swept the index would carry another component's staged work under its own
+    message, and one that accepted any branch would write to whatever happened
+    to be checked out."""
+    import subprocess
+
+    from anomalica_common.shared_tree import commit_paths
+
+    root = tmp_path / "content"
+    (root / "briefs").mkdir(parents=True)
+    def run(*a):
+        return subprocess.run(
+            ["git", *a], cwd=root, capture_output=True, check=True
+        )
+    run("init", "-q", "-b", "batch-2026-07-30")
+    run("config", "user.email", "t@example.com")
+    run("config", "user.name", "t")
+    (root / "seed").write_text("seed")
+    run("add", "seed")
+    run("commit", "-qm", "seed")
+    (root / "briefs" / "mine.yaml").write_text("page: {}")
+    (root / "theirs.md").write_text("another session's work")
+    run("add", "theirs.md")  # staged by somebody else, mid-commit
+
+    result = commit_paths(
+        root, [root / "briefs"], "publish: 1 brief", expect_branch="batch-2026-07-30"
+    )
+
+    # A NEW file is the case that matters: `git commit -- <path>` alone commits
+    # only tracked paths, so an unstaged new brief is dropped in silence. Marked
+    # xfail until anomalica-common stages the paths it is about to commit
+    # (reported to the assembler, who owns the helper, 2026-09-08).
+    if not result.done and "did not match any file" in (result.reason or ""):
+        import pytest
+
+        pytest.xfail("commit_paths does not stage new files yet")
+    assert result.done and result.branch == "batch-2026-07-30"
+    files = subprocess.run(
+        ["git", "show", "--name-only", "--format=", result.sha],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    ).stdout.split()
+    assert files == ["briefs/mine.yaml"]
+    dirty = subprocess.run(
+        ["git", "status", "--short"], cwd=root, capture_output=True, text=True
+    ).stdout
+    assert "theirs.md" in dirty
+
+    wrong = commit_paths(root, [root / "briefs"], "publish", expect_branch="main")
+    assert not wrong.done and wrong.retry  # a branch we did not expect is "not now"

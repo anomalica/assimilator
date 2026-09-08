@@ -1464,6 +1464,13 @@ def doctor_cmd(ctx: click.Context, briefs: str | None, content: str | None) -> N
     "--dry-run", is_flag=True, help="Report the source-status mix, write nothing."
 )
 @click.option(
+    "--commit",
+    "commit_branch",
+    default=None,
+    help="Commit what was written, on this branch. content/ is a shared working "
+    "tree, so the commit names its own paths and refuses an unexpected branch.",
+)
+@click.option(
     "--prune", is_flag=True, help="Remove published briefs the graph has moved past"
 )
 @click.pass_context
@@ -1474,6 +1481,7 @@ def publish_briefs_cmd(
     store: str | None,
     dry_run: bool,
     prune: bool,
+    commit_branch: str | None,
 ) -> None:
     """Write briefs for publication, with copyright excerpts redacted.
 
@@ -1575,6 +1583,31 @@ def publish_briefs_cmd(
         for line in unreadable:
             click.echo(f"   {line}", err=True)
         raise SystemExit(1)
+    if commit_branch and not dry_run:
+        # content/ is one working tree shared by every session, so a pass that
+        # writes and does not commit has its files swept into whoever commits
+        # next, under their message. commit_paths names its own paths, refuses a
+        # branch it did not expect, and treats a locked index as "not now" -
+        # which is safe here because publishing is idempotent: the files stay on
+        # disk and the next run writes the same ones.
+        from anomalica_common.shared_tree import commit_paths
+
+        result = commit_paths(
+            out_dir.parent,
+            [out_dir],
+            f"publish: {stats['briefs']} briefs from the graph",
+            expect_branch=commit_branch,
+        )
+        if result.done:
+            click.echo(f"\nCommitted {result.sha[:8]} on {result.branch}")
+        elif result.retry:
+            click.echo(
+                f"\nNot committed ({result.reason}); the files are written and "
+                f"the next run commits them"
+            )
+        else:
+            click.echo(f"\nCommit FAILED: {result.reason}", err=True)
+            raise SystemExit(1)
 
 
 @main.command("relate")
