@@ -13,6 +13,22 @@ test:
         {{IMAGE}} \
         python -m pytest
 
+# Run the cross-component pipeline tests on the HOST, not in the container.
+#
+# They import digester and assimilator in ONE process, which neither component's
+# image can do - the digester is not mounted here and vice versa. `just test`
+# skips the module for that reason; this is the entry point that runs it.
+# No model is ever called: the seam, the transport, the socket layer and the
+# subscription CLI path are all closed by the test module itself.
+e2e *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="$(cd .. && pwd)"
+    cd workspace
+    PYTHONHASHSEED=0 \
+    PYTHONPATH="$root/anomalica-common/src:$root/digester/workspace" \
+    python3 -m pytest tests/test_pipeline_end_to_end.py {{args}}
+
 # Run the embedding endpoint (127.0.0.1:8077) in the foreground. The model lives
 # only in this container; consumers (the workbench audit view) reach it over
 # localhost via anomalica_common.embedding_client. Runs foreground so a
