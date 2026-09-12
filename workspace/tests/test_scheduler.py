@@ -226,8 +226,8 @@ def test_synthesise_then_assemble_lifecycle(tmp_path):
     # scheduler lifecycle, so put n1 in the proposal set directly.
     conn.execute(
         "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
-        "source_count, independent_source_count, status, computed_at) "
-        "VALUES ('n1', 'person', 'page-worthy', 2, 2, NULL, 'proposed', 'T')"
+        "source_count, independent_source_count, subject_claims, status, computed_at) "
+        "VALUES ('n1', 'person', 'page-worthy', 2, 2, NULL, 1, 'proposed', 'T')"
     )
     conn.commit()
 
@@ -249,6 +249,14 @@ def test_synthesise_then_assemble_lifecycle(tmp_path):
         j
         for j in q2["jobs"]
         if j["type"] == "synthesise" and j["target"]["label"] == "Shared Person"
+    ]
+    conn.execute("UPDATE page_proposals SET source_count = 3 WHERE node_id = 'n1'")
+    conn.commit()
+    q3 = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    assert [j["id"] for j in q3["jobs"] if j["type"] == "synthesise"] == [
+        "synthesise:n1"
     ]
     asm = [j for j in q2["jobs"] if j["type"] == "assemble"]
     assert asm and all(j["lane"] == "claude" for j in asm)

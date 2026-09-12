@@ -91,6 +91,80 @@ def _claimed(conn, node_id: str, n: int, record: str = "r1") -> None:
         )
 
 
+def _propose_person(
+    conn, node_id: str, claims: int = 12, works: int = 4, subjects: int = 7
+) -> None:
+    conn.execute(
+        "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
+        "source_count, subject_claims, status, computed_at) "
+        "VALUES (?, 'person', 'page-worthy', ?, ?, ?, 'proposed', 'T')",
+        (node_id, claims, works, subjects),
+    )
+    conn.commit()
+
+
+def test_person_brief_carries_raw_listing_measurements_outside_its_hash():
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R"))
+    insert_node(conn, Node(id="P", name="A Person", node_type=NodeType.person))
+    _claimed(conn, "P", 1)
+    _propose_person(conn, "P")
+
+    before = synthesise.build_entity_brief(conn, "P")
+    conn.execute(
+        "UPDATE page_proposals SET source_count = 5, subject_claims = 8, "
+        "claim_count = 13 WHERE node_id = 'P'"
+    )
+    conn.commit()
+    after = synthesise.build_entity_brief(conn, "P")
+
+    assert before["page"]["listing"] == {
+        "work_count": 4,
+        "subject_claim_count": 7,
+        "claim_count": 12,
+    }
+    assert after["page"]["listing"] == {
+        "work_count": 5,
+        "subject_claim_count": 8,
+        "claim_count": 13,
+    }
+    assert after["brief_hash"] == before["brief_hash"]
+
+
+def test_person_listing_is_absent_without_a_complete_current_proposal():
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(conn, Node(id="P", name="A Person", node_type=NodeType.person))
+
+    assert "listing" not in synthesise.build_entity_brief(conn, "P")["page"]
+    _propose_person(conn, "P")
+    for invalid in (None, -1, "unknown"):
+        conn.execute(
+            "UPDATE page_proposals SET subject_claims = ? WHERE node_id = 'P'",
+            (invalid,),
+        )
+        conn.commit()
+        assert "listing" not in synthesise.build_entity_brief(conn, "P")["page"]
+
+
+def test_a_merge_victim_cannot_keep_person_listing_data():
+    from assimilator.merge import merge_nodes
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    for node_id, name in (("S", "Survivor Person"), ("V", "Victim Person")):
+        insert_node(conn, Node(id=node_id, name=name, node_type=NodeType.person))
+        _propose_person(conn, node_id)
+
+    merge_nodes(conn, "S", ["V"], "Survivor Person", "merge-1")
+
+    assert (
+        synthesise.build_entity_brief(conn, "S")["page"]["listing"]["work_count"] == 4
+    )
+    assert "listing" not in synthesise.build_entity_brief(conn, "V")["page"]
+
+
 def _two_types_one_name(tmp_path):
     """An event and a project both called "Apollo 14", both proposed. The live
     graph held exactly this on 2026-09-02, plus SETI as a project and a topic."""

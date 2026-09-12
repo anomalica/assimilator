@@ -1545,7 +1545,18 @@ def publish_briefs_cmd(
         click.echo("  All published: a claim excerpt is a short attributed quotation.")
         return
 
-    stats = publish_briefs(briefs_dir, out_dir, store_dir)
+    graph_conn = sqlite3.connect(ctx.obj["db_path"])
+    try:
+        stats = publish_briefs(briefs_dir, out_dir, store_dir, graph_conn)
+        from assimilator.publish_briefs import unbuildable_in
+
+        stale = unbuildable_in(
+            out_dir,
+            graph_conn,
+            pages_dir=out_dir.parent / "pages",
+        )
+    finally:
+        graph_conn.close()
     click.echo(f"Wrote {stats['briefs']} briefs to {out_dir}")
     click.echo("  claim excerpts are published in full - short attributed quotation")
     for k, v in sorted(stats["by_status"].items(), key=lambda x: -x[1]):
@@ -1553,13 +1564,6 @@ def publish_briefs_cmd(
     # A published brief the graph has moved past is a page waiting to be built
     # wrongly. Reported every run; removed only when asked, since the output
     # directory belongs to whoever consumes it.
-    from assimilator.publish_briefs import unbuildable_in
-
-    stale = unbuildable_in(
-        out_dir,
-        sqlite3.connect(ctx.obj["db_path"]),
-        pages_dir=out_dir.parent / "pages",
-    )
     if stale:
         click.echo(f"\n{len(stale)} published brief(s) the graph has moved past:")
         for item in stale[:10]:

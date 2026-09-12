@@ -640,8 +640,8 @@ def enumerate_review_queue(
 
 
 def _load_briefs(briefs_dir: Path | None) -> list[dict]:
-    """The emitted briefs' HEADERS (page identity, graph_version, brief_hash),
-    read once and shared by the synthesise and assemble enumerators.
+    """The emitted briefs' headers, read once and shared by the synthesise and
+    assemble enumerators.
 
     Headers only: the enumerators need three fields, and parsing every brief
     whole to get them was 105 of the 131 seconds a queue rebuild took."""
@@ -669,10 +669,11 @@ def enumerate_synthesise_jobs(
     2071. The assembler reads briefs, so every page built from one was summarising
     a corpus a fraction of the real size, and nothing anywhere reported it.
 
-    Staleness is the brief's recorded graph_version against the graph's current one
-    (the latest claim mutation). Coarse on purpose: any new claim can change a
-    brief's selection, its related nodes or its counts, so anything short of an
-    exact match is stale. Regenerating is free and takes seconds.
+    Prose-input staleness is the brief's recorded graph_version against the graph's
+    current one (the latest claim mutation). Coarse on purpose: any new claim can
+    change a brief's selection or related nodes. A person brief's display-only
+    listing tuple is compared separately because a proposal refresh can change it
+    without changing a claim or the prose-input brief_hash. Regenerating is free.
 
     Synthesise is deterministic (graph slice -> brief, no Claude), so it is eager.
     Matched by node_id (the brief carries page.node_id) rather than by slug, so
@@ -683,10 +684,10 @@ def enumerate_synthesise_jobs(
     """
     from assimilator.propose_pages import proposed_node_ids
 
-    from assimilator.synthesise import _graph_version
+    from assimilator.synthesise import _graph_version, person_listing
 
     current = _graph_version(conn)
-    # node_id -> the graph state its brief was built from.
+    # node_id -> the graph state and display-only listing data its brief carries.
     # Keyed by EVERY member: a composed page's brief is the brief for each node
     # it covers, so none of them looks brief-less.
     have = {}
@@ -694,7 +695,10 @@ def enumerate_synthesise_jobs(
         version = (b.get("generated") or {}).get("graph_version")
         for member in (b.get("page") or {}).get("nodes") or []:
             if isinstance(member, dict) and member.get("node_id"):
-                have[str(member["node_id"])] = version
+                have[str(member["node_id"])] = (
+                    version,
+                    (b.get("page") or {}).get("listing"),
+                )
     page_ids = set(proposed_node_ids(conn))  # only proposed entities deserve a page
     rows = conn.execute(
         "SELECT id, name, node_type FROM nodes WHERE retired_at IS NULL ORDER BY name"
@@ -703,7 +707,15 @@ def enumerate_synthesise_jobs(
     for node_id, name, node_type in rows:
         if node_id not in page_ids:
             continue  # not proposed
-        fresh = node_id in have and have[node_id] == current and current is not None
+        expected_listing = None
+        if node_type == "person":
+            expected_listing = person_listing(conn, node_id)
+        fresh = (
+            node_id in have
+            and have[node_id][0] == current
+            and current is not None
+            and (node_type != "person" or have[node_id][1] == expected_listing)
+        )
         if fresh:
             continue  # brief already reflects this graph
         jobs.append(

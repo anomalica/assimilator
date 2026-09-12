@@ -146,7 +146,9 @@ def test_the_source_brief_on_disk_is_never_modified(tmp_path):
     (briefs / "events").mkdir()
     (briefs / "events" / "x.yaml").write_text(yaml.safe_dump(original))
 
-    stats = publish_briefs(briefs, tmp_path / "out", store)
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    stats = publish_briefs(briefs, tmp_path / "out", store, conn)
 
     on_disk = yaml.safe_load((briefs / "events" / "x.yaml").read_text())
     assert on_disk["claims"][0]["original_excerpt"] == "VERBATIM SOURCE TEXT 0"
@@ -159,6 +161,60 @@ def test_the_source_brief_on_disk_is_never_modified(tmp_path):
         "by_status": {"restricted": 1},
         "unreadable": [],
     }
+
+
+def test_publish_refreshes_or_removes_person_listing_from_the_current_proposal(
+    tmp_path,
+):
+    store = _store(tmp_path, {})
+    briefs = tmp_path / "briefs"
+    (briefs / "people").mkdir(parents=True)
+    source = {
+        "schema": "anomalica/brief/2",
+        "page": {
+            "nodes": [{"node_id": "P", "name": "A Person", "node_type": "person"}],
+            "node_type": "person",
+            "slug": "a-person",
+            "title": "A Person",
+            "listing": {
+                "work_count": 99,
+                "subject_claim_count": 99,
+                "claim_count": 99,
+            },
+        },
+        "claims": [],
+    }
+    source_path = briefs / "people" / "a-person.yaml"
+    source_path.write_text(yaml.safe_dump(source))
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(conn, Node(id="P", node_type=NodeType.person, name="A Person"))
+    conn.execute(
+        "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
+        "source_count, subject_claims, status, computed_at) "
+        "VALUES ('P', 'person', 'page-worthy', 12, 4, 7, 'proposed', 'T')"
+    )
+    conn.commit()
+
+    out = tmp_path / "out"
+    publish_briefs(briefs, out, store, conn)
+
+    published_path = out / "people" / "a-person.yaml"
+    published = yaml.safe_load(published_path.read_text())
+    assert published["page"]["listing"] == {
+        "work_count": 4,
+        "subject_claim_count": 7,
+        "claim_count": 12,
+    }
+    assert (
+        yaml.safe_load(source_path.read_text())["page"]["listing"]["work_count"] == 99
+    )
+
+    conn.execute("DELETE FROM page_proposals WHERE node_id = 'P'")
+    conn.commit()
+    publish_briefs(briefs, out, store, conn)
+
+    assert "listing" not in yaml.safe_load(published_path.read_text())["page"]
 
 
 def test_no_status_withholds_a_claim_excerpt(tmp_path):
@@ -206,7 +262,9 @@ def test_an_unreadable_brief_is_reported_not_skipped(tmp_path):
     )
     (briefs / "events" / "notamapping.yaml").write_text("- just\n- a list\n")
 
-    stats = publish_briefs(briefs, tmp_path / "out", store)
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    stats = publish_briefs(briefs, tmp_path / "out", store, conn)
 
     assert stats["briefs"] == 1
     assert len(stats["unreadable"]) == 2
@@ -420,10 +478,10 @@ def test_publishing_commits_only_its_own_paths_on_the_expected_branch(tmp_path):
 
     root = tmp_path / "content"
     (root / "briefs").mkdir(parents=True)
+
     def run(*a):
-        return subprocess.run(
-            ["git", *a], cwd=root, capture_output=True, check=True
-        )
+        return subprocess.run(["git", *a], cwd=root, capture_output=True, check=True)
+
     run("init", "-q", "-b", "batch-2026-07-30")
     run("config", "user.email", "t@example.com")
     run("config", "user.name", "t")

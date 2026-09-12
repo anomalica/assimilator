@@ -334,11 +334,11 @@ def unbuildable_in(out_dir: Path, conn, pages_dir: Path | None = None) -> list[d
 
 
 def publish_briefs(
-    briefs_dir: Path, out_dir: Path, store_dir: Path
+    briefs_dir: Path, out_dir: Path, store_dir: Path, conn
 ) -> dict[str, object]:
     """Write every brief to out_dir, at the same <section>/<slug>.yaml path it
-    holds in briefs_dir."""
-    from assimilator.synthesise import brief_files
+    holds in briefs_dir, refreshing person-list measurements from the graph."""
+    from assimilator.synthesise import brief_files, refresh_person_listing
 
     out_dir.mkdir(parents=True, exist_ok=True)
     totals: dict[str, int] = {}
@@ -360,6 +360,7 @@ def publish_briefs(
         if not isinstance(brief, dict):
             unreadable.append(f"{rel}: not a mapping")
             continue
+        refresh_person_listing(brief, conn)
         published, counts = redact_brief(brief, store_dir)
         for status, n in counts.items():
             totals[status] = totals.get(status, 0) + n

@@ -795,7 +795,7 @@ def build_entity_brief(
         )
         if row
     ]
-    return {
+    brief = {
         "schema": SCHEMA,
         "brief_hash": brief_hash(members, "entity", ordered_pairs),
         "page": {
@@ -897,6 +897,8 @@ def build_entity_brief(
         "related_nodes": related_nodes,
         "claims": claims,
     }
+    refresh_person_listing(brief, conn)
+    return brief
 
 
 def entity_node_ids(conn: sqlite3.Connection) -> list[str]:
@@ -906,6 +908,45 @@ def entity_node_ids(conn: sqlite3.Connection) -> list[str]:
     page_proposals table; the synthesiser consumes it. Empty until propose() has
     run (the dependency gate: proposal-gen precedes synthesise)."""
     return proposed_node_ids(conn)
+
+
+def person_listing(conn: sqlite3.Connection, node_id: str) -> dict | None:
+    """Current public-list measurements for one live proposed person."""
+    row = conn.execute(
+        "SELECT p.source_count, p.subject_claims, p.claim_count "
+        "FROM page_proposals p JOIN nodes n ON n.id = p.node_id "
+        "WHERE p.node_id = ? AND p.node_type = 'person' "
+        "AND n.node_type = 'person' AND n.retired_at IS NULL",
+        (node_id,),
+    ).fetchone()
+    if row is None or any(
+        not isinstance(value, int) or isinstance(value, bool) or value < 0
+        for value in row
+    ):
+        return None
+    return {
+        "work_count": row[0],
+        "subject_claim_count": row[1],
+        "claim_count": row[2],
+    }
+
+
+def refresh_person_listing(brief: dict, conn: sqlite3.Connection) -> None:
+    """Replace display-only person listing data from the current proposal row."""
+    page = brief.get("page")
+    if not isinstance(page, dict):
+        return
+    page.pop("listing", None)
+    members = [
+        str(member["node_id"])
+        for member in page.get("nodes") or []
+        if isinstance(member, dict) and member.get("node_id")
+    ]
+    if page.get("node_type") != "person" or len(members) != 1:
+        return
+    listing = person_listing(conn, members[0])
+    if listing is not None:
+        page["listing"] = listing
 
 
 def section_of(node_type: str | None) -> str:
