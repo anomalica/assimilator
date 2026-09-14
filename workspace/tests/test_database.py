@@ -34,6 +34,30 @@ def _db():
     return conn
 
 
+def test_init_migrates_an_existing_graph_with_import_receipts():
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    conn.execute("DROP TABLE digest_import_receipts")
+
+    init_db(conn)
+
+    columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(digest_import_receipts)")
+    }
+    assert columns == {
+        "record_content_hash",
+        "record_id",
+        "digest_path",
+        "digest_sha256",
+        "import_generation",
+        "extraction_generation",
+        "extraction_config",
+        "pre_digest_sha256",
+        "claim_manifest_sha256",
+        "imported_at",
+    }
+
+
 def test_insert_and_get_node():
     conn = _db()
     node = insert_node(conn, Node(node_type=NodeType.person, name="Alice"))

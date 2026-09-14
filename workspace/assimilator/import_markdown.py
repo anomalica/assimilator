@@ -6,6 +6,7 @@ markdown is the source of truth; the database is derived from it.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -25,10 +26,12 @@ from assimilator.database import (
     insert_claim,
     insert_node,
     insert_record,
+    put_digest_import_receipt,
     update_claim_chain,
     update_claim_entailment,
     update_claim_hash,
 )
+from assimilator.digest_files import CURRENT_IMPORT_GENERATION, digest_receipt_identity
 from assimilator.matching import (
     is_a_description,
     is_fuller_person_name,
@@ -672,6 +675,7 @@ def import_extraction(
     section: str = "domain",
     lookup_conns: list[sqlite3.Connection] | None = None,
     source_path: str | None = None,
+    import_identity: dict[str, str] | None = None,
     on_progress: callable = None,
 ) -> dict:
     """Import a parsed extraction markdown into the database.
@@ -689,6 +693,8 @@ def import_extraction(
     log = on_progress or (lambda _: None)
     all_conns = [conn] + (lookup_conns or [])
     fm = parsed["frontmatter"]
+    if import_identity is None and source_path:
+        import_identity = digest_receipt_identity(Path(source_path))
 
     counts = {
         "nodes_created": 0,
@@ -1170,6 +1176,50 @@ def import_extraction(
         insert_claim(conn, claim, claim_hash=chash, entailment=entailment)
         counts["claims_created"] += 1
     counts["claims_carried"] += len(carried)
+
+    # Stamp the receipt only after the record's complete replacement has
+    # succeeded, in the same transaction. Direct unit-level imports without a
+    # canonical source path intentionally remain receipt-less and therefore due.
+    record_content_hash = fm.get("content_hash") or record.content_hash
+    if import_identity and record_content_hash:
+        manifest = json.dumps(
+            {
+                "section": section,
+                "claims": [chash for _claim, chash, _entailment in resolved_claims],
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        generation = import_identity.get("extraction_generation")
+        if generation is None:
+            generation = fm.get("extraction_generation")
+        if not isinstance(generation, int) or isinstance(generation, bool):
+            generation = None
+        config = import_identity.get("extraction_config") or fm.get("extraction_config")
+        pre_digest = fm.get("pre_digest") or {}
+        put_digest_import_receipt(
+            conn,
+            record_content_hash=record_content_hash,
+            record_id=record.id,
+            digest_path=import_identity["digest_path"],
+            digest_sha256=import_identity["digest_sha256"],
+            import_generation=CURRENT_IMPORT_GENERATION,
+            extraction_generation=generation,
+            extraction_config=config if isinstance(config, str) else None,
+            pre_digest_sha256=(
+                import_identity.get("pre_digest_sha256")
+                or (pre_digest.get("sha256") if isinstance(pre_digest, dict) else None)
+            ),
+            claim_manifest_sha256=(
+                "sha256:" + hashlib.sha256(manifest.encode("utf-8")).hexdigest()
+            ),
+        )
+        counts["receipt"] = {
+            "digest_sha256": import_identity["digest_sha256"],
+            "claim_manifest_sha256": (
+                "sha256:" + hashlib.sha256(manifest.encode("utf-8")).hexdigest()
+            ),
+        }
 
     conn.commit()
     return counts

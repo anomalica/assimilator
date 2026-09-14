@@ -9,9 +9,11 @@ separate reviewQueue).
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import sqlite3
 
+import pytest
 import yaml
 
 from assimilator import scheduler
@@ -33,7 +35,17 @@ def _corpus(tmp_path):
         json.dumps({"schema": "anomalica/review-coverage/1", "digestible": True})
     )
     (tmp_path / "ingests" / "by-name").mkdir()
+    (tmp_path / "ingests" / "by-name" / f"{H1}.md").symlink_to(store / f"{H1}.md")
+    (tmp_path / "ingests" / "by-name" / f"{H2}.md").symlink_to(store / f"{H2}.md")
     (tmp_path / "digests").mkdir(parents=True)
+    (tmp_path / "digests" / "digest-generation.json").write_text(
+        json.dumps(
+            {
+                "schema": "anomalica/digest-generation/1",
+                "current_generation": 1,
+            }
+        )
+    )
     sources = tmp_path / "sources"
     sources.mkdir()
     (sources / f"{H1}.html").write_text("already ingested")  # H1 is in the store
@@ -131,11 +143,44 @@ def test_review_queue_excludes_reviewed_and_ranks_by_demand(tmp_path):
     assert h2["demand"] == round(1.0 + math.log1p(1), 3)
 
 
-def _write_digest(digests, content_hash, version=None):
+def _write_digest(digests, content_hash, version=None, generation=1):
+    from anomalica_common.pre_digest import materialise, pre_digest_hash
+
     rec = {"content_hash": "sha256:" + content_hash}
     if version is not None:
         rec["processing_version"] = version
-    (digests / f"{content_hash[:20]}.yaml").write_text(yaml.safe_dump({"record": rec}))
+    record_path = next(
+        (digests.parent / "ingests" / "store").glob(f"{content_hash}*.md")
+    )
+    raw = record_path.read_text()
+    configuration = {
+        "configuration_schema": "anomalica/digest-extraction-config/1",
+        "fixture": "scheduler",
+    }
+    canonical = json.dumps(
+        configuration, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    )
+    config_hash = "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
+    (digests / "extraction-configurations.json").write_text(
+        json.dumps(
+            {
+                "schema": "anomalica/digest-extraction-config-registry/1",
+                "configurations": {config_hash: configuration},
+            }
+        )
+    )
+    document = {
+        "schema": "anomalica/digest/1",
+        "pre_digest": {
+            "sha256": pre_digest_hash(materialise(scheduler._record_body(raw))),
+            "prep_version": 7,
+        },
+        "extraction_config": config_hash,
+        "record": rec,
+    }
+    if generation is not None:
+        document["extraction_generation"] = generation
+    (digests / f"{content_hash[:20]}.yaml").write_text(yaml.safe_dump(document))
 
 
 def test_digest_job_for_digestible_not_yet_digested(tmp_path):
@@ -148,6 +193,11 @@ def test_digest_job_for_digestible_not_yet_digested(tmp_path):
     assert digest[0]["trigger"] == "never_done"
     assert digest[0]["lane"] == "claude"
     assert digest[0]["value"] == round(1.0 + math.log1p(1), 3)  # H1's graph demand
+    assert any(
+        group["boundary"] == "record-generation"
+        and "generation_unknown" in group["local_reasons"]
+        for group in digest[0]["inherited_reason_groups"]
+    )
 
 
 def test_digest_dropped_when_current_digest_exists(tmp_path):
@@ -155,7 +205,7 @@ def test_digest_dropped_when_current_digest_exists(tmp_path):
     # job, even when its store file carries a .v2 suffix the digest name lacks.
     # Match by content_hash, not filename stem.
     ingests, digests, sources = _corpus(tmp_path)
-    _write_digest(digests, H1)  # record has no version -> missing-safe = current
+    _write_digest(digests, H1)
     conn = _graph_with_shared_node()
     q = scheduler.build_queue(conn, ingests, digests, sources, "T")
     assert not [
@@ -170,6 +220,9 @@ def test_digest_v2_suffix_does_not_defeat_completion(tmp_path):
     store = ingests / "store"
     (store / f"{H1}.md").unlink()
     (store / f"{H1}.v2.md").write_text(f"---\ncontent_hash: sha256:{H1}\n---\nbody\n")
+    by_name = ingests / "by-name" / f"{H1}.md"
+    by_name.unlink()
+    by_name.symlink_to(store / f"{H1}.v2.md")
     _write_digest(digests, H1)
     conn = sqlite3.connect(":memory:")
     init_db(conn)
@@ -179,10 +232,146 @@ def test_digest_v2_suffix_does_not_defeat_completion(tmp_path):
     ]
 
 
+def test_legacy_mapping_extraction_config_is_invalid_without_crashing(tmp_path):
+    ingests, digests, sources = _corpus(tmp_path)
+    _write_digest(digests, H1)
+    path = digests / f"{H1[:20]}.yaml"
+    document = yaml.safe_load(path.read_text())
+    document["extraction_config"] = {
+        "prompts": [{"id": "claims", "version": "legacy"}],
+        "model": "legacy-model",
+    }
+    path.write_text(yaml.safe_dump(document, sort_keys=False))
+
+    queue = scheduler.build_queue(
+        _graph_with_shared_node(), ingests, digests, sources, "T"
+    )
+    job = next(
+        job
+        for job in queue["jobs"]
+        if job["type"] == "digest" and job["target"]["hash"] == H1
+    )
+    assert any(
+        "extraction_config_invalid" in group["local_reasons"]
+        for group in job["local_reason_groups"]
+    )
+
+
+def test_record_generation_uses_explicit_manifest_and_keeps_unknowns(tmp_path):
+    ingests = tmp_path / "ingests"
+    store_dir = ingests / "store"
+    store_dir.mkdir(parents=True)
+    (store_dir / "_pipeline_versions.yaml").write_text("web: 7\npdf: 1\n")
+    cases = {
+        "1" * 64: ("web", 7, []),
+        "2" * 64: ("web", 6, ["generation_behind"]),
+        "3" * 64: ("web", 8, ["generation_unknown"]),
+        "4" * 64: ("image", 1, ["generation_unknown"]),
+        "5" * 64: ("pdf", "one", ["generation_unknown"]),
+        "6" * 64: ("pdf", None, ["generation_unknown"]),
+    }
+    for content_hash, (source_type, generation, _reasons) in cases.items():
+        processing = (
+            f"processing:\n  pipeline_version: {generation}\n"
+            if generation is not None
+            else ""
+        )
+        (store_dir / f"{content_hash}.md").write_text(
+            "---\n"
+            "schema: anomalica/record/1\n"
+            f"source_type: {source_type}\n"
+            f"content_hash: sha256:{content_hash}\n"
+            f"{processing}---\nbody\n"
+        )
+
+    groups, metrics = scheduler.record_generation_freshness(
+        ingests, scheduler._store_records(ingests)
+    )
+    for content_hash, (_source_type, _generation, reasons) in cases.items():
+        actual = groups[content_hash]
+        assert ([*actual[0]["local_reasons"]] if actual else []) == reasons
+    assert metrics["generation_distance"] == {"sha256:" + "2" * 64: 1}
+
+
+def test_emitted_freshness_manifest_binds_queue_and_preserves_real_groups(tmp_path):
+    ingests, digests, sources = _corpus(tmp_path)
+    queue = scheduler.build_queue(
+        _graph_with_shared_node(), ingests, digests, sources, "2026-09-14T00:00:00Z"
+    )
+    queue_path = tmp_path / "schedule.json"
+    freshness_path = tmp_path / "deployment-freshness.json"
+
+    scheduler.write_queue(queue, queue_path)
+    manifest_sha256 = scheduler.write_freshness_manifest(
+        queue, queue_path, freshness_path
+    )
+    manifest = json.loads(freshness_path.read_text())
+
+    assert manifest["schema"] == "anomalica-freshness/v1"
+    assert manifest["generated_at"] == "2026-09-14T00:00:00Z"
+    assert (
+        manifest["source_queue_sha256"]
+        == hashlib.sha256(queue_path.read_bytes()).hexdigest()
+    )
+    assert manifest_sha256 == hashlib.sha256(freshness_path.read_bytes()).hexdigest()
+    groups = {
+        (group["boundary"], group["artifact"]): group for group in manifest["groups"]
+    }
+    assert ("record-generation", f"sha256:{H1}") in groups
+    assert ("digest-input", f"sha256:{H1}") in groups
+    assert (
+        "generation_unknown"
+        in groups[("record-generation", f"sha256:{H1}")]["local_reasons"]
+    )
+    assert groups[("digest-input", f"sha256:{H1}")]["local_reasons"] == [
+        "digest_missing"
+    ]
+    assert all(group["inherited"] == [] for group in manifest["groups"])
+    assert list(groups) == sorted(groups)
+
+
+def test_run_schedule_writes_adjacent_freshness_manifest(tmp_path, monkeypatch):
+    ingests, digests, sources = _corpus(tmp_path)
+    db_path = tmp_path / "knowledge.db"
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    conn.close()
+    monkeypatch.setenv("ANOMALICA_BRIEFS_DIR", str(tmp_path / "briefs"))
+    monkeypatch.setenv("ANOMALICA_CONTENT_DIR", str(tmp_path / "content"))
+    queue_path = tmp_path / "schedule.json"
+
+    queue, written_path = scheduler.run_schedule(
+        db_path,
+        str(ingests),
+        str(digests),
+        str(sources),
+        str(queue_path),
+    )
+
+    freshness_path = scheduler.default_freshness_path(queue_path)
+    assert written_path == queue_path
+    assert json.loads(queue_path.read_text()) == queue
+    manifest = json.loads(freshness_path.read_text())
+    assert (
+        manifest["source_queue_sha256"]
+        == hashlib.sha256(queue_path.read_bytes()).hexdigest()
+    )
+
+
+def test_freshness_manifest_rejects_a_different_source_queue(tmp_path):
+    queue = {"generatedAt": "T", "jobs": []}
+    queue_path = tmp_path / "schedule.json"
+    queue_path.write_text("{}")
+
+    with pytest.raises(ValueError, match="source queue bytes"):
+        scheduler.write_freshness_manifest(
+            queue, queue_path, tmp_path / "freshness.json"
+        )
+
+
 def test_import_job_for_digest_not_in_graph(tmp_path):
     # A digest on disk whose record is not in the graph is a pending eager
-    # import; one whose record IS in the graph (by id, even with a null
-    # content_hash) is not.
+    # import. A legacy graph row without an exact import receipt is also due.
     ingests, digests, sources = _corpus(tmp_path)
     conn = _graph_with_shared_node()  # graph record ids: r1, r2
     recs = digests
@@ -197,7 +386,17 @@ def test_import_job_for_digest_not_in_graph(tmp_path):
     q = scheduler.build_queue(conn, ingests, digests, sources, "T")
     imp = {j["target"]["hash"] for j in q["jobs"] if j["type"] == "import"}
     assert "e" * 64 in imp  # r-new not in graph -> eager import job
-    assert "f" * 64 not in imp  # r1 in graph by id -> already imported
+    assert "f" * 64 in imp  # r1 exists, but presence is not an exact-byte receipt
+    legacy = next(j for j in q["jobs"] if j["target"]["hash"] == "f" * 64)
+    assert legacy["trigger"] == "stale"
+    assert legacy["drivers"] == [
+        {"label": "freshness", "value": "import receipt missing"}
+    ]
+    assert any(
+        group["boundary"] == "digest-generation"
+        and group["local_reasons"] == ["generation_unknown"]
+        for group in legacy["inherited_reason_groups"]
+    )
     assert all(j["lane"] == "eager" for j in q["jobs"] if j["type"] == "import")
 
 
@@ -212,63 +411,74 @@ def test_superseded_source_excluded_from_ingest(tmp_path):
     assert H4 in pending  # still pending
 
 
-def test_synthesise_then_assemble_lifecycle(tmp_path):
+def test_brief_freshness_is_local_and_detects_change_deletion_and_rename(tmp_path):
     from assimilator import synthesise
 
     ingests, digests, sources = _corpus(tmp_path)
-    conn = _graph_with_shared_node()  # node n1 "Shared Person" carries claims
-    briefs, content = tmp_path / "briefs", tmp_path / "content"
-    briefs.mkdir()
-    content.mkdir()
-
-    # The synthesiser consumes the proposal table (propose-pages decides the page
-    # set; the gate's floors are tested in test_page_gate). This test exercises the
-    # scheduler lifecycle, so put n1 in the proposal set directly.
+    conn = _graph_with_shared_node()
     conn.execute(
         "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
         "source_count, independent_source_count, subject_claims, status, computed_at) "
         "VALUES ('n1', 'person', 'page-worthy', 2, 2, NULL, 1, 'proposed', 'T')"
     )
-    conn.commit()
+    briefs = tmp_path / "briefs"
+    synthesise.write_brief(synthesise.build_entity_brief(conn, "n1"), briefs)
 
-    # No brief yet -> the entity is a pending (eager) synthesise job.
-    q1 = scheduler.build_queue(
-        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    insert_record(conn, Record(id="r3", title="Unrelated", content_hash="sha256:33"))
+    other = insert_node(conn, Node(id="n-other", node_type="topic", name="Other"))
+    insert_claim(
+        conn,
+        Claim(
+            id="c-other",
+            content="unrelated graph mutation",
+            claim_type="testimony",
+            record_id="r3",
+            node_references=[other.id],
+        ),
+        claim_hash="h-other",
     )
-    syn = [j for j in q1["jobs"] if j["type"] == "synthesise"]
-    assert any(j["target"]["label"] == "Shared Person" for j in syn)
-    assert all(j["lane"] == "eager" for j in syn)
-
-    # Emit the brief -> synthesise drops, a claude-lane assemble job appears.
-    brief = synthesise.build_entity_brief(conn, "n1")
-    synthesise.write_brief(brief, briefs)
-    q2 = scheduler.build_queue(
-        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    conn.commit()
+    queue = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs
     )
     assert not [
         j
-        for j in q2["jobs"]
-        if j["type"] == "synthesise" and j["target"]["label"] == "Shared Person"
+        for j in queue["jobs"]
+        if j["type"] == "synthesise" and j["local_reason_groups"]
     ]
-    conn.execute("UPDATE page_proposals SET source_count = 3 WHERE node_id = 'n1'")
-    conn.commit()
-    q3 = scheduler.build_queue(
-        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+
+    conn.execute(
+        "UPDATE claims SET content = 'changed', claim_hash = 'changed' WHERE id = 'c1'"
     )
-    assert [j["id"] for j in q3["jobs"] if j["type"] == "synthesise"] == [
+    conn.commit()
+    queue = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs
+    )
+    assert [j["id"] for j in queue["jobs"] if j["type"] == "synthesise"] == [
         "synthesise:n1"
     ]
-    asm = [j for j in q2["jobs"] if j["type"] == "assemble"]
-    assert asm and all(j["lane"] == "claude" for j in asm)
+    synthesise.write_brief(synthesise.build_entity_brief(conn, "n1"), briefs)
 
-    # Freeze an article from this brief_hash -> the assemble job drops.
-    (content / "shared-person.md").write_text(
-        f"---\nbuilt_from:\n  brief_hash: {brief['brief_hash']}\n---\nprose\n"
+    conn.execute("DELETE FROM claim_node_refs WHERE claim_id = 'c1'")
+    conn.execute("DELETE FROM claims WHERE id = 'c1'")
+    conn.commit()
+    queue = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs
     )
-    q3 = scheduler.build_queue(
-        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    assert [j["id"] for j in queue["jobs"] if j["type"] == "synthesise"] == [
+        "synthesise:n1"
+    ]
+    synthesise.write_brief(synthesise.build_entity_brief(conn, "n1"), briefs)
+
+    conn.execute("UPDATE nodes SET name = 'Renamed Person' WHERE id = 'n1'")
+    conn.commit()
+    queue = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs
     )
-    assert not [j for j in q3["jobs"] if j["type"] == "assemble"]
+    renamed = [j for j in queue["jobs"] if j["type"] == "synthesise"]
+    assert [j["id"] for j in renamed] == ["synthesise:n1"]
+    assert renamed[0]["trigger"] == "stale_brief"
+    assert renamed[0]["target"]["href"] == "people/renamed-person"
 
 
 def test_nested_digest_still_detected_complete(tmp_path):
@@ -277,9 +487,8 @@ def test_nested_digest_still_detected_complete(tmp_path):
     ingests, digests, sources = _corpus(tmp_path)
     sub = digests / "nested"
     sub.mkdir()
-    (sub / "x.yaml").write_text(
-        yaml.safe_dump({"record": {"content_hash": "sha256:" + H1}})
-    )
+    _write_digest(digests, H1)
+    (digests / f"{H1[:20]}.yaml").rename(sub / "x.yaml")
     conn = _graph_with_shared_node()
     q = scheduler.build_queue(conn, ingests, digests, sources, "T")
     assert not [
@@ -288,14 +497,14 @@ def test_nested_digest_still_detected_complete(tmp_path):
 
 
 def test_digest_stale_when_body_version_differs(tmp_path):
-    # A digest of an older body version re-appears as a 'stale' re-digest, not
-    # 'never_done' and not dropped.
+    # processing.version is legacy metadata. Actual changed materialised input
+    # makes a digest stale regardless of that value.
     ingests, digests, sources = _corpus(tmp_path)
     store = ingests / "store"
-    (store / f"{H1}.md").write_text(
-        f"---\ncontent_hash: sha256:{H1}\nprocessing:\n  version: new\n---\nbody\n"
-    )
     _write_digest(digests, H1, version="old")
+    (store / f"{H1}.md").write_text(
+        f"---\ncontent_hash: sha256:{H1}\nprocessing:\n  version: old\n---\nchanged body\n"
+    )
     conn = _graph_with_shared_node()
     q = scheduler.build_queue(conn, ingests, digests, sources, "T")
     digest = [
@@ -303,6 +512,11 @@ def test_digest_stale_when_body_version_differs(tmp_path):
     ]
     assert len(digest) == 1
     assert digest[0]["trigger"] == "stale"
+    assert any(
+        group["boundary"] == "digest-input"
+        and group["local_reasons"] == ["pre_digest_hash_mismatch"]
+        for group in digest[0]["local_reason_groups"]
+    )
 
 
 def _mark_embedded(conn, ids_by_kind):
@@ -417,9 +631,70 @@ def test_output_shape_matches_workbench_contract(tmp_path):
     assert q["generatedAt"] == "2026-06-20T00:00:00Z"
     for job in q["jobs"]:
         assert set(job) >= {"id", "type", "lane", "target", "status", "trigger"}
+        assert set(job) >= {
+            "local_reason_groups",
+            "inherited_reason_groups",
+            "consequence",
+            "native_metrics",
+        }
         assert job["lane"] in {"claude", "gpu", "eager"}
         assert job["status"] in {"eligible", "blocked", "readiness_gated"}
         assert set(job["target"]) >= {"kind", "label"}
+
+
+def test_article_audit_is_exact_by_section_slug_language_and_protected_body(tmp_path):
+    content = tmp_path / "content"
+    people = content / "people"
+    events = content / "events"
+    people.mkdir(parents=True)
+    events.mkdir()
+    brief = {
+        "brief_hash": "brief-current",
+        "page": {"node_type": "person", "slug": "same", "title": "Same"},
+        "_claim_pairs": [("c1", "h1")],
+        "_content_hashes": set(),
+    }
+
+    def article(path, language, claim_hash, model, protected_body, body):
+        path.joinpath(f"same.{language}.md").write_text(
+            "---\n"
+            + yaml.safe_dump(
+                {
+                    "built_from": {
+                        "brief_hash": "brief-current",
+                        "claims": [{"id": "c1", "hash": claim_hash}],
+                    },
+                    "built_by": {"model": model, "body_sha256": protected_body},
+                },
+                sort_keys=False,
+            )
+            + f"---\n\n{body}\n"
+        )
+
+    current_body_hash = hashlib.sha256(b"current").hexdigest()
+    article(people, "en", "h1", "new", current_body_hash, "current")
+    article(events, "en", "wrong", "old", "wrong", "wrong section")
+    article(people, "fr", "old", "old", "protected", "edited")
+
+    jobs = scheduler.enumerate_assemble_jobs(
+        [brief], content, current_generator={"model": "new"}
+    )
+    assert [job.id for job in jobs] == ["assemble:people/same:fr"]
+    job = jobs[0].to_dict()
+    assert job["article"] == "people/same.fr"
+    assert job["native_metrics"] == {
+        "article_citation_count": 1,
+        "citations_missing": 0,
+        "citation_hash_mismatches": 1,
+        "generator_fields_compared": 1,
+        "generator_fields_changed": 1,
+        "body_hash_mismatch": 1,
+    }
+    assert job["local_reason_groups"][0]["local_reasons"] == [
+        "body_modified",
+        "citation_hash_mismatch",
+        "generator_changed",
+    ]
 
 
 def test_superseded_records_are_not_scheduled(tmp_path):
@@ -501,6 +776,43 @@ def test_a_model_comparison_variant_is_not_an_importable_digest(tmp_path):
     assert "c" * 64 not in index, "a variant must never be offered as an import"
 
 
+def test_graph_input_fingerprint_names_duplicate_live_bindings(tmp_path, monkeypatch):
+    digests = tmp_path / "digests"
+    digests.mkdir()
+    duplicate = {
+        "schema": "anomalica/digest/1",
+        "record": {"id": "same-record", "content_hash": "sha256:" + "a" * 64},
+    }
+    (digests / "one.yaml").write_text(yaml.safe_dump(duplicate))
+    (digests / "two.yaml").write_text(yaml.safe_dump(duplicate))
+    curation = tmp_path / "curation"
+    curation.mkdir()
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(curation))
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+
+    diagnostic = scheduler.graph_input_diagnostics(
+        conn, scheduler._digest_index(digests), digests
+    )
+    expected_input = {
+        "import_generation": 1,
+        "digests": [],
+        "curation_sha256": "sha256:" + hashlib.sha256(b"").hexdigest(),
+    }
+    expected_bytes = json.dumps(
+        expected_input, ensure_ascii=False, separators=(",", ":")
+    ).encode()
+    assert (
+        diagnostic["fingerprint"]
+        == "sha256:" + hashlib.sha256(expected_bytes).hexdigest()
+    )
+    assert diagnostic["duplicate_binding_count"] == 2
+    assert {row["kind"] for row in diagnostic["duplicate_bindings"]} == {
+        "content_hash",
+        "record_id",
+    }
+
+
 def test_the_digest_index_reads_only_the_record_header(tmp_path):
     """A digest runs to 14,000 lines and 1,800 claims; the index wants four
     header fields. Parsing every file in full cost 54 seconds of every queue
@@ -527,11 +839,21 @@ def test_the_digest_index_reads_only_the_record_header(tmp_path):
 
     index = scheduler._digest_index(digests)
 
-    assert index["e" * 64] == {
+    public = {
+        key: value for key, value in index["e" * 64].items() if not key.startswith("_")
+    }
+    assert public == {
         "version": "abc123",
         "title": "A Record",
         "record_id": "r1",
+        "schema": "anomalica/digest/1",
+        "pre_digest": None,
+        "extraction_generation": None,
+        "extraction_config": None,
+        "digest_path": "digests/big.yaml",
+        "digest_sha256": index["e" * 64]["digest_sha256"],
     }
+    assert index["e" * 64]["digest_sha256"].startswith("sha256:")
 
 
 def test_a_digest_with_the_record_block_out_of_order_still_resolves(tmp_path):
@@ -602,7 +924,9 @@ def test_two_types_sharing_a_name_both_settle(tmp_path):
     synthesise.emit_all(conn, briefs)
     q2 = scheduler.build_queue(conn, ingests, digests, sources, "T", briefs_dir=briefs)
 
-    assert not [j for j in q2["jobs"] if j["type"] == "synthesise"]
+    assert not [
+        j for j in q2["jobs"] if j["type"] == "synthesise" and j["local_reason_groups"]
+    ]
     assert sorted(j["id"] for j in q2["jobs"] if j["type"] == "assemble") == [
         "assemble:events/apollo-14",
         "assemble:projects/apollo-14",

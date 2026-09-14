@@ -340,3 +340,111 @@ def test_a_record_renamed_by_a_redigest_is_the_same_record():
     assert len(rows) == 1
     assert rows[0][1] == "Interview with the radar operator"
     assert counts["claims_carried"] == 1
+
+
+def test_exact_digest_receipt_changes_in_place_and_reimport_replaces(tmp_path):
+    """A graph row is not proof that the canonical digest bytes are imported."""
+    import yaml
+
+    from assimilator import scheduler
+
+    conn = _conn()
+    parsed = _parsed(
+        [_claim("c1", "Held radar 12 min."), _claim("c2", "Second claim.")]
+    )
+    parsed["frontmatter"].update(
+        {
+            "extraction_generation": 3,
+            "extraction_config": "sha256:" + "c" * 64,
+            "pre_digest": {"sha256": "sha256:" + "d" * 64},
+        }
+    )
+    digests = tmp_path / "digests"
+    digests.mkdir()
+    path = digests / "nimitz.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "extraction_generation": 3,
+                "extraction_config": "sha256:" + "c" * 64,
+                "pre_digest": {"sha256": "sha256:" + "d" * 64},
+                "record": {
+                    "id": "rec-nimitz-0001",
+                    "title": "Nimitz Encounter Briefing",
+                    "content_hash": "sha256:" + "a" * 64,
+                },
+            },
+            sort_keys=False,
+        )
+    )
+
+    first = import_extraction(conn, parsed, source_path=str(path))
+    receipt = conn.execute(
+        "SELECT record_content_hash, digest_path, digest_sha256, import_generation, "
+        "extraction_generation, extraction_config, pre_digest_sha256, "
+        "claim_manifest_sha256 FROM digest_import_receipts"
+    ).fetchone()
+    assert receipt[0] == "sha256:" + "a" * 64
+    assert receipt[1] == "digests/nimitz.yaml"
+    assert receipt[2] == first["receipt"]["digest_sha256"]
+    assert receipt[3:7] == (
+        1,
+        3,
+        "sha256:" + "c" * 64,
+        "sha256:" + "d" * 64,
+    )
+    assert receipt[7] == first["receipt"]["claim_manifest_sha256"]
+    assert scheduler.enumerate_import_jobs(conn, scheduler._digest_index(digests)) == []
+
+    path.write_text(path.read_text() + "# reviewed correction\n")
+    jobs = scheduler.enumerate_import_jobs(conn, scheduler._digest_index(digests))
+    assert len(jobs) == 1
+    assert jobs[0].trigger == "stale"
+    assert [driver.value for driver in jobs[0].drivers] == ["digest bytes changed"]
+
+    changed = _parsed([_claim("x1", "Held radar 14 min.")])
+    changed["frontmatter"].update(parsed["frontmatter"])
+    counts = import_extraction(conn, changed, source_path=str(path))
+    assert counts["claims_created"] == 1
+    assert counts["claims_deleted"] == 2
+    assert conn.execute("SELECT COUNT(*) FROM claims").fetchone()[0] == 1
+    assert scheduler.enumerate_import_jobs(conn, scheduler._digest_index(digests)) == []
+
+
+def test_import_deltas_name_missing_changed_and_orphan_inputs(tmp_path):
+    import yaml
+
+    from assimilator import scheduler
+
+    conn = _conn()
+    digests = tmp_path / "digests"
+    digests.mkdir()
+    path = digests / "one.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "record": {
+                    "id": "rec-nimitz-0001",
+                    "content_hash": "sha256:" + "a" * 64,
+                }
+            }
+        )
+    )
+    import_extraction(conn, _parsed([_claim("c1", "First.")]), source_path=str(path))
+    index = scheduler._digest_index(digests)
+    deltas = scheduler.import_deltas(conn, index)
+    assert deltas == {
+        "current": 1,
+        "missing": 0,
+        "changed": 0,
+        "orphan": 0,
+    }
+
+    path.write_text(path.read_text() + "# changed\n")
+    assert (
+        scheduler.import_deltas(conn, scheduler._digest_index(digests))["changed"] == 1
+    )
+    path.unlink()
+    assert (
+        scheduler.import_deltas(conn, scheduler._digest_index(digests))["orphan"] == 1
+    )

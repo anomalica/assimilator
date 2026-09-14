@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sqlite3
 from pathlib import Path
+import hashlib
 
 import click
 
@@ -986,6 +987,12 @@ def backfill_record_fields_cmd(digests_dir: str, ingests_dir: str | None) -> Non
     default=None,
     help="Where to write the queue JSON (default: SCHEDULER_QUEUE_PATH)",
 )
+@click.option(
+    "--freshness-out",
+    type=click.Path(),
+    default=None,
+    help="Where to write deployment freshness (default: adjacent to queue)",
+)
 @click.pass_context
 def schedule_cmd(
     ctx: click.Context,
@@ -993,6 +1000,7 @@ def schedule_cmd(
     digests: str | None,
     sources: str | None,
     out: str | None,
+    freshness_out: str | None,
 ) -> None:
     """Enumerate the real pending pipeline jobs from current corpus state.
 
@@ -1006,12 +1014,19 @@ def schedule_cmd(
     # `python -m assimilator.scheduler` entry, so the in-container CLI and the
     # workbench's host invocation produce an identical queue.
     queue, out_path = scheduler.run_schedule(
-        ctx.obj["db_path"], ingests, digests, sources, out
+        ctx.obj["db_path"], ingests, digests, sources, out, freshness_out
     )
     by_lane: dict[str, int] = {}
     for job in queue["jobs"]:
         by_lane[job["lane"]] = by_lane.get(job["lane"], 0) + 1
     click.echo(f"Wrote {out_path}")
+    freshness_path = (
+        Path(freshness_out)
+        if freshness_out
+        else scheduler.default_freshness_path(out_path)
+    )
+    freshness_sha256 = hashlib.sha256(freshness_path.read_bytes()).hexdigest()
+    click.echo(f"Wrote {freshness_path} (sha256 {freshness_sha256})")
     click.echo(
         f"  {len(queue['jobs'])} jobs "
         f"({', '.join(f'{n} {lane}' for lane, n in sorted(by_lane.items()))}), "

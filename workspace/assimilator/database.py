@@ -45,6 +45,23 @@ CREATE TABLE IF NOT EXISTS records (
 CREATE INDEX IF NOT EXISTS idx_records_content_hash ON records(content_hash);
 CREATE INDEX IF NOT EXISTS idx_records_work ON records(work_id);
 
+-- Exact deterministic input receipt for the digest folded into one graph record.
+-- Derived state: a clean rebuild recreates it from the canonical digest corpus.
+CREATE TABLE IF NOT EXISTS digest_import_receipts (
+    record_content_hash TEXT PRIMARY KEY,
+    record_id TEXT NOT NULL,
+    digest_path TEXT NOT NULL,
+    digest_sha256 TEXT NOT NULL,
+    import_generation INTEGER NOT NULL,
+    extraction_generation INTEGER,
+    extraction_config TEXT,
+    pre_digest_sha256 TEXT,
+    claim_manifest_sha256 TEXT NOT NULL,
+    imported_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_digest_import_receipts_record
+    ON digest_import_receipts(record_id);
+
 CREATE TABLE IF NOT EXISTS claims (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
@@ -647,6 +664,55 @@ def get_record_by_title(conn: sqlite3.Connection, title: str) -> Record | None:
     if row is None:
         return None
     return _row_to_record(row)
+
+
+def put_digest_import_receipt(
+    conn: sqlite3.Connection,
+    *,
+    record_content_hash: str,
+    record_id: str,
+    digest_path: str,
+    digest_sha256: str,
+    import_generation: int,
+    extraction_generation: int | None,
+    extraction_config: str | None,
+    pre_digest_sha256: str | None,
+    claim_manifest_sha256: str,
+) -> None:
+    """Replace the exact digest receipt for a stable record identity."""
+    conn.execute(
+        "DELETE FROM digest_import_receipts WHERE record_id = ? "
+        "AND record_content_hash != ?",
+        (record_id, record_content_hash),
+    )
+    conn.execute(
+        "INSERT INTO digest_import_receipts "
+        "(record_content_hash, record_id, digest_path, digest_sha256, "
+        "import_generation, extraction_generation, extraction_config, "
+        "pre_digest_sha256, claim_manifest_sha256, imported_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(record_content_hash) DO UPDATE SET "
+        "record_id=excluded.record_id, digest_path=excluded.digest_path, "
+        "digest_sha256=excluded.digest_sha256, "
+        "import_generation=excluded.import_generation, "
+        "extraction_generation=excluded.extraction_generation, "
+        "extraction_config=excluded.extraction_config, "
+        "pre_digest_sha256=excluded.pre_digest_sha256, "
+        "claim_manifest_sha256=excluded.claim_manifest_sha256, "
+        "imported_at=excluded.imported_at",
+        (
+            record_content_hash,
+            record_id,
+            digest_path,
+            digest_sha256,
+            import_generation,
+            extraction_generation,
+            extraction_config,
+            pre_digest_sha256,
+            claim_manifest_sha256,
+            _now(),
+        ),
+    )
 
 
 def insert_claim(

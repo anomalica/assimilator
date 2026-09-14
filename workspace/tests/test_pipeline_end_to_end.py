@@ -27,8 +27,10 @@ and `just e2e` is the entry point that runs it.
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
+import shutil
 import socket
 import sqlite3
 import sys
@@ -733,6 +735,7 @@ def reimported(pipeline) -> dict:
         "before": before,
         "after": _graph_shape(pipeline),
         "counts": counts,
+        "paths": paths,
         "digests": {k: yaml.safe_load(p.read_text()) for k, p in paths.items()},
     }
 
@@ -782,6 +785,131 @@ def test_a_re_emitted_digest_finds_its_record_by_content_hash_not_by_id(
         ).fetchone()[0]
         == 1
     )
+
+
+def test_end_to_end_import_receipt_binds_the_exact_emitted_digest(pipeline, reimported):
+    path = reimported["paths"]["a"]
+    content_hash = f"sha256:{fixture_documents.DOCUMENT_A.content_hash}"
+    receipt = pipeline.domain.execute(
+        "SELECT digest_path, digest_sha256, extraction_generation, "
+        "extraction_config, pre_digest_sha256, claim_manifest_sha256 "
+        "FROM digest_import_receipts WHERE record_content_hash = ?",
+        (content_hash,),
+    ).fetchone()
+
+    assert receipt is not None
+    assert receipt[0].endswith(path.name)
+    assert receipt[1] == "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+    assert receipt[2] == reimported["digests"]["a"]["extraction_generation"]
+    assert receipt[3] == reimported["digests"]["a"]["extraction_config"]
+    assert receipt[4] == reimported["digests"]["a"]["pre_digest"]["sha256"]
+    assert receipt[5].startswith("sha256:")
+
+
+def test_changed_unknown_digest_is_inherited_and_blocks_metered_article_job(
+    pipeline, tmp_path
+):
+    """Real canned Digester output stays one finding per boundary downstream."""
+    import yaml
+
+    from assimilator import scheduler, synthesise
+
+    ingests = tmp_path / "ingests"
+    store = ingests / "store"
+    by_name = ingests / "by-name"
+    digests = tmp_path / "digests"
+    sources = tmp_path / "sources"
+    briefs = tmp_path / "briefs"
+    content = tmp_path / "content" / "people"
+    for directory in (store, by_name, digests, sources, briefs, content):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    for key, document in fixture_documents.DOCUMENTS.items():
+        content_hash = pipeline.digest_doc(key)["record"]["content_hash"].removeprefix(
+            "sha256:"
+        )
+        target = store / f"{content_hash}.md"
+        shutil.copyfile(document.store_path, target)
+        (by_name / f"{key}.md").symlink_to(target)
+        shutil.copyfile(pipeline.digests[key], digests / f"{key}.yaml")
+
+    (digests / "digest-generation.json").write_text(
+        json.dumps(
+            {
+                "schema": "anomalica/digest-generation/1",
+                "current_generation": 1,
+            }
+        )
+    )
+    registry = pipeline.digests_dir / "extraction-configurations.json"
+    if registry.is_file():
+        shutil.copyfile(registry, digests / registry.name)
+
+    changed_hash = pipeline.digest_doc("a")["record"]["content_hash"].removeprefix(
+        "sha256:"
+    )
+    changed_record = store / f"{changed_hash}.md"
+    changed_record.write_text(
+        changed_record.read_text() + "\nchanged after digestion\n"
+    )
+    changed_digest = digests / "a.yaml"
+    digest_doc = yaml.safe_load(changed_digest.read_text())
+    digest_doc.pop("extraction_generation", None)
+    changed_digest.write_text(yaml.safe_dump(digest_doc, sort_keys=False))
+
+    node_id = pipeline.node_id("Dr Helena Marsh")
+    pipeline.domain.execute(
+        "INSERT OR REPLACE INTO page_proposals "
+        "(node_id, node_type, tier, claim_count, source_count, status, computed_at) "
+        "VALUES (?, 'person', 'page-worthy', 2, 2, 'proposed', 'T')",
+        (node_id,),
+    )
+    pipeline.domain.commit()
+    brief = synthesise.build_entity_brief(pipeline.domain, node_id)
+    synthesise.write_brief(brief, briefs)
+
+    claims = [
+        {"id": claim["claim_id"], "hash": claim["claim_hash"]}
+        for claim in brief["claims"]
+    ]
+    article = {
+        "built_from": {
+            "brief_hash": brief["brief_hash"],
+            "claims": claims,
+        },
+        "built_by": {"body_sha256": hashlib.sha256(b"prose").hexdigest()},
+    }
+    (content / f"{brief['page']['slug']}.en.md").write_text(
+        "---\n" + yaml.safe_dump(article, sort_keys=False) + "---\n\nprose\n"
+    )
+
+    queue = scheduler.build_queue(
+        pipeline.domain,
+        ingests,
+        digests,
+        sources,
+        "T",
+        briefs_dir=briefs,
+        content_dir=tmp_path / "content",
+    )
+    job = next(j for j in queue["jobs"] if j["id"].startswith("assemble:people/"))
+    inherited = {
+        (group["boundary"], group["artifact"]): group
+        for group in job["inherited_reason_groups"]
+    }
+    assert job["lane"] == "claude"
+    assert job["status"] == "blocked"
+    assert job["blocker"] == "upstream_freshness"
+    assert job["local_reason_groups"] == []
+    assert any(
+        "pre_digest_hash_mismatch" in group["local_reasons"]
+        for group in inherited.values()
+    )
+    assert any(
+        "generation_unknown" in group["local_reasons"] for group in inherited.values()
+    )
+    assert any(group["boundary"] == "record-generation" for group in inherited.values())
+    assert len(inherited) == len(job["inherited_reason_groups"])
 
 
 def _graph_shape(pipeline) -> dict:

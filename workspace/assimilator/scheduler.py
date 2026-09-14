@@ -26,18 +26,25 @@ ranking of a cold corpus.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
 import re
 import sqlite3
+import sys
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 
-from assimilator.digest_files import canonical_digests
+from assimilator.digest_files import (
+    CURRENT_IMPORT_GENERATION,
+    canonical_digests,
+    digest_file_identity,
+)
 
 from assimilator.embed_batches import BUCKETS, pending_by_bucket
 from assimilator.data_dir import data_dir
@@ -118,6 +125,10 @@ class Job:
     # the same assumption in two repos, where only one of them gets updated.
     # None where the command belongs to another component (ingest, digest).
     command: list[str] | None = None
+    local_reason_groups: list[dict] = field(default_factory=list)
+    inherited_reason_groups: list[dict] = field(default_factory=list)
+    consequence: str = "new"
+    native_metrics: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         d: dict = {
@@ -127,6 +138,10 @@ class Job:
             "target": self.target.to_dict(),
             "status": self.status,
             "trigger": self.trigger,
+            "local_reason_groups": self.local_reason_groups,
+            "inherited_reason_groups": self.inherited_reason_groups,
+            "consequence": self.consequence,
+            "native_metrics": self.native_metrics,
         }
         if self.drivers:
             d["drivers"] = [dr.to_dict() for dr in self.drivers]
@@ -141,6 +156,59 @@ class Job:
         if self.article is not None:
             d["article"] = self.article
         return d
+
+
+def _reason_group(
+    boundary: str,
+    artifact: str,
+    local_status: str,
+    reasons: list[str],
+    consequence: str = "finish",
+) -> dict:
+    return {
+        "boundary": boundary,
+        "artifact": artifact,
+        "local_status": local_status,
+        "local_reasons": sorted(set(reasons)),
+        "inherited": [],
+        "consequence": consequence,
+    }
+
+
+def _deduplicate_groups(*collections: list[dict]) -> list[dict]:
+    """Union canonical groups by boundary and artifact without reason fan-out."""
+    merged: dict[tuple[str, str], dict] = {}
+    status_rank = {"current": 0, "missing": 1, "unknown": 2, "stale": 3, "invalid": 4}
+    consequence_rank = {"new": 0, "verify": 1, "finish": 2, "repair": 3}
+    for group in (g for groups in collections for g in groups):
+        key = (str(group["boundary"]), str(group["artifact"]))
+        current = merged.get(key)
+        if current is None:
+            merged[key] = {
+                **group,
+                "local_reasons": sorted(set(group.get("local_reasons") or [])),
+                "inherited": [],
+            }
+            continue
+        current["local_reasons"] = sorted(
+            set(current["local_reasons"]) | set(group.get("local_reasons") or [])
+        )
+        if status_rank.get(group.get("local_status"), 0) > status_rank.get(
+            current.get("local_status"), 0
+        ):
+            current["local_status"] = group["local_status"]
+        if consequence_rank.get(group.get("consequence"), 0) > consequence_rank.get(
+            current.get("consequence"), 0
+        ):
+            current["consequence"] = group["consequence"]
+    return [merged[key] for key in sorted(merged)]
+
+
+def _max_consequence(groups: list[dict], default: str = "new") -> str:
+    rank = {"new": 0, "verify": 1, "finish": 2, "repair": 3}
+    return max(
+        (g.get("consequence", default) for g in groups), key=rank.get, default=default
+    )
 
 
 @dataclass
@@ -293,13 +361,11 @@ def _reviewed_hashes(ingests_dir: Path) -> set[str]:
 
 
 def _digest_index(digests_dir: Path) -> dict[str, dict]:
-    """Map content_hash -> {version, title} for every digest on disk.
+    """Map content_hash to exact canonical digest identity and freshness header.
 
-    Keyed by ``record.content_hash`` (not the friendly filename), so an
-    audio/video digest is detected despite the record's ``.v2`` store suffix that
-    the filename stem carries but the digest filename does not. processing_version
-    is the digest-freshness key (a digest is current only while it equals the
-    record's current body version); title labels the import/digest jobs.
+    Keyed by ``record.content_hash`` (not the friendly filename). The legacy
+    processing version is retained for old API consumers but is never used as a
+    freshness proof.
     """
     # VARIANTS ARE EXCLUDED BY canonical_digests, NOT BY THIS COMMENT. The
     # previous version said the variants/ subtree was "deliberately not scanned"
@@ -315,19 +381,27 @@ def _digest_index(digests_dir: Path) -> dict[str, dict]:
     if not digests_dir.is_dir():
         return out
     for y in canonical_digests(digests_dir):
-        rec = _digest_record_header(y)
+        header = _digest_header(y)
+        rec = header.get("record") or {}
         ch = _bare_hash(rec.get("content_hash"))
         if len(ch) == 64:
+            identity = digest_file_identity(y, digests_dir)
             out[ch] = {
                 "version": rec.get("processing_version"),
                 "title": rec.get("title"),
                 "record_id": rec.get("id"),
+                "schema": header.get("schema"),
+                "pre_digest": header.get("pre_digest"),
+                "extraction_generation": header.get("extraction_generation"),
+                "extraction_config": header.get("extraction_config"),
+                "_path": y,
+                **identity,
             }
     return out
 
 
-def _digest_record_header(path: Path) -> dict:
-    """The `record:` block of a digest, without parsing the whole file.
+def _digest_header(path: Path) -> dict:
+    """The bounded metadata header of a digest, without parsing its claim lists.
 
     Four fields are wanted from a document that runs to 14,000 lines and 1,800
     claims, and yaml.safe_load on the whole corpus cost 54 seconds of every queue
@@ -335,10 +409,8 @@ def _digest_record_header(path: Path) -> dict:
     timeout, so the queue never refreshed and work added by other components
     stayed invisible.
 
-    The record block sits in the header by the format's fixed key order, so the
-    scan stops at the next top-level key after it. Falls back to a full parse if
-    the block is not found where the format says it is, because being slow beats
-    being wrong about which digests exist.
+    The format puts all freshness fields before ``terminology``. Falls back to a
+    full parse when that bounded header does not contain a record.
     """
     try:
         lines = path.read_text().splitlines()
@@ -346,24 +418,16 @@ def _digest_record_header(path: Path) -> dict:
         return {}
 
     block: list[str] = []
-    inside = False
     for line in lines:
-        if not line[:1].isspace() and line.strip():
-            if inside:
-                break  # the next top-level key ends the record block
-            inside = line.startswith("record:")
-            if inside:
-                block.append(line)
-            continue
-        if inside:
-            block.append(line)
+        if not line[:1].isspace() and line.startswith("terminology:"):
+            break
+        block.append(line)
 
     if block:
         try:
             parsed = yaml.safe_load("\n".join(block)) or {}
-            rec = parsed.get("record")
-            if isinstance(rec, dict):
-                return rec
+            if isinstance(parsed.get("record"), dict):
+                return parsed
         except yaml.YAMLError:
             pass
 
@@ -371,7 +435,230 @@ def _digest_record_header(path: Path) -> dict:
         data = yaml.safe_load(path.read_text()) or {}
     except (OSError, yaml.YAMLError):
         return {}
-    return (data or {}).get("record") or {}
+    return data if isinstance(data, dict) else {}
+
+
+def _digest_record_header(path: Path) -> dict:
+    """Compatibility helper retained for callers that only need ``record``."""
+    return _digest_header(path).get("record") or {}
+
+
+def _current_extraction_generation(digests_dir: Path) -> int | None:
+    """Read the corpus authority; malformed or absent manifests stay unknown."""
+    try:
+        document = json.loads((digests_dir / "digest-generation.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    generation = (
+        document.get("current_generation") if isinstance(document, dict) else None
+    )
+    if (
+        not isinstance(generation, int)
+        or isinstance(generation, bool)
+        or generation <= 0
+        or document.get("schema") != "anomalica/digest-generation/1"
+    ):
+        return None
+    return generation
+
+
+def _resolvable_extraction_configs(digests_dir: Path) -> set[str]:
+    """Return only registry entries whose key matches their canonical payload."""
+    try:
+        document = json.loads(
+            (digests_dir / "extraction-configurations.json").read_text()
+        )
+    except (OSError, json.JSONDecodeError):
+        return set()
+    if not isinstance(document, dict):
+        return set()
+    if document.get("schema") == "anomalica/digest-extraction-config-registry/1":
+        configurations = document.get("configurations")
+    elif "schema" not in document:  # legacy direct fingerprint map
+        configurations = document
+    else:
+        return set()
+    if not isinstance(configurations, dict):
+        return set()
+    resolvable: set[str] = set()
+    for fingerprint, configuration in configurations.items():
+        if (
+            not isinstance(configuration, dict)
+            or configuration.get("configuration_schema")
+            != "anomalica/digest-extraction-config/1"
+        ):
+            continue
+        canonical = json.dumps(
+            configuration, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        )
+        actual = "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
+        if fingerprint == actual:
+            resolvable.add(fingerprint)
+    return resolvable
+
+
+def _record_body(text: str) -> str:
+    """Extract the record body while dropping only recognised annotation fences."""
+    lines = text.split("\n")
+    start = 0
+    if lines and lines[0].strip() == "---":
+        closing = next(
+            (index for index in range(1, len(lines)) if lines[index].strip() == "---"),
+            None,
+        )
+        if closing is not None:
+            start = closing + 1
+    body: list[str] = []
+    index = start
+    annotation_keys = {"file_page", "printed_page", "chapter", "speaker", "image"}
+    while index < len(lines):
+        if lines[index].strip() == "---":
+            closing = next(
+                (
+                    candidate
+                    for candidate in range(index + 1, min(len(lines), index + 42))
+                    if lines[candidate].strip() == "---"
+                ),
+                None,
+            )
+            if closing is not None:
+                try:
+                    annotation = yaml.safe_load("\n".join(lines[index + 1 : closing]))
+                except yaml.YAMLError:
+                    annotation = None
+                if isinstance(annotation, dict) and annotation_keys & set(annotation):
+                    index = closing + 1
+                    continue
+        body.append(lines[index])
+        index += 1
+    return "\n".join(body).strip()
+
+
+def _pre_digest_input_state(digest: dict, record_path: Path | None) -> tuple[str, str]:
+    """Compare the digest's exact model input with the current live record."""
+    from anomalica_common.pre_digest import materialise, pre_digest_hash
+
+    pre_digest = digest.get("pre_digest")
+    if not isinstance(pre_digest, dict):
+        return "invalid", "pre_digest_binding_unknown"
+    recorded = pre_digest.get("sha256")
+    if recorded is None:
+        return "unknown", "pre_digest_binding_unknown"
+    if not isinstance(recorded, str) or re.fullmatch(r"[0-9a-f]{64}", recorded) is None:
+        return "invalid", "pre_digest_binding_unknown"
+    if record_path is None:
+        return "unknown", "pre_digest_binding_unknown"
+    try:
+        body = _record_body(record_path.read_text(errors="replace"))
+        actual = pre_digest_hash(materialise(body))
+    except (OSError, ValueError, TypeError):
+        return "unknown", "pre_digest_binding_unknown"
+    if actual != recorded:
+        return "stale", "pre_digest_hash_mismatch"
+    return "current", "pre_digest_hash_match"
+
+
+def digest_freshness(
+    ingests_dir: Path,
+    digests_dir: Path,
+    digest_index: dict[str, dict],
+    store: dict[str, Path],
+) -> tuple[dict[str, list[dict]], dict]:
+    """Canonical digest boundary groups from the current record and manifests."""
+    groups: dict[str, list[dict]] = {h: [] for h in set(store) | set(digest_index)}
+    metrics = {
+        "input_binding_match": 0,
+        "input_binding_mismatch": 0,
+        "input_binding_unknown": 0,
+        "generation_current": 0,
+        "generation_behind": 0,
+        "generation_unknown": 0,
+        "schema_invalid": 0,
+        "config_invalid": 0,
+    }
+    for h in sorted(store):
+        if h not in digest_index:
+            groups[h].append(
+                _reason_group(
+                    "digest-input", f"sha256:{h}", "missing", ["digest_missing"]
+                )
+            )
+    if not digest_index:
+        return groups, metrics
+
+    current_generation = _current_extraction_generation(digests_dir)
+    resolvable_configs = _resolvable_extraction_configs(digests_dir)
+    for h, digest in digest_index.items():
+        input_reasons: list[str] = []
+        input_status = "current"
+        if digest.get("schema") != "anomalica/digest/1":
+            input_reasons.append("schema_unsupported")
+            input_status = "invalid"
+            metrics["schema_invalid"] += 1
+        state, issue = _pre_digest_input_state(digest, store.get(h))
+        if h not in store:
+            input_reasons.append("record_binding_mismatch")
+            input_status = "stale"
+            metrics["input_binding_mismatch"] += 1
+        elif state == "unknown":
+            input_reasons.append("pre_digest_binding_unknown")
+            input_status = "unknown"
+            metrics["input_binding_unknown"] += 1
+        elif state == "invalid":
+            input_reasons.append("pre_digest_binding_unknown")
+            input_status = "invalid"
+            metrics["input_binding_unknown"] += 1
+        elif state == "stale":
+            input_reasons.append(issue)
+            input_status = "stale"
+            metrics["input_binding_mismatch"] += 1
+        else:
+            metrics["input_binding_match"] += 1
+        extraction_config = digest.get("extraction_config")
+        if (
+            not isinstance(extraction_config, str)
+            or extraction_config not in resolvable_configs
+        ):
+            input_reasons.append("extraction_config_invalid")
+            input_status = "invalid"
+            metrics["config_invalid"] += 1
+        if input_reasons:
+            groups[h].append(
+                _reason_group(
+                    "digest-input", f"sha256:{h}", input_status, input_reasons
+                )
+            )
+
+        generation = digest.get("extraction_generation")
+        if current_generation is not None and generation == current_generation:
+            metrics["generation_current"] += 1
+        elif (
+            current_generation is not None
+            and isinstance(generation, int)
+            and not isinstance(generation, bool)
+            and 0 < generation < current_generation
+        ):
+            metrics["generation_behind"] += 1
+            groups[h].append(
+                _reason_group(
+                    "digest-generation",
+                    digest["digest_path"],
+                    "stale",
+                    ["generation_behind"],
+                )
+            )
+        else:
+            metrics["generation_unknown"] += 1
+            groups[h].append(
+                _reason_group(
+                    "digest-generation",
+                    digest["digest_path"],
+                    "unknown",
+                    ["generation_unknown"],
+                )
+            )
+        groups[h] = _deduplicate_groups(groups[h])
+    return groups, metrics
 
 
 def _graph_record_ids(conn: sqlite3.Connection) -> set[str]:
@@ -383,6 +670,195 @@ def _graph_record_hashes(conn: sqlite3.Connection) -> set[str]:
         "SELECT content_hash FROM records WHERE content_hash IS NOT NULL"
     ).fetchall()
     return {_bare_hash(r[0]) for r in rows}
+
+
+def _import_receipts(conn: sqlite3.Connection) -> dict[str, dict]:
+    try:
+        rows = conn.execute(
+            "SELECT record_content_hash, record_id, digest_path, digest_sha256, "
+            "import_generation FROM digest_import_receipts"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    return {
+        _bare_hash(row[0]): {
+            "record_id": row[1],
+            "digest_path": row[2],
+            "digest_sha256": row[3],
+            "import_generation": row[4],
+        }
+        for row in rows
+    }
+
+
+def graph_import_native_deltas(
+    conn: sqlite3.Connection, digest_index: dict[str, dict]
+) -> dict:
+    """Deterministic stage-native digest-to-graph delta counts."""
+    receipts = _import_receipts(conn)
+    graph_ids = _graph_record_ids(conn)
+    graph_hashes = _graph_record_hashes(conn)
+    counts = {
+        "current": 0,
+        "missing": 0,
+        "changed": 0,
+        "orphan": 0,
+        "canonical_digests_missing_from_graph": 0,
+        "receipt_hash_mismatches": 0,
+        "import_generation_behind": 0,
+        "import_generation_unknown": 0,
+        "graph_records_without_live_canonical_digest": 0,
+    }
+    for content_hash, digest in digest_index.items():
+        receipt = receipts.get(content_hash)
+        if receipt is None:
+            counts["missing"] += 1
+            counts["canonical_digests_missing_from_graph"] += 1
+            continue
+        changed = False
+        if receipt["record_id"] not in graph_ids:
+            counts["canonical_digests_missing_from_graph"] += 1
+            changed = True
+        if (
+            receipt["digest_sha256"] != digest["digest_sha256"]
+            or receipt["digest_path"] != digest["digest_path"]
+        ):
+            counts["receipt_hash_mismatches"] += 1
+            changed = True
+        generation = receipt["import_generation"]
+        if (
+            not isinstance(generation, int)
+            or isinstance(generation, bool)
+            or generation > CURRENT_IMPORT_GENERATION
+        ):
+            counts["import_generation_unknown"] += 1
+            changed = True
+        elif generation < CURRENT_IMPORT_GENERATION:
+            counts["import_generation_behind"] += 1
+            changed = True
+        if changed:
+            counts["changed"] += 1
+        else:
+            counts["current"] += 1
+    counts["orphan"] = len((set(receipts) | graph_hashes) - set(digest_index))
+    counts["graph_records_without_live_canonical_digest"] = counts["orphan"]
+    return counts
+
+
+def import_deltas(conn: sqlite3.Connection, digest_index: dict[str, dict]) -> dict:
+    """Compatibility summary retained for existing scheduler consumers."""
+    native = graph_import_native_deltas(conn, digest_index)
+    return {key: native[key] for key in ("current", "missing", "changed", "orphan")}
+
+
+def _curation_sha256() -> str:
+    root = Path(
+        os.environ.get(
+            "ANOMALICA_CURATION_DIR",
+            str(Path(__file__).resolve().parents[3] / "curation"),
+        )
+    )
+    files = sorted(p for p in root.rglob("*") if p.is_file()) if root.is_dir() else []
+    if not files:
+        return "sha256:" + hashlib.sha256(b"").hexdigest()
+    manifest = json.dumps(
+        [
+            [str(p.relative_to(root)), hashlib.sha256(p.read_bytes()).hexdigest()]
+            for p in files
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return "sha256:" + hashlib.sha256(manifest.encode("utf-8")).hexdigest()
+
+
+def graph_input_diagnostics(
+    conn: sqlite3.Connection, digest_index: dict[str, dict], digests_dir: Path
+) -> dict:
+    receipts = _import_receipts(conn)
+    triples = sorted(
+        [h, receipt["digest_path"], receipt["digest_sha256"]]
+        for h, receipt in receipts.items()
+    )
+    payload = json.dumps(
+        {
+            "import_generation": CURRENT_IMPORT_GENERATION,
+            "digests": triples,
+            "curation_sha256": _curation_sha256(),
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    by_hash: dict[str, list[str]] = {}
+    by_record: dict[str, list[str]] = {}
+    for path in canonical_digests(digests_dir):
+        record = _digest_record_header(path)
+        h = _bare_hash(record.get("content_hash"))
+        rid = str(record.get("id") or "")
+        if h:
+            by_hash.setdefault(h, []).append(str(path))
+        if rid:
+            by_record.setdefault(rid, []).append(str(path))
+    duplicates = [
+        {
+            "binding": f"sha256:{key}" if kind == "content_hash" else key,
+            "kind": kind,
+            "paths": paths,
+        }
+        for kind, bindings in (("content_hash", by_hash), ("record_id", by_record))
+        for key, paths in sorted(bindings.items())
+        if len(paths) > 1
+    ]
+    return {
+        "fingerprint": "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+        "input": json.loads(payload),
+        "duplicate_binding_count": len(duplicates),
+        "duplicate_bindings": duplicates,
+    }
+
+
+def graph_freshness_groups(
+    conn: sqlite3.Connection,
+    digest_index: dict[str, dict],
+    digest_groups: dict[str, list[dict]],
+) -> dict[str, list[dict]]:
+    """Upstream groups carried by each graph record's exact digest binding."""
+    receipts = _import_receipts(conn)
+    graph_ids = _graph_record_ids(conn)
+    graph_hashes = _graph_record_hashes(conn)
+    out: dict[str, list[dict]] = {}
+    for h in sorted(set(digest_index) | set(digest_groups) | graph_hashes):
+        digest = digest_index.get(h)
+        receipt = receipts.get(h)
+        reasons: list[str] = []
+        status = "stale"
+        if digest is None:
+            reasons.append("orphan_record")
+        elif receipt is None or receipt.get("record_id") not in graph_ids:
+            reasons.append("import_missing")
+            status = "missing"
+        else:
+            if receipt.get("digest_sha256") != digest.get(
+                "digest_sha256"
+            ) or receipt.get("digest_path") != digest.get("digest_path"):
+                reasons.append("digest_hash_mismatch")
+            generation = receipt.get("import_generation")
+            if (
+                not isinstance(generation, int)
+                or isinstance(generation, bool)
+                or generation > CURRENT_IMPORT_GENERATION
+            ):
+                reasons.append("import_generation_unknown")
+                status = "unknown"
+            elif generation < CURRENT_IMPORT_GENERATION:
+                reasons.append("import_generation_behind")
+        local = (
+            [_reason_group("graph-import", f"sha256:{h}", status, reasons)]
+            if reasons
+            else []
+        )
+        out[h] = _deduplicate_groups(local, digest_groups.get(h, []))
+    return out
 
 
 def _record_frontmatter(md_path: Path) -> dict:
@@ -397,6 +873,102 @@ def _record_frontmatter(md_path: Path) -> dict:
         return yaml.safe_load(parts[1]) or {}
     except yaml.YAMLError:
         return {}
+
+
+def record_generation_freshness(
+    ingests_dir: Path, store: dict[str, Path]
+) -> tuple[dict[str, list[dict]], dict]:
+    """Canonical live-record generation groups from the ingester manifest."""
+    manifest_path = ingests_dir / "store" / "_pipeline_versions.yaml"
+    try:
+        document = yaml.safe_load(manifest_path.read_text())
+    except (OSError, yaml.YAMLError):
+        document = None
+    manifest = document if isinstance(document, dict) else {}
+    manifest_valid = isinstance(document, dict)
+    all_record_hashes = {
+        path.name.split(".", 1)[0]
+        for path in (ingests_dir / "store").rglob("*.md")
+        if len(path.name.split(".", 1)[0]) == 64
+    }
+    groups: dict[str, list[dict]] = {}
+    metrics: dict = {
+        "by_source_type": {},
+        "generation_distance": {},
+        "lineage_dangling": 0,
+    }
+    for content_hash, path in sorted(store.items()):
+        frontmatter = _record_frontmatter(path)
+        source_type = frontmatter.get("source_type")
+        source_key = source_type if isinstance(source_type, str) else "unknown"
+        counts = metrics["by_source_type"].setdefault(
+            source_key,
+            {"current": 0, "stale": 0, "unknown": 0, "invalid": 0},
+        )
+        reasons: list[str] = []
+        status = "current"
+        if frontmatter.get("schema") not in {
+            "anomalica/record/1",
+            "anomalica/record/2",
+        }:
+            reasons.append("schema_unsupported")
+            status = "invalid"
+
+        processing = frontmatter.get("processing")
+        recorded = (
+            processing.get("pipeline_version") if isinstance(processing, dict) else None
+        )
+        current = (
+            manifest.get(source_type)
+            if manifest_valid and isinstance(source_type, str)
+            else None
+        )
+        known_recorded = (
+            isinstance(recorded, int)
+            and not isinstance(recorded, bool)
+            and recorded > 0
+        )
+        known_current = (
+            isinstance(current, int) and not isinstance(current, bool) and current > 0
+        )
+        if not known_recorded or not known_current or recorded > current:
+            reasons.append("generation_unknown")
+            if status == "current":
+                status = "unknown"
+        elif recorded < current:
+            reasons.append("generation_behind")
+            if status == "current":
+                status = "stale"
+            metrics["generation_distance"][f"sha256:{content_hash}"] = (
+                current - recorded
+            )
+
+        supersedes = frontmatter.get("supersedes")
+        lineage = supersedes if isinstance(supersedes, list) else [supersedes]
+        if any(
+            _bare_hash(str(parent)) not in all_record_hashes
+            for parent in lineage
+            if parent
+        ):
+            reasons.append("lineage_dangling")
+            metrics["lineage_dangling"] += 1
+            if status == "current":
+                status = "unknown"
+
+        counts[status] += 1
+        groups[content_hash] = (
+            [
+                _reason_group(
+                    "record-generation",
+                    f"sha256:{content_hash}",
+                    status,
+                    reasons,
+                )
+            ]
+            if reasons
+            else []
+        )
+    return groups, metrics
 
 
 def _record_processing_version(md_path: Path) -> str | None:
@@ -529,29 +1101,84 @@ def enumerate_ingest_jobs(
 
 
 def enumerate_import_jobs(
-    conn: sqlite3.Connection, digest_index: dict[str, dict]
+    conn: sqlite3.Connection,
+    digest_index: dict[str, dict],
+    upstream_groups: dict[str, list[dict]] | None = None,
 ) -> list[Job]:
-    """A digest on disk whose record is not yet in the graph is a pending import.
+    """A digest whose exact receipt is absent or different is a pending import.
 
     Import is the deterministic fold of a digest into the graph - no Claude, no
     money - so it is an eager light-local job. Surfacing it makes the downstream
     work visible in the schedule and lets the runner's eager worker flow a freshly
     produced digest into the graph instead of dead-ending after digestion.
 
-    Imported if the digest's record.id OR its content_hash is already in the
-    graph. record.id is the primary key (always present); content_hash is the
-    fallback for an id-less digest. Keying on content_hash alone would falsely
-    flag a record imported without its ingests dir (null content_hash in the
-    graph) as "not imported".
+    Graph-row presence is not proof: canonical digest bytes may change in place.
+    Legacy rows without a receipt are deliberately due once so the exact binding
+    is established. Re-import remains the importer's replace-by-record fold.
     """
     in_graph_ids = _graph_record_ids(conn)
     in_graph_hashes = _graph_record_hashes(conn)
+    receipts = _import_receipts(conn)
+    upstream_groups = upstream_groups or {}
     jobs: list[Job] = []
     for h in sorted(digest_index):
-        record_id = digest_index[h].get("record_id")
-        if (record_id and record_id in in_graph_ids) or h in in_graph_hashes:
-            continue  # already imported
-        title = digest_index[h].get("title") or f"record {h[:12]}"
+        digest = digest_index[h]
+        record_id = digest.get("record_id")
+        receipt = receipts.get(h)
+        reasons = []
+        reason_codes = []
+        metrics = {
+            "import_missing": 0,
+            "digest_hash_mismatch": 0,
+            "import_generation_distance": None,
+            "orphan_record": 0,
+            "duplicate_binding": 0,
+        }
+        if receipt is None:
+            reasons.append("import receipt missing")
+            reason_codes.append("import_missing")
+            metrics["import_missing"] = 1
+        else:
+            if receipt["record_id"] not in in_graph_ids:
+                reasons.append("graph record missing")
+                reason_codes.append("import_missing")
+                metrics["import_missing"] = 1
+            if receipt["digest_sha256"] != digest["digest_sha256"]:
+                reasons.append("digest bytes changed")
+                reason_codes.append("digest_hash_mismatch")
+                metrics["digest_hash_mismatch"] = 1
+            if receipt["digest_path"] != digest["digest_path"]:
+                reasons.append("canonical digest path changed")
+                reason_codes.append("digest_hash_mismatch")
+                metrics["digest_hash_mismatch"] = 1
+            generation = receipt["import_generation"]
+            if (
+                not isinstance(generation, int)
+                or isinstance(generation, bool)
+                or generation > CURRENT_IMPORT_GENERATION
+            ):
+                reasons.append("import generation changed")
+                reason_codes.append("import_generation_unknown")
+            elif generation < CURRENT_IMPORT_GENERATION:
+                reasons.append("import generation changed")
+                reason_codes.append("import_generation_behind")
+                metrics["import_generation_distance"] = (
+                    CURRENT_IMPORT_GENERATION - generation
+                )
+        if not reasons:
+            continue
+        already_had_record = (
+            record_id and record_id in in_graph_ids
+        ) or h in in_graph_hashes
+        title = digest.get("title") or f"record {h[:12]}"
+        local_groups = [
+            _reason_group(
+                "graph-import",
+                f"sha256:{h}",
+                "missing" if "import_missing" in reason_codes else "stale",
+                reason_codes,
+            )
+        ]
         jobs.append(
             Job(
                 id=f"import:{h}",
@@ -559,9 +1186,13 @@ def enumerate_import_jobs(
                 lane=LANE_EAGER,
                 target=Target(kind="record", label=title, hash=h),
                 status=STATUS_ELIGIBLE,
-                trigger="never_done",
+                trigger="stale" if already_had_record or receipt else "never_done",
                 effort="~local import",
-                drivers=[Driver("source", "digest on disk, not yet in graph")],
+                drivers=[Driver("freshness", reason) for reason in reasons],
+                local_reason_groups=local_groups,
+                inherited_reason_groups=_deduplicate_groups(upstream_groups.get(h, [])),
+                consequence="finish",
+                native_metrics=metrics,
             )
         )
     return jobs
@@ -572,8 +1203,12 @@ def enumerate_digest_jobs(
     digest_index: dict[str, dict],
     store: dict[str, Path],
     demand: dict[str, float],
+    freshness_groups: dict[str, list[dict]] | None = None,
+    upstream_groups: dict[str, list[dict]] | None = None,
 ) -> list[Job]:
     digestible = _digestible_hashes(ingests_dir)
+    freshness_groups = freshness_groups or {}
+    upstream_groups = upstream_groups or {}
     jobs: list[Job] = []
     for h in sorted(digestible):
         md = store.get(h)
@@ -581,13 +1216,7 @@ def enumerate_digest_jobs(
             continue
         trigger = "never_done"
         if h in digest_index:
-            digest_ver = digest_index[h].get("version")
-            record_ver = _record_processing_version(md)
-            # Missing-safe (matches anomalica_common.staleness): only re-digest
-            # when both versions are present and differ. A current digest -> the
-            # job is done, so it drops; this is the completion signal the runner
-            # relies on to stop re-spending tokens on an already-digested record.
-            if not (digest_ver and record_ver and str(digest_ver) != str(record_ver)):
+            if not freshness_groups.get(h):
                 continue
             trigger = "stale"
         d = demand.get(h)
@@ -597,8 +1226,16 @@ def enumerate_digest_jobs(
             Driver("readiness", "digestible", band="normal"),
             Driver("demand", _demand_str(d), band="off" if d is None else None),
         ]
+        local_groups = _deduplicate_groups(freshness_groups.get(h, []))
         if trigger == "stale":
-            drivers.insert(0, Driver("freshness", "body re-extracted", band="urgent"))
+            codes = sorted(
+                {
+                    code
+                    for group in local_groups
+                    for code in group.get("local_reasons", [])
+                }
+            )
+            drivers.insert(0, Driver("freshness", ", ".join(codes), band="urgent"))
         jobs.append(
             Job(
                 id=f"digest:{h}",
@@ -609,6 +1246,17 @@ def enumerate_digest_jobs(
                 trigger=trigger,
                 value=d,
                 drivers=drivers,
+                local_reason_groups=local_groups,
+                inherited_reason_groups=_deduplicate_groups(upstream_groups.get(h, [])),
+                consequence="finish",
+                native_metrics={
+                    "input_groups": sum(
+                        g["boundary"] == "digest-input" for g in local_groups
+                    ),
+                    "generation_groups": sum(
+                        g["boundary"] == "digest-generation" for g in local_groups
+                    ),
+                },
             )
         )
     return jobs
@@ -653,14 +1301,43 @@ def _load_briefs(briefs_dir: Path | None) -> list[dict]:
     for bf in brief_files(briefs_dir):
         header = brief_header(bf)
         if header:
+            header["_reference"] = str(bf.relative_to(briefs_dir).with_suffix(""))
+            header["_path"] = bf
+            header["_claim_pairs"], header["_content_hashes"] = _brief_claim_audit(bf)
             out.append(header)
     return out
 
 
+def _brief_claim_audit(path: Path) -> tuple[list[tuple[str, str]], set[str]]:
+    """Read compact claim bindings from a brief without constructing bulk YAML."""
+    claim_id = None
+    pairs: list[tuple[str, str]] = []
+    content_hashes: set[str] = set()
+    try:
+        lines = path.read_text(errors="replace").splitlines()
+    except OSError:
+        return pairs, content_hashes
+    for line in lines:
+        stripped = line.strip().removeprefix("- ")
+        if stripped.startswith("claim_id:"):
+            claim_id = stripped.split(":", 1)[1].strip().strip("'\"")
+        elif stripped.startswith("claim_hash:") and claim_id is not None:
+            claim_hash = stripped.split(":", 1)[1].strip().strip("'\"")
+            pairs.append((claim_id, claim_hash))
+            claim_id = None
+        elif stripped.startswith("content_hash:"):
+            value = _bare_hash(stripped.split(":", 1)[1].strip().strip("'\""))
+            if value:
+                content_hashes.add(value)
+    return pairs, content_hashes
+
+
 def enumerate_synthesise_jobs(
-    conn: sqlite3.Connection, briefs: list[dict]
+    conn: sqlite3.Connection,
+    briefs: list[dict],
+    graph_groups: dict[str, list[dict]] | None = None,
 ) -> list[Job]:
-    """An entity page whose brief is missing OR out of date is a pending job.
+    """Compare every brief with the exact output of the deterministic writer.
 
     A brief is only worth having if it reflects the graph it claims to summarise.
     This used to skip any node that had one, so a brief was written once and never
@@ -669,11 +1346,11 @@ def enumerate_synthesise_jobs(
     2071. The assembler reads briefs, so every page built from one was summarising
     a corpus a fraction of the real size, and nothing anywhere reported it.
 
-    Prose-input staleness is the brief's recorded graph_version against the graph's
-    current one (the latest claim mutation). Coarse on purpose: any new claim can
-    change a brief's selection or related nodes. A person brief's display-only
-    listing tuple is compared separately because a proposal refresh can change it
-    without changing a claim or the prose-input brief_hash. Regenerating is free.
+    The recorded graph timestamp is audit information, not freshness proof. The
+    current page set and writer are rerun, then their exact selection hash, page
+    identity, publication decision and display-only listing tuple are compared.
+    Unrelated graph changes therefore leave a brief settled, while claim removal,
+    content/order drift, member changes and path/name changes are visible.
 
     Synthesise is deterministic (graph slice -> brief, no Claude), so it is eager.
     Matched by node_id (the brief carries page.node_id) rather than by slug, so
@@ -682,69 +1359,150 @@ def enumerate_synthesise_jobs(
     decides; this consumes it), so synthesise is naturally gated behind proposal-
     gen - no proposals, no synthesise jobs.
     """
-    from assimilator.propose_pages import proposed_node_ids
+    from assimilator.synthesise import (
+        brief_relpath,
+        build_entity_brief,
+        build_slug_map,
+        page_set,
+    )
 
-    from assimilator.synthesise import _graph_version, person_listing
-
-    current = _graph_version(conn)
-    # node_id -> the graph state and display-only listing data its brief carries.
-    # Keyed by EVERY member: a composed page's brief is the brief for each node
-    # it covers, so none of them looks brief-less.
-    have = {}
-    for b in briefs:
-        version = (b.get("generated") or {}).get("graph_version")
-        for member in (b.get("page") or {}).get("nodes") or []:
-            if isinstance(member, dict) and member.get("node_id"):
-                have[str(member["node_id"])] = (
-                    version,
-                    (b.get("page") or {}).get("listing"),
-                )
-    page_ids = set(proposed_node_ids(conn))  # only proposed entities deserve a page
-    rows = conn.execute(
-        "SELECT id, name, node_type FROM nodes WHERE retired_at IS NULL ORDER BY name"
-    ).fetchall()
+    by_reference = {b.get("_reference"): b for b in briefs if b.get("_reference")}
+    graph_groups = graph_groups or {}
+    existing_members = {
+        str(member["node_id"])
+        for brief in briefs
+        for member in (brief.get("page") or {}).get("nodes") or []
+        if isinstance(member, dict) and member.get("node_id")
+    }
+    slug_map, _collisions = build_slug_map(conn)
     jobs: list[Job] = []
-    for node_id, name, node_type in rows:
-        if node_id not in page_ids:
-            continue  # not proposed
-        expected_listing = None
-        if node_type == "person":
-            expected_listing = person_listing(conn, node_id)
-        fresh = (
-            node_id in have
-            and have[node_id][0] == current
-            and current is not None
-            and (node_type != "person" or have[node_id][1] == expected_listing)
+    for specification in page_set(conn):
+        members = specification["node_ids"]
+        expected = build_entity_brief(
+            conn,
+            members[0],
+            slug_map,
+            node_ids=members,
+            page=specification["page"],
         )
-        if fresh:
-            continue  # brief already reflects this graph
+        if expected is None or not expected.get("claims"):
+            continue
+        page = expected["page"]
+        reference = str(brief_relpath(page["node_type"], page["slug"]).with_suffix(""))
+        recorded = by_reference.get(reference)
+        reasons: list[str] = []
+        reason_codes: list[str] = []
+        current_pairs = [
+            (str(claim.get("claim_id") or ""), str(claim.get("claim_hash") or ""))
+            for claim in expected.get("claims") or []
+        ]
+        recorded_pairs = [
+            (str(claim_id), str(claim_hash))
+            for claim_id, claim_hash in (recorded or {}).get("_claim_pairs") or []
+        ]
+        old_hashes, new_hashes = dict(recorded_pairs), dict(current_pairs)
+        old_positions = {pair: position for position, pair in enumerate(recorded_pairs)}
+        new_positions = {pair: position for position, pair in enumerate(current_pairs)}
+        common = set(old_hashes) & set(new_hashes)
+        metrics = {
+            "recorded_selection_size": len(recorded_pairs),
+            "current_selection_size": len(current_pairs),
+            "selected_claims_removed": len(set(old_hashes) - set(new_hashes)),
+            "selected_claims_added": len(set(new_hashes) - set(old_hashes)),
+            "selected_claims_content_changed": sum(
+                old_hashes[claim_id] != new_hashes[claim_id] for claim_id in common
+            ),
+            "selected_claims_order_changed": sum(
+                old_positions[(claim_id, old_hashes[claim_id])]
+                != new_positions[(claim_id, new_hashes[claim_id])]
+                for claim_id in common
+                if old_hashes[claim_id] == new_hashes[claim_id]
+            ),
+            "page_member_mismatches": 0,
+            "page_identity_mismatches": 0,
+            "publication_mismatches": 0,
+            "listing_tuple_mismatches": 0,
+        }
+        if recorded is None:
+            reasons.append("brief missing at current page reference")
+            reason_codes.append("brief_missing")
+        else:
+            if recorded.get("brief_hash") != expected["brief_hash"]:
+                reasons.append("selection hash changed")
+                reason_codes.append("selection_hash_mismatch")
+            recorded_page = recorded.get("page") or {}
+            for field in ("kind", "title", "slug", "node_type", "nodes"):
+                if recorded_page.get(field) != page.get(field):
+                    reasons.append(f"page {field} changed")
+                    reason_codes.append("page_identity_mismatch")
+                    metrics[
+                        "page_member_mismatches"
+                        if field == "nodes"
+                        else "page_identity_mismatches"
+                    ] += 1
+            if recorded_page.get("listing") != page.get("listing"):
+                reasons.append("listing tuple changed")
+                reason_codes.append("listing_mismatch")
+                metrics["listing_tuple_mismatches"] += 1
+            if (recorded.get("publication") or {}).get("status") != (
+                expected.get("publication") or {}
+            ).get("status"):
+                reasons.append("publication decision changed")
+                reason_codes.append("publication_mismatch")
+                metrics["publication_mismatches"] += 1
+        contributing_hashes = {
+            _bare_hash((claim.get("provenance") or {}).get("content_hash"))
+            for claim in expected.get("claims") or []
+            if isinstance(claim, dict)
+        }
+        inherited = _deduplicate_groups(
+            *[graph_groups.get(h, []) for h in sorted(contributing_hashes) if h]
+        )
+        # Inherited uncertainty cannot be repaired by rewriting an otherwise
+        # identical deterministic brief. Carry it to article jobs, but do not
+        # create an eager job that would run forever without changing anything.
+        if not reasons:
+            continue
+        node_id = members[0]
+        existed_for_member = bool(set(members) & existing_members)
+        local_groups = (
+            [
+                _reason_group(
+                    "brief-selection",
+                    reference,
+                    "missing" if "brief_missing" in reason_codes else "stale",
+                    reason_codes,
+                )
+            ]
+            if reason_codes
+            else []
+        )
         jobs.append(
             Job(
                 id=f"synthesise:{node_id}",
                 type="synthesise",
                 lane=LANE_EAGER,
-                target=Target(kind="page", label=name),
+                target=Target(kind="page", label=page["title"], href=reference),
                 status=STATUS_ELIGIBLE,
-                trigger="never_done" if node_id not in have else "stale_brief",
+                trigger="stale_brief"
+                if recorded or existed_for_member
+                else "never_done",
                 effort="~local graph slice",
-                drivers=[Driver("node type", node_type)],
+                drivers=[Driver("freshness", reason) for reason in reasons],
+                local_reason_groups=local_groups,
+                inherited_reason_groups=inherited,
+                consequence=_max_consequence(local_groups + inherited, "finish"),
+                native_metrics=metrics,
             )
         )
     return jobs
 
 
-def _article_brief_hashes(content_dir: Path | None) -> tuple[set[str], set[str]]:
-    """(brief_hashes, page refs) for every assembled article.
-
-    The hashes are each article's built_from freeze. The refs - "<section>/<slug>",
-    the two halves of a page's identity - say which pages EXIST at all, which is
-    what separates "never written" from "out of date"; without them a rebuild is
-    indistinguishable from a first build.
-    """
-    out: set[str] = set()
-    slugs: set[str] = set()
+def _article_index(content_dir: Path | None) -> dict[tuple[str, str, str], dict]:
+    """Article audits keyed by exact ``(section, slug, language)`` identity."""
+    out: dict[tuple[str, str, str], dict] = {}
     if not content_dir or not content_dir.is_dir():
-        return out, slugs
+        return out
     for md in content_dir.rglob("*.md"):
         try:
             text = md.read_text(errors="ignore")
@@ -757,18 +1515,52 @@ def _article_brief_hashes(content_dir: Path | None) -> tuple[set[str], set[str]]
             fm = yaml.safe_load(parts[1]) or {}
         except yaml.YAMLError:
             continue
-        slugs.add(f"{md.parent.name}/{md.name.split('.', 1)[0]}")
+        name = md.name[: -len(".md")]
+        pieces = name.rsplit(".", 1)
+        slug, language = (pieces[0], pieces[1]) if len(pieces) == 2 else (name, "en")
+        section = md.parent.name
         built = fm.get("built_from") or {}
-        if isinstance(built, dict) and built.get("brief_hash"):
-            out.add(built["brief_hash"])
-    return out, slugs
+        built_by = fm.get("built_by") or {}
+        claims = built.get("claims") if isinstance(built, dict) else []
+        out[(section, slug, language)] = {
+            "path": str(md),
+            "brief_hash": built.get("brief_hash") if isinstance(built, dict) else None,
+            "claims": claims if isinstance(claims, list) else [],
+            "built_by": built_by if isinstance(built_by, dict) else {},
+            "body_sha256": hashlib.sha256(parts[2].strip().encode("utf-8")).hexdigest(),
+        }
+    return out
 
 
-def enumerate_assemble_jobs(briefs: list[dict], content_dir: Path | None) -> list[Job]:
-    """A brief whose brief_hash is not frozen into any article is a pending
-    assemble job - the AI writer step, so it is Claude-lane. A brief whose hash
-    changed (graph moved) re-appears here automatically: the old article's
-    built_from no longer matches.
+def _current_generator_identity() -> dict:
+    """Read stable current Assembler identity when its source is available."""
+    assembler_root = Path(__file__).resolve().parents[3] / "assembler"
+    if not (assembler_root / "assembler.py").is_file():
+        return {}
+    if str(assembler_root) not in sys.path:
+        sys.path.insert(0, str(assembler_root))
+    try:
+        import assembler as current
+    except Exception:  # optional cross-component diagnostic; absence stays unknown
+        return {}
+    system = getattr(current, "_SYSTEM_PROMPT", None)
+    identity = {"model": getattr(current, "DEFAULT_MODEL", None)}
+    if isinstance(system, str):
+        identity["system_prompt_sha256"] = hashlib.sha256(system.encode()).hexdigest()
+    return {key: value for key, value in identity.items() if value is not None}
+
+
+def enumerate_assemble_jobs(
+    briefs: list[dict],
+    content_dir: Path | None,
+    graph_groups: dict[str, list[dict]] | None = None,
+    brief_local_groups: dict[str, list[dict]] | None = None,
+    current_generator: dict | None = None,
+) -> list[Job]:
+    """A brief whose input hashes are not frozen into its article is pending.
+
+    ``brief_hash`` freezes semantic claim selection and must match by exact
+    page reference.
 
     Those two cases are reported apart. A rebuild trailing the graph is a
     different decision from a page that has never existed - one costs allowance to
@@ -782,29 +1574,143 @@ def enumerate_assemble_jobs(briefs: list[dict], content_dir: Path | None) -> lis
     share a name (Apollo 14), so two jobs carried one id."""
     from assimilator.synthesise import section_of
 
-    assembled, existing_pages = _article_brief_hashes(content_dir)
+    articles = _article_index(content_dir)
+    graph_groups = graph_groups or {}
+    brief_local_groups = brief_local_groups or {}
+    current_generator = (
+        _current_generator_identity()
+        if current_generator is None
+        else current_generator
+    )
     jobs: list[Job] = []
     for brief in briefs:
         brief_hash = brief.get("brief_hash")
         page = brief.get("page") or {}
-        if not brief_hash or brief_hash in assembled:
+        if not brief_hash:
             continue
         ref = (
             f"{section_of(page.get('node_type'))}/{page['slug']}"
             if page.get("slug")
             else brief_hash[:12]
         )
-        jobs.append(
-            Job(
-                id=f"assemble:{ref}",
-                type="assemble",
-                lane=LANE_CLAUDE,
-                target=Target(kind="page", label=page.get("title") or "page"),
-                status=STATUS_ELIGIBLE,
-                trigger="stale_brief" if ref in existing_pages else "never_done",
-                drivers=[Driver("claims", str(page.get("claim_count", "?")))],
-            )
+        section, slug = ref.split("/", 1) if "/" in ref else ("", ref)
+        languages = {
+            language
+            for article_section, article_slug, language in articles
+            if article_section == section and article_slug == slug
+        } or {"en"}
+        brief_pairs = dict(brief.get("_claim_pairs") or [])
+        inherited = _deduplicate_groups(
+            brief_local_groups.get(ref, []),
+            *[
+                graph_groups.get(h, [])
+                for h in sorted(brief.get("_content_hashes") or [])
+            ],
         )
+        for language in sorted(languages):
+            article = articles.get((section, slug, language))
+            reasons: list[str] = []
+            status = "stale"
+            consequence = "finish"
+            metrics = {
+                "article_citation_count": 0,
+                "citations_missing": 0,
+                "citation_hash_mismatches": 0,
+                "generator_fields_compared": 0,
+                "generator_fields_changed": 0,
+                "body_hash_mismatch": 0,
+            }
+            if article is None:
+                reasons.append("article_missing")
+                status = "missing"
+            else:
+                if article.get("brief_hash") != brief_hash:
+                    reasons.append("brief_hash_mismatch")
+                citations = article.get("claims") or []
+                metrics["article_citation_count"] = len(citations)
+                for citation in citations:
+                    if not isinstance(citation, dict):
+                        metrics["citations_missing"] += 1
+                        continue
+                    claim_id, claim_hash = citation.get("id"), citation.get("hash")
+                    if claim_id not in brief_pairs:
+                        metrics["citations_missing"] += 1
+                    elif brief_pairs[claim_id] != claim_hash:
+                        metrics["citation_hash_mismatches"] += 1
+                if metrics["citations_missing"]:
+                    reasons.append("citation_missing")
+                    consequence = "repair"
+                if metrics["citation_hash_mismatches"]:
+                    reasons.append("citation_hash_mismatch")
+                    consequence = "repair"
+                built_by = article.get("built_by") or {}
+                comparable_generator = {
+                    key: value
+                    for key, value in current_generator.items()
+                    if key in built_by
+                }
+                metrics["generator_fields_compared"] = len(comparable_generator)
+                changed_generator = sum(
+                    built_by.get(key) != value
+                    for key, value in comparable_generator.items()
+                )
+                metrics["generator_fields_changed"] = changed_generator
+                if changed_generator:
+                    reasons.append("generator_changed")
+                    consequence = "verify" if len(reasons) == 1 else consequence
+                protected_hash = built_by.get("body_sha256")
+                if protected_hash and protected_hash != article.get("body_sha256"):
+                    metrics["body_hash_mismatch"] = 1
+                    reasons.append("body_modified")
+                    consequence = "verify" if len(reasons) == 1 else consequence
+            local_groups = (
+                [
+                    _reason_group(
+                        "article-input",
+                        f"{ref}.{language}",
+                        status,
+                        reasons,
+                        consequence,
+                    )
+                ]
+                if reasons
+                else []
+            )
+            if not local_groups and not inherited:
+                continue
+            blocker = None
+            job_status = STATUS_ELIGIBLE
+            if inherited:
+                blocker = "upstream_freshness"
+                job_status = STATUS_BLOCKED
+            elif "body_modified" in reasons:
+                blocker = "protected_body"
+                job_status = STATUS_BLOCKED
+            jobs.append(
+                Job(
+                    id=f"assemble:{ref}"
+                    if language == "en"
+                    else f"assemble:{ref}:{language}",
+                    type="assemble",
+                    lane=LANE_CLAUDE,
+                    target=Target(kind="page", label=page.get("title") or "page"),
+                    status=job_status,
+                    trigger=(
+                        "never_done"
+                        if article is None
+                        else "stale_brief"
+                        if local_groups
+                        else "inherited_freshness"
+                    ),
+                    drivers=[Driver("claims", str(page.get("claim_count", "?")))],
+                    blocker=blocker,
+                    article=f"{ref}.{language}",
+                    local_reason_groups=local_groups,
+                    inherited_reason_groups=inherited,
+                    consequence=_max_consequence(local_groups + inherited, consequence),
+                    native_metrics=metrics,
+                )
+            )
     return jobs
 
 
@@ -860,6 +1766,7 @@ def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
                 effort="~local graph scan",
                 command=["propose-pages"],
                 drivers=[Driver("nodes passing gate", str(gate_count))],
+                consequence="finish",
             )
         )
     embedded = _live_embedded_claims(conn, _embedding_model_id())
@@ -898,6 +1805,7 @@ def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
                     trigger="never_done",
                     effort=f"~{_embed_minutes(remaining)} min local CPU",
                     command=["embed", "--bucket", str(bucket)],
+                    consequence="finish",
                     drivers=[
                         Driver("items in this batch", str(remaining)),
                         Driver(
@@ -919,6 +1827,7 @@ def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
                 # corpus embedded, so any outstanding batch blocks it.
                 blocker=f"embed:claims:{min(pending)}",
                 trigger="never_done",
+                consequence="verify",
                 drivers=[
                     Driver(
                         "vector embedding",
@@ -938,6 +1847,7 @@ def enumerate_graph_jobs(conn: sqlite3.Connection) -> list[Job]:
                 status=STATUS_ELIGIBLE,
                 trigger="never_done",
                 command=["corroborate"],
+                consequence="verify",
                 drivers=[
                     Driver("claims embedded", str(embedded)),
                     Driver("pairs confirmed", str(recorded), band="off"),
@@ -1015,16 +1925,40 @@ def build_queue(
     store = _store_records(ingests_dir)
     demand = compute_record_demand(conn)
     digest_index = _digest_index(digests_dir)
+    digest_groups, digest_metrics = digest_freshness(
+        ingests_dir, digests_dir, digest_index, store
+    )
+    record_groups, record_metrics = record_generation_freshness(ingests_dir, store)
+    digest_upstream = {
+        content_hash: _deduplicate_groups(
+            digest_groups.get(content_hash, []), record_groups.get(content_hash, [])
+        )
+        for content_hash in set(digest_groups) | set(record_groups)
+    }
+    graph_groups = graph_freshness_groups(conn, digest_index, digest_upstream)
 
     jobs: list[Job] = []
     jobs += enumerate_ingest_jobs(
         sources_dir, _ingested_source_ids(ingests_dir), _superseded_hashes(sources_dir)
     )
-    jobs += enumerate_digest_jobs(ingests_dir, digest_index, store, demand)
-    jobs += enumerate_import_jobs(conn, digest_index)
+    jobs += enumerate_digest_jobs(
+        ingests_dir, digest_index, store, demand, digest_groups, record_groups
+    )
+    jobs += enumerate_import_jobs(conn, digest_index, digest_upstream)
     briefs = _load_briefs(briefs_dir)
-    jobs += enumerate_synthesise_jobs(conn, briefs)
-    jobs += enumerate_assemble_jobs(briefs, content_dir)
+    synthesise_jobs = enumerate_synthesise_jobs(conn, briefs, graph_groups)
+    jobs += synthesise_jobs
+    brief_local_groups = {
+        job.target.href: job.local_reason_groups
+        for job in synthesise_jobs
+        if job.target.href and job.local_reason_groups
+    }
+    jobs += enumerate_assemble_jobs(
+        briefs,
+        content_dir,
+        graph_groups,
+        brief_local_groups,
+    )
     jobs += enumerate_graph_jobs(conn)
     review_queue = enumerate_review_queue(ingests_dir, store, demand)
 
@@ -1034,6 +1968,11 @@ def build_queue(
         "jobs": [j.to_dict() for j in jobs],
         "reviewQueue": [it.to_dict() for it in review_queue],
         "recordDemand": demand,
+        "graphImportDeltas": import_deltas(conn, digest_index),
+        "graphImportNativeDeltas": graph_import_native_deltas(conn, digest_index),
+        "digestFreshnessMetrics": digest_metrics,
+        "recordGenerationMetrics": record_metrics,
+        "graphInput": graph_input_diagnostics(conn, digest_index, digests_dir),
     }
 
 
@@ -1047,8 +1986,75 @@ def default_queue_path() -> Path:
 
 
 def write_queue(queue: dict, path: Path) -> None:
+    _atomic_write(path, _json_bytes(queue))
+
+
+def _json_bytes(document: dict) -> bytes:
+    return json.dumps(document, indent=2, ensure_ascii=False).encode()
+
+
+def _atomic_write(path: Path, content: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(queue, indent=2, ensure_ascii=False))
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+
+
+def default_freshness_path(queue_path: Path) -> Path:
+    return queue_path.with_name(f"{queue_path.stem}-freshness.json")
+
+
+def freshness_manifest(queue: dict, source_queue_sha256: str) -> dict:
+    """Flatten the real queue's canonical groups for guarded deployment input."""
+    groups: list[dict] = []
+
+    def add(group: dict) -> None:
+        groups.append(group)
+        for inherited in group.get("inherited", []):
+            add(inherited)
+
+    for job in queue.get("jobs", []):
+        for key in ("local_reason_groups", "inherited_reason_groups"):
+            for group in job.get(key, []):
+                add(group)
+
+    canonical = []
+    for group in _deduplicate_groups(groups):
+        canonical.append(
+            {
+                "boundary": group["boundary"],
+                "artifact": group["artifact"],
+                "local_status": group["local_status"],
+                "local_reasons": group["local_reasons"],
+                "inherited": [],
+                "consequence": group["consequence"],
+            }
+        )
+    return {
+        "schema": "anomalica-freshness/v1",
+        "generated_at": queue["generatedAt"],
+        "source_queue_sha256": source_queue_sha256,
+        "groups": canonical,
+    }
+
+
+def write_freshness_manifest(queue: dict, queue_path: Path, path: Path) -> str:
+    queue_content = queue_path.read_bytes()
+    if queue_content != _json_bytes(queue):
+        raise ValueError("source queue bytes do not match the schedule result")
+    queue_sha256 = hashlib.sha256(queue_content).hexdigest()
+    manifest = freshness_manifest(queue, queue_sha256)
+    content = _json_bytes(manifest)
+    _atomic_write(path, content)
+    return hashlib.sha256(content).hexdigest()
 
 
 def now_iso() -> str:
@@ -1083,6 +2089,7 @@ def run_schedule(
     digests: str | None = None,
     sources: str | None = None,
     out: str | None = None,
+    freshness_out: str | None = None,
 ) -> tuple[dict, Path]:
     """Build the queue from current corpus state and write it. Read-only on the
     graph DB - enumeration never mutates the live database."""
@@ -1092,6 +2099,11 @@ def run_schedule(
     root = Path(__file__).resolve().parents[3]  # …/anomalica
     content_dir = Path(os.environ.get("ANOMALICA_CONTENT_DIR", str(root / "content")))
     out_path = Path(out) if out else default_queue_path()
+    freshness_path = (
+        Path(freshness_out) if freshness_out else default_freshness_path(out_path)
+    )
+    if freshness_path == out_path:
+        raise ValueError("queue and freshness output paths must differ")
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         queue = build_queue(
@@ -1106,6 +2118,7 @@ def run_schedule(
     finally:
         conn.close()
     write_queue(queue, out_path)
+    write_freshness_manifest(queue, out_path, freshness_path)
     return queue, out_path
 
 
@@ -1132,16 +2145,33 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--digests", default=None)
     parser.add_argument("--sources", default=None)
     parser.add_argument("--out", default=None, help="queue JSON path")
+    parser.add_argument(
+        "--freshness-out",
+        default=None,
+        help="freshness manifest path (default: adjacent to queue)",
+    )
     args = parser.parse_args(argv)
 
     queue, out_path = run_schedule(
-        args.db, args.ingests, args.digests, args.sources, args.out
+        args.db,
+        args.ingests,
+        args.digests,
+        args.sources,
+        args.out,
+        args.freshness_out,
     )
     by_lane: dict[str, int] = {}
     for job in queue["jobs"]:
         by_lane[job["lane"]] = by_lane.get(job["lane"], 0) + 1
     lanes = ", ".join(f"{n} {lane}" for lane, n in sorted(by_lane.items()))
     print(f"Wrote {out_path}")
+    freshness_path = (
+        Path(args.freshness_out)
+        if args.freshness_out
+        else default_freshness_path(out_path)
+    )
+    freshness_sha256 = hashlib.sha256(freshness_path.read_bytes()).hexdigest()
+    print(f"Wrote {freshness_path} (sha256 {freshness_sha256})")
     print(
         f"  {len(queue['jobs'])} jobs ({lanes}), {len(queue['reviewQueue'])} awaiting review"
     )
