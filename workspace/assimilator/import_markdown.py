@@ -32,7 +32,11 @@ from assimilator.database import (
     update_claim_entailment,
     update_claim_hash,
 )
-from assimilator.digest_files import CURRENT_IMPORT_GENERATION, digest_receipt_identity
+from assimilator.digest_files import (
+    CURRENT_IMPORT_GENERATION,
+    digest_is_importable,
+    digest_receipt_identity,
+)
 from assimilator.matching import (
     is_a_description,
     is_fuller_person_name,
@@ -694,6 +698,8 @@ def import_extraction(
     log = on_progress or (lambda _: None)
     all_conns = [conn] + (lookup_conns or [])
     fm = parsed["frontmatter"]
+    if source_path and not digest_is_importable(source_path):
+        raise ValueError(f"refusing non-canonical digest path: {source_path}")
     if import_identity is None and source_path:
         import_identity = digest_receipt_identity(Path(source_path))
 

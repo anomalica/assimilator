@@ -1,15 +1,12 @@
 """Which digest YAML files on disk are the graph's inputs.
 
-`digests/` holds two different things. At the root (and, when a record title
-contains a slash, one level down) are the CANONICAL digests - one per record,
-the reconciled output the graph is built from. Under `variants/` are the
-per-model benchmark runs: the same records digested again by opus, sonnet and
-haiku for the model comparison, 243 of them against 80 canonical.
+`digests/` holds canonical digests at the root (and, when a record title
+contains a slash, below visible directories). Evidence and non-canonical
+artefacts live under `variants/` and hidden directories such as `.quarantine/`.
 
-A bare `glob("**/*.yaml")` returns both. Feeding that to the graph imports each
-record three or four times over - inflated claim counts, duplicate entities, and
-"corroboration" that is one claim agreeing with copies of itself. Recursion is
-still required (the slash-in-title case), so the fix is to skip the variants
+A bare `glob("**/*.yaml")` returns all of them. Feeding those to the graph can
+import duplicate or rights-invalid evidence. Recursion is still required (the
+slash-in-title case), so discovery must fail closed on every non-canonical
 subtree rather than stop recursing.
 """
 
@@ -18,18 +15,45 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+import yaml
+
 VARIANTS_DIR = "variants"
 CURRENT_IMPORT_GENERATION = 1
 
 
 def canonical_digests(directory: Path | str) -> list[Path]:
-    """Sorted canonical digest files under `directory`, variants excluded."""
+    """Sorted canonical digests, excluding variants and hidden evidence trees."""
     root = Path(directory)
     return sorted(
-        p
-        for p in root.glob("**/*.yaml")
-        if VARIANTS_DIR not in p.relative_to(root).parts
+        p for p in root.glob("**/*.yaml") if digest_is_importable(p, root=root)
     )
+
+
+def digest_is_importable(path: Path | str, root: Path | None = None) -> bool:
+    """Whether a digest path is canonical rather than retained evidence."""
+    path = Path(path).resolve()
+    if root is None:
+        root = next(
+            (parent for parent in path.parents if parent.name == "digests"), None
+        )
+    if root is not None:
+        try:
+            parts = path.relative_to(Path(root).resolve()).parts
+        except ValueError:
+            return False
+        if VARIANTS_DIR in parts or any(part.startswith(".") for part in parts):
+            return False
+    try:
+        with path.open() as digest:
+            for line in digest:
+                if line[:1].isspace():
+                    continue
+                key, separator, value = line.partition(":")
+                if separator and key == "run_kind":
+                    return yaml.safe_load(value) != "comparison"
+    except (OSError, yaml.YAMLError):
+        return False
+    return True
 
 
 def canonical_digest_path(path: Path, root: Path | None = None) -> str:

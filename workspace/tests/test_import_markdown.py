@@ -16,6 +16,60 @@ def test_a_document_glossary_never_rewrites_a_person_name():
     assert org == "Unidentified Aerial Phenomena (UAP) Task Force"
 
 
+def test_a_quarantined_digest_cannot_enter_graph_or_receipts(tmp_path):
+    import sqlite3
+
+    import pytest
+
+    from assimilator.database import init_db
+    from assimilator.import_markdown import import_extraction
+
+    digest = (
+        tmp_path
+        / "digests"
+        / ".quarantine"
+        / "rights-invalid-variants"
+        / ("e" * 64 + "-opus.0f2d8dc9.yaml")
+    )
+    digest.parent.mkdir(parents=True)
+    digest.write_text("schema: anomalica/digest/1\n")
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+
+    with pytest.raises(ValueError, match="refusing non-canonical digest path"):
+        import_extraction(conn, _described_parsed(), source_path=str(digest))
+
+    assert conn.execute("SELECT COUNT(*) FROM records").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM claims").fetchone()[0] == 0
+    assert (
+        conn.execute("SELECT COUNT(*) FROM digest_import_receipts").fetchone()[0] == 0
+    )
+
+
+def test_a_visible_comparison_digest_cannot_enter_graph_or_receipts(tmp_path):
+    import sqlite3
+
+    import pytest
+
+    from assimilator.database import init_db
+    from assimilator.import_markdown import import_extraction
+
+    digest = tmp_path / "digests" / "comparison.yaml"
+    digest.parent.mkdir()
+    digest.write_text("run_kind: comparison\nschema: anomalica/digest/1\n")
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+
+    with pytest.raises(ValueError, match="refusing non-canonical digest path"):
+        import_extraction(conn, _described_parsed(), source_path=str(digest))
+
+    assert conn.execute("SELECT COUNT(*) FROM records").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM claims").fetchone()[0] == 0
+    assert (
+        conn.execute("SELECT COUNT(*) FROM digest_import_receipts").fetchone()[0] == 0
+    )
+
+
 def test_a_person_is_still_rejected_for_carrying_a_codename():
     """The exemption covers the glossary, not the codename gate - a codename may
     never be a node's canonical identifier, whatever its type."""

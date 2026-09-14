@@ -892,6 +892,44 @@ def test_a_model_comparison_variant_is_not_an_importable_digest(tmp_path):
     assert "c" * 64 not in index, "a variant must never be offered as an import"
 
 
+def test_a_quarantined_digest_is_not_an_importable_digest(tmp_path):
+    import yaml as _yaml
+
+    digests = tmp_path / "digests"
+    quarantine = digests / ".quarantine" / "rights-invalid-variants"
+    quarantine.mkdir(parents=True)
+    doc = {
+        "schema": "anomalica/digest/1",
+        "record": {
+            "id": "r-quarantined",
+            "title": "Rights-invalid evidence",
+            "content_hash": "sha256:" + "e" * 64,
+        },
+    }
+    (quarantine / ("e" * 64 + "-opus.0f2d8dc9.yaml")).write_text(_yaml.safe_dump(doc))
+
+    assert scheduler._digest_index(digests) == {}
+
+
+def test_a_visible_comparison_digest_is_not_an_importable_digest(tmp_path):
+    import yaml as _yaml
+
+    digests = tmp_path / "digests"
+    digests.mkdir()
+    doc = {
+        "run_kind": "comparison",
+        "schema": "anomalica/digest/1",
+        "record": {
+            "id": "r-comparison",
+            "title": "Comparison evidence",
+            "content_hash": "sha256:" + "f" * 64,
+        },
+    }
+    (digests / "comparison.yaml").write_text(_yaml.safe_dump(doc, sort_keys=False))
+
+    assert scheduler._digest_index(digests) == {}
+
+
 def test_graph_input_fingerprint_names_duplicate_live_bindings(tmp_path, monkeypatch):
     digests = tmp_path / "digests"
     digests.mkdir()
