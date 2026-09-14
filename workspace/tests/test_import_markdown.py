@@ -70,6 +70,76 @@ def test_a_visible_comparison_digest_cannot_enter_graph_or_receipts(tmp_path):
     )
 
 
+def test_an_explicit_unknown_run_kind_cannot_enter_graph_or_receipts(tmp_path):
+    import sqlite3
+
+    import pytest
+
+    from assimilator.database import init_db
+    from assimilator.import_markdown import import_extraction
+
+    digests = tmp_path / "evidence"
+    digests.mkdir()
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+
+    for index, value in enumerate(("experiment", "variant", "1", "null")):
+        digest = digests / f"unknown-{index}.yaml"
+        digest.write_text(f"run_kind: {value}\nschema: anomalica/digest/1\n")
+        with pytest.raises(ValueError, match="refusing non-canonical digest path"):
+            import_extraction(
+                conn,
+                _described_parsed(),
+                source_path=str(digest),
+                source_root=str(digests),
+            )
+
+    assert conn.execute("SELECT COUNT(*) FROM records").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM claims").fetchone()[0] == 0
+    assert (
+        conn.execute("SELECT COUNT(*) FROM digest_import_receipts").fetchone()[0] == 0
+    )
+
+
+def test_explicit_import_requires_a_canonical_root(tmp_path):
+    import sqlite3
+
+    import pytest
+
+    from assimilator.database import init_db
+    from assimilator.import_markdown import import_extraction
+
+    external = tmp_path / "external"
+    external.mkdir()
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+
+    ordinary = external / "ordinary.yaml"
+    ordinary.write_text("run_kind: production\nschema: anomalica/digest/1\n")
+    with pytest.raises(ValueError, match="refusing non-canonical digest path"):
+        import_extraction(conn, _described_parsed(), source_path=str(ordinary))
+
+    for relative in (".hidden/evidence.yaml", "variants/evidence.yaml"):
+        digest = external / relative
+        digest.parent.mkdir(parents=True, exist_ok=True)
+        digest.write_text("run_kind: production\nschema: anomalica/digest/1\n")
+        with pytest.raises(ValueError, match="refusing non-canonical digest path"):
+            import_extraction(
+                conn,
+                _described_parsed(),
+                source_path=str(digest),
+                source_root=str(external),
+            )
+
+    counts = import_extraction(
+        conn,
+        _described_parsed(),
+        source_path=str(ordinary),
+        source_root=str(external),
+    )
+    assert counts["claims_created"] > 0
+
+
 def test_a_person_is_still_rejected_for_carrying_a_codename():
     """The exemption covers the glossary, not the codename gate - a codename may
     never be a node's canonical identifier, whatever its type."""

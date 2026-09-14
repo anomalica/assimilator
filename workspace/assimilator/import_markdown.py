@@ -680,6 +680,7 @@ def import_extraction(
     section: str = "domain",
     lookup_conns: list[sqlite3.Connection] | None = None,
     source_path: str | None = None,
+    source_root: str | None = None,
     import_identity: dict[str, str] | None = None,
     on_progress: callable = None,
 ) -> dict:
@@ -698,10 +699,11 @@ def import_extraction(
     log = on_progress or (lambda _: None)
     all_conns = [conn] + (lookup_conns or [])
     fm = parsed["frontmatter"]
-    if source_path and not digest_is_importable(source_path):
+    root = Path(source_root) if source_root else None
+    if source_path and not digest_is_importable(source_path, root=root):
         raise ValueError(f"refusing non-canonical digest path: {source_path}")
     if import_identity is None and source_path:
-        import_identity = digest_receipt_identity(Path(source_path))
+        import_identity = digest_receipt_identity(Path(source_path), root=root)
 
     counts = {
         "nodes_created": 0,

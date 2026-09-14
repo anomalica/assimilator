@@ -454,7 +454,7 @@ def test_exact_digest_receipt_changes_in_place_and_reimport_replaces(tmp_path):
     assert receipt[1] == "digests/nimitz.yaml"
     assert receipt[2] == first["receipt"]["digest_sha256"]
     assert receipt[3:7] == (
-        1,
+        2,
         3,
         "sha256:" + "c" * 64,
         "sha256:" + "d" * 64,

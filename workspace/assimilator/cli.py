@@ -74,7 +74,9 @@ def main(ctx: click.Context, db: str) -> None:
 @main.command(name="import")
 @click.argument("file_path", type=click.Path(exists=True))
 @click.pass_context
-def import_cmd(ctx: click.Context, file_path: str) -> None:
+def import_cmd(
+    ctx: click.Context, file_path: str, digest_root: str | None = None
+) -> None:
     """Import a reviewed digest YAML into the graph. No AI involved."""
     path = Path(file_path)
     text = path.read_text()
@@ -94,6 +96,7 @@ def import_cmd(ctx: click.Context, file_path: str) -> None:
             lookup_conns=[infra_conn],
             on_progress=click.echo,
             source_path=str(path),
+            source_root=digest_root,
         )
         click.echo(
             f"  Domain: {counts['nodes_created']} new nodes, "
@@ -110,6 +113,7 @@ def import_cmd(ctx: click.Context, file_path: str) -> None:
             lookup_conns=[domain_conn],
             on_progress=click.echo,
             source_path=str(path),
+            source_root=digest_root,
         )
         click.echo(
             f"  Infrastructure: {counts['nodes_created']} new nodes, "
@@ -131,7 +135,8 @@ def assimilate(ctx: click.Context, directory: str) -> None:
     the everyday verb - point it at the digests directory and it folds each one
     into the accumulating knowledge graph. Use `rebuild` for a clean slate.
     """
-    files = canonical_digests(directory)
+    directory_path = Path(directory)
+    files = canonical_digests(directory_path)
     if not files:
         click.echo(f"No .yaml digest files found in {directory}")
         return
@@ -139,7 +144,7 @@ def assimilate(ctx: click.Context, directory: str) -> None:
     click.echo(f"Assimilating {len(files)} digest files from {directory}")
     for i, f in enumerate(files, 1):
         click.echo(f"\n[{i}/{len(files)}] {f.name}")
-        ctx.invoke(import_cmd, file_path=str(f))
+        ctx.invoke(import_cmd, file_path=str(f), digest_root=str(directory_path))
 
     domain_conn = _connect(ctx.obj["db_path"])
     s = get_stats(domain_conn)
@@ -184,7 +189,7 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
 
     for i, f in enumerate(files, 1):
         click.echo(f"\n[{i}/{len(files)}] {f.name}")
-        ctx.invoke(import_cmd, file_path=str(f))
+        ctx.invoke(import_cmd, file_path=str(f), digest_root=str(directory_path))
 
     # Replay the durable curation ledger over the freshly-rebuilt graph - merges
     # are graph-level corrections not held in the digests, so a rebuild loses

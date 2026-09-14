@@ -93,7 +93,7 @@ class Driver:
 
 @dataclass
 class Target:
-    kind: str  # "record" | "page"
+    kind: str  # "record" | "page" | "graph"
     label: str
     hash: str | None = None
     href: str | None = None
@@ -119,6 +119,7 @@ class Job:
     value: float | None = None
     effort: str | None = None
     blocker: str | None = None
+    held_by: str | None = None
     article: str | None = None
     # The exact argv that performs this job, for jobs whose command lives in THIS
     # repo. A runner deriving it from the id ("embed:claims:7" -> --bucket 7) puts
@@ -153,6 +154,8 @@ class Job:
             d["command"] = list(self.command)
         if self.blocker is not None:
             d["blocker"] = self.blocker
+        if self.held_by is not None:
+            d["heldBy"] = self.held_by
         if self.article is not None:
             d["article"] = self.article
         return d
@@ -1198,6 +1201,47 @@ def enumerate_import_jobs(
     return jobs
 
 
+def enumerate_rebuild_jobs(
+    conn: sqlite3.Connection,
+    digest_index: dict[str, dict],
+    graph_groups: dict[str, list[dict]] | None = None,
+) -> list[Job]:
+    """Expose canonical-set contraction without claiming imports can repair it."""
+    orphan_records = graph_import_native_deltas(conn, digest_index)["orphan"]
+    if not orphan_records:
+        return []
+    blocker = "isolated rebuild executor and explicit authorisation not implemented"
+    consequence = (
+        "build isolated candidate DB, replay curation, validate canonical and curated "
+        "state, then atomically replace live DB under explicit authorisation"
+    )
+    graph_groups = graph_groups or graph_freshness_groups(conn, digest_index, {})
+    orphan_groups = [
+        group
+        for content_hash in sorted(graph_groups)
+        for group in graph_groups[content_hash]
+        if group.get("boundary") == "graph-import"
+        and "orphan_record" in group.get("local_reasons", [])
+    ]
+    return [
+        Job(
+            id="rebuild:graph",
+            type="rebuild",
+            lane=LANE_EAGER,
+            target=Target(kind="graph", label="Knowledge graph"),
+            status=STATUS_BLOCKED,
+            trigger="canonical_set_contraction",
+            effort="local isolated rebuild",
+            blocker=blocker,
+            held_by=blocker,
+            drivers=[Driver("orphan records", str(orphan_records))],
+            local_reason_groups=orphan_groups,
+            consequence=consequence,
+            native_metrics={"orphan_records": orphan_records},
+        )
+    ]
+
+
 def enumerate_digest_jobs(
     ingests_dir: Path,
     digest_index: dict[str, dict],
@@ -1957,7 +2001,12 @@ def build_queue(
     jobs += enumerate_digest_jobs(
         ingests_dir, digest_index, store, demand, digest_groups, record_groups
     )
-    jobs += enumerate_import_jobs(conn, digest_index, digest_upstream)
+    rebuild_jobs = enumerate_rebuild_jobs(conn, digest_index, graph_groups)
+    jobs += rebuild_jobs
+    # A clean rebuild subsumes generation-driven imports. Offering both implies
+    # the per-record path can converge even though it cannot delete orphans.
+    if not rebuild_jobs:
+        jobs += enumerate_import_jobs(conn, digest_index, digest_upstream)
     briefs = _load_briefs(briefs_dir)
     synthesise_jobs = enumerate_synthesise_jobs(conn, briefs, graph_groups)
     jobs += synthesise_jobs

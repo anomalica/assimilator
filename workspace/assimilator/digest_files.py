@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 
 VARIANTS_DIR = "variants"
-CURRENT_IMPORT_GENERATION = 1
+CURRENT_IMPORT_GENERATION = 2
 
 
 def canonical_digests(directory: Path | str) -> list[Path]:
@@ -36,13 +36,14 @@ def digest_is_importable(path: Path | str, root: Path | None = None) -> bool:
         root = next(
             (parent for parent in path.parents if parent.name == "digests"), None
         )
-    if root is not None:
-        try:
-            parts = path.relative_to(Path(root).resolve()).parts
-        except ValueError:
-            return False
-        if VARIANTS_DIR in parts or any(part.startswith(".") for part in parts):
-            return False
+    if root is None:
+        return False
+    try:
+        parts = path.relative_to(Path(root).resolve()).parts
+    except ValueError:
+        return False
+    if VARIANTS_DIR in parts or any(part.startswith(".") for part in parts):
+        return False
     try:
         with path.open() as digest:
             for line in digest:
@@ -50,7 +51,7 @@ def digest_is_importable(path: Path | str, root: Path | None = None) -> bool:
                     continue
                 key, separator, value = line.partition(":")
                 if separator and key == "run_kind":
-                    return yaml.safe_load(value) != "comparison"
+                    return yaml.safe_load(value) == "production"
     except (OSError, yaml.YAMLError):
         return False
     return True

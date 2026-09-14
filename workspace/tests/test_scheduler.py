@@ -102,6 +102,68 @@ def test_pending_ingest_excludes_already_ingested_and_lanes_by_type(tmp_path):
     assert by_hash[H4]["lane"] == "eager"  # .pdf
 
 
+def test_canonical_set_contraction_emits_one_blocked_rebuild_without_mutation(tmp_path):
+    ingests, digests, sources = _corpus(tmp_path)
+    conn = _graph_with_shared_node()
+    before_dump = "\n".join(conn.iterdump())
+    before_changes = conn.total_changes
+
+    queue = scheduler.build_queue(conn, ingests, digests, sources, "T")
+
+    assert conn.total_changes == before_changes
+    assert "\n".join(conn.iterdump()) == before_dump
+    rebuilds = [job for job in queue["jobs"] if job["type"] == "rebuild"]
+    assert len(rebuilds) == 1
+    assert not [job for job in queue["jobs"] if job["type"] == "import"]
+    blocker = "isolated rebuild executor and explicit authorisation not implemented"
+    assert rebuilds[0] == {
+        "id": "rebuild:graph",
+        "type": "rebuild",
+        "lane": "eager",
+        "target": {"kind": "graph", "label": "Knowledge graph"},
+        "status": "blocked",
+        "trigger": "canonical_set_contraction",
+        "local_reason_groups": [
+            {
+                "boundary": "graph-import",
+                "artifact": "sha256:" + H1,
+                "local_status": "stale",
+                "local_reasons": ["orphan_record"],
+                "inherited": [],
+                "consequence": "finish",
+            },
+            {
+                "boundary": "graph-import",
+                "artifact": "sha256:" + H2,
+                "local_status": "stale",
+                "local_reasons": ["orphan_record"],
+                "inherited": [],
+                "consequence": "finish",
+            },
+        ],
+        "inherited_reason_groups": [],
+        "consequence": (
+            "build isolated candidate DB, replay curation, validate canonical and "
+            "curated state, then atomically replace live DB under explicit authorisation"
+        ),
+        "native_metrics": {"orphan_records": 2},
+        "drivers": [{"label": "orphan records", "value": "2"}],
+        "effort": "local isolated rebuild",
+        "blocker": blocker,
+        "heldBy": blocker,
+    }
+
+
+def test_no_rebuild_job_when_canonical_set_has_not_contracted(tmp_path):
+    ingests, digests, sources = _corpus(tmp_path)
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+
+    queue = scheduler.build_queue(conn, ingests, digests, sources, "T")
+
+    assert not [job for job in queue["jobs"] if job["type"] == "rebuild"]
+
+
 def test_web_and_ebook_dedup_via_source_hash_and_verification(tmp_path):
     # A web page (body-hashed record) and an ebook (verification-named source)
     # already ingested must NOT be re-listed as pending, despite their source
@@ -373,7 +435,10 @@ def test_import_job_for_digest_not_in_graph(tmp_path):
     # A digest on disk whose record is not in the graph is a pending eager
     # import. A legacy graph row without an exact import receipt is also due.
     ingests, digests, sources = _corpus(tmp_path)
-    conn = _graph_with_shared_node()  # graph record ids: r1, r2
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_record(conn, Record(id="r1", title="R1", content_hash="sha256:" + "f" * 64))
+    conn.commit()
     recs = digests
     (recs / "new.yaml").write_text(
         yaml.safe_dump(
@@ -387,7 +452,11 @@ def test_import_job_for_digest_not_in_graph(tmp_path):
     imp = {j["target"]["hash"] for j in q["jobs"] if j["type"] == "import"}
     assert "e" * 64 in imp  # r-new not in graph -> eager import job
     assert "f" * 64 in imp  # r1 exists, but presence is not an exact-byte receipt
-    legacy = next(j for j in q["jobs"] if j["target"]["hash"] == "f" * 64)
+    legacy = next(
+        j
+        for j in q["jobs"]
+        if j["type"] == "import" and j["target"]["hash"] == "f" * 64
+    )
     assert legacy["trigger"] == "stale"
     assert legacy["drivers"] == [
         {"label": "freshness", "value": "import receipt missing"}
@@ -930,6 +999,27 @@ def test_a_visible_comparison_digest_is_not_an_importable_digest(tmp_path):
     assert scheduler._digest_index(digests) == {}
 
 
+def test_an_explicit_unknown_run_kind_is_not_an_importable_digest(tmp_path):
+    import yaml as _yaml
+
+    digests = tmp_path / "digests"
+    digests.mkdir()
+    for index, run_kind in enumerate(("experiment", "variant", 1, None)):
+        doc = {
+            "run_kind": run_kind,
+            "schema": "anomalica/digest/1",
+            "record": {
+                "id": f"r-{index}",
+                "content_hash": "sha256:" + str(index) * 64,
+            },
+        }
+        (digests / f"unknown-{index}.yaml").write_text(
+            _yaml.safe_dump(doc, sort_keys=False)
+        )
+
+    assert scheduler._digest_index(digests) == {}
+
+
 def test_graph_input_fingerprint_names_duplicate_live_bindings(tmp_path, monkeypatch):
     digests = tmp_path / "digests"
     digests.mkdir()
@@ -949,7 +1039,7 @@ def test_graph_input_fingerprint_names_duplicate_live_bindings(tmp_path, monkeyp
         conn, scheduler._digest_index(digests), digests
     )
     expected_input = {
-        "import_generation": 1,
+        "import_generation": 2,
         "digests": [],
         "curation_sha256": "sha256:" + hashlib.sha256(b"").hexdigest(),
     }
