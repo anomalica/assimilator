@@ -1430,6 +1430,12 @@ def enumerate_synthesise_jobs(
             if recorded.get("brief_hash") != expected["brief_hash"]:
                 reasons.append("selection hash changed")
                 reason_codes.append("selection_hash_mismatch")
+            # brief_hash intentionally follows the stable cross-component
+            # (claim_id, claim_hash) contract. payload_hash covers bulk claim
+            # context and related nodes while remaining in the cheap header.
+            if recorded.get("payload_hash") != expected.get("payload_hash"):
+                reasons.append("brief payload changed")
+                reason_codes.append("payload_hash_mismatch")
             recorded_page = recorded.get("page") or {}
             for field in ("kind", "title", "slug", "node_type", "nodes"):
                 if recorded_page.get(field) != page.get(field):
@@ -1525,6 +1531,9 @@ def _article_index(content_dir: Path | None) -> dict[tuple[str, str, str], dict]
         out[(section, slug, language)] = {
             "path": str(md),
             "brief_hash": built.get("brief_hash") if isinstance(built, dict) else None,
+            "payload_hash": built.get("payload_hash")
+            if isinstance(built, dict)
+            else None,
             "claims": claims if isinstance(claims, list) else [],
             "built_by": built_by if isinstance(built_by, dict) else {},
             "body_sha256": hashlib.sha256(parts[2].strip().encode("utf-8")).hexdigest(),
@@ -1559,8 +1568,9 @@ def enumerate_assemble_jobs(
 ) -> list[Job]:
     """A brief whose input hashes are not frozen into its article is pending.
 
-    ``brief_hash`` freezes semantic claim selection and must match by exact
-    page reference.
+    ``brief_hash`` freezes semantic claim selection. ``payload_hash`` freezes the
+    complete writer input. Both must match by page reference; a legacy article
+    without payload_hash is stale rather than silently current.
 
     Those two cases are reported apart. A rebuild trailing the graph is a
     different decision from a page that has never existed - one costs allowance to
@@ -1585,8 +1595,9 @@ def enumerate_assemble_jobs(
     jobs: list[Job] = []
     for brief in briefs:
         brief_hash = brief.get("brief_hash")
+        payload_hash = brief.get("payload_hash")
         page = brief.get("page") or {}
-        if not brief_hash:
+        if not brief_hash or not payload_hash:
             continue
         ref = (
             f"{section_of(page.get('node_type'))}/{page['slug']}"
@@ -1626,6 +1637,8 @@ def enumerate_assemble_jobs(
             else:
                 if article.get("brief_hash") != brief_hash:
                     reasons.append("brief_hash_mismatch")
+                if article.get("payload_hash") != payload_hash:
+                    reasons.append("payload_hash_mismatch")
                 citations = article.get("claims") or []
                 metrics["article_citation_count"] = len(citations)
                 for citation in citations:

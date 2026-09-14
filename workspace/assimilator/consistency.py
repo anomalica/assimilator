@@ -14,7 +14,6 @@ so the next drift is reported rather than rediscovered.
 
 from __future__ import annotations
 
-import re
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,9 +30,6 @@ class Finding:
     count: int
     samples: list[str] = field(default_factory=list)
     repair: str | None = None
-
-
-_BUILT_FROM = re.compile(r"built_from:\s*\n\s*brief_hash:\s*(\S+)")
 
 
 def _briefs(briefs_dir: Path) -> dict[str, dict]:
@@ -154,14 +150,26 @@ def check_all(
     # the signal to rebuild - but it is invisible without asking.
     if content_dir and content_dir.is_dir():
         # Both sides keyed "<section>/<slug>" - a slug alone is not a page.
-        current = {n[:-5]: d.get("brief_hash") for n, d in briefs.items()}
+        current = {
+            n[:-5]: (d.get("brief_hash"), d.get("payload_hash"))
+            for n, d in briefs.items()
+        }
         stale = []
         for page in sorted(content_dir.glob("*/*.en.md")):
             ref = f"{page.parent.name}/{page.name[:-6]}"
             if ref not in current:
                 continue
-            m = _BUILT_FROM.search(page.read_text(errors="replace"))
-            if m and m.group(1) != current[ref]:
+            parts = page.read_text(errors="replace").split("---", 2)
+            try:
+                frontmatter = yaml.safe_load(parts[1]) or {} if len(parts) >= 3 else {}
+            except yaml.YAMLError:
+                frontmatter = {}
+            built = frontmatter.get("built_from") or {}
+            article_hashes = (
+                built.get("brief_hash") if isinstance(built, dict) else None,
+                built.get("payload_hash") if isinstance(built, dict) else None,
+            )
+            if article_hashes != current[ref]:
                 stale.append(ref)
         if stale:
             findings.append(

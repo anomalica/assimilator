@@ -38,6 +38,41 @@ def test_a_consistent_graph_reports_nothing(tmp_path):
     assert check_all(conn, tmp_path, None) == []
 
 
+def test_article_without_current_payload_hash_trails_its_brief(tmp_path):
+    conn = _db()
+    briefs = tmp_path / "briefs" / "people"
+    briefs.mkdir(parents=True)
+    (briefs / "subject.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "brief_hash": "semantic",
+                "payload_hash": "payload",
+                "page": {"nodes": [], "slug": "subject"},
+            }
+        )
+    )
+    content = tmp_path / "content" / "people"
+    content.mkdir(parents=True)
+    (content / "subject.en.md").write_text(
+        "---\nbuilt_from:\n  brief_hash: semantic\n---\n"
+    )
+
+    found = {
+        finding.check: finding
+        for finding in check_all(conn, tmp_path / "briefs", tmp_path / "content")
+    }
+
+    assert found["page-trails-its-brief"].samples == ["people/subject"]
+
+    (content / "subject.en.md").write_text(
+        "---\nbuilt_from:\n  brief_hash: semantic\n  payload_hash: payload\n---\n"
+    )
+    assert "page-trails-its-brief" not in {
+        finding.check
+        for finding in check_all(conn, tmp_path / "briefs", tmp_path / "content")
+    }
+
+
 def test_an_undone_veto_with_no_page_is_reported(tmp_path):
     """The assembler retires a vetoed node's page; an undo re-proposes the node
     and restores nothing. Somebody has to see that."""

@@ -411,6 +411,120 @@ def test_superseded_source_excluded_from_ingest(tmp_path):
     assert H4 in pending  # still pending
 
 
+def test_synthesise_then_assemble_lifecycle(tmp_path):
+    from assimilator import synthesise
+
+    ingests, digests, sources = _corpus(tmp_path)
+    conn = _graph_with_shared_node()  # node n1 "Shared Person" carries claims
+    briefs, content = tmp_path / "briefs", tmp_path / "content"
+    briefs.mkdir()
+    content.mkdir()
+
+    # The synthesiser consumes the proposal table (propose-pages decides the page
+    # set; the gate's floors are tested in test_page_gate). This test exercises the
+    # scheduler lifecycle, so put n1 in the proposal set directly.
+    conn.execute(
+        "INSERT INTO page_proposals (node_id, node_type, tier, claim_count, "
+        "source_count, independent_source_count, subject_claims, status, computed_at) "
+        "VALUES ('n1', 'person', 'page-worthy', 2, 2, NULL, 1, 'proposed', 'T')"
+    )
+    conn.commit()
+
+    # No brief yet -> the entity is a pending (eager) synthesise job.
+    q1 = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    syn = [j for j in q1["jobs"] if j["type"] == "synthesise"]
+    assert any(j["target"]["label"] == "Shared Person" for j in syn)
+    assert all(j["lane"] == "eager" for j in syn)
+
+    # Emit the brief -> synthesise drops, a claude-lane assemble job appears.
+    brief = synthesise.build_entity_brief(conn, "n1")
+    synthesise.write_brief(brief, briefs)
+    q2 = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    assert not [
+        j
+        for j in q2["jobs"]
+        if j["type"] == "synthesise"
+        and j["target"]["label"] == "Shared Person"
+        and j["local_reason_groups"]
+    ]
+    conn.execute("UPDATE claim_node_refs SET salience = 'subject' WHERE node_id = 'n1'")
+    conn.commit()
+    context_queue = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    context_job = next(
+        job
+        for job in context_queue["jobs"]
+        if job["type"] == "synthesise" and job["target"]["label"] == "Shared Person"
+    )
+    assert {driver["value"] for driver in context_job["drivers"]} == {
+        "brief payload changed"
+    }
+    assert context_job["local_reason_groups"][0]["local_reasons"] == [
+        "payload_hash_mismatch"
+    ]
+    brief = synthesise.build_entity_brief(conn, "n1")
+    synthesise.write_brief(brief, briefs)
+    conn.execute("UPDATE page_proposals SET source_count = 3 WHERE node_id = 'n1'")
+    conn.commit()
+    q3 = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    assert [j["id"] for j in q3["jobs"] if j["type"] == "synthesise"] == [
+        "synthesise:n1"
+    ]
+    asm = [j for j in q2["jobs"] if j["type"] == "assemble"]
+    assert asm and all(j["lane"] == "claude" for j in asm)
+
+    # A legacy article with only brief_hash is locally stale as well as blocked
+    # because this synthetic graph has no exact digest import bindings.
+    (content / "people").mkdir()
+    (content / "people" / "shared-person.en.md").write_text(
+        f"---\nbuilt_from:\n  brief_hash: {brief['brief_hash']}\n---\nprose\n"
+    )
+    q3 = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    inherited = [j for j in q3["jobs"] if j["type"] == "assemble"]
+    assert inherited and inherited[0]["status"] == "blocked"
+    assert inherited[0]["local_reason_groups"][0]["local_reasons"] == [
+        "payload_hash_mismatch"
+    ]
+
+    # A present but superseded payload hash is stale by the same contract.
+    (content / "people" / "shared-person.en.md").write_text(
+        "---\nbuilt_from:\n"
+        f"  brief_hash: {brief['brief_hash']}\n"
+        "  payload_hash: superseded\n"
+        "---\nprose\n"
+    )
+    q3 = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    inherited = [j for j in q3["jobs"] if j["type"] == "assemble"]
+    assert inherited[0]["local_reason_groups"][0]["local_reasons"] == [
+        "payload_hash_mismatch"
+    ]
+
+    # Freezing both hashes settles the local boundary; only inherited graph
+    # freshness remains.
+    (content / "people" / "shared-person.en.md").write_text(
+        "---\nbuilt_from:\n"
+        f"  brief_hash: {brief['brief_hash']}\n"
+        f"  payload_hash: {brief['payload_hash']}\n"
+        "---\nprose\n"
+    )
+    q3 = scheduler.build_queue(
+        conn, ingests, digests, sources, "T", briefs_dir=briefs, content_dir=content
+    )
+    inherited = [j for j in q3["jobs"] if j["type"] == "assemble"]
+    assert inherited[0]["local_reason_groups"] == []
+
+
 def test_brief_freshness_is_local_and_detects_change_deletion_and_rename(tmp_path):
     from assimilator import synthesise
 
@@ -650,6 +764,7 @@ def test_article_audit_is_exact_by_section_slug_language_and_protected_body(tmp_
     events.mkdir()
     brief = {
         "brief_hash": "brief-current",
+        "payload_hash": "payload-current",
         "page": {"node_type": "person", "slug": "same", "title": "Same"},
         "_claim_pairs": [("c1", "h1")],
         "_content_hashes": set(),
@@ -662,6 +777,7 @@ def test_article_audit_is_exact_by_section_slug_language_and_protected_body(tmp_
                 {
                     "built_from": {
                         "brief_hash": "brief-current",
+                        "payload_hash": "payload-current",
                         "claims": [{"id": "c1", "hash": claim_hash}],
                     },
                     "built_by": {"model": model, "body_sha256": protected_body},
