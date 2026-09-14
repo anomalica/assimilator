@@ -1,0 +1,26 @@
+{
+  "schema": "anomalica/evaluation-state/1",
+  "evaluation_id": "search-reranker-minilm-vs-granite",
+  "evidence": [
+    {
+      "artifact_id": "search-reranker-minilm-vs-granite-fixture",
+      "sha256": "sha256:5d80cc843239a393d3130b614d63f95d90b0d39d2501519ec30e0c31abe81c48"
+    },
+    {
+      "artifact_id": "search-reranker-minilm-vs-granite-result",
+      "sha256": "sha256:86cd1e31fa7be0b4be07f93d526469abba714b600c393c0a070160d7bc4a5b9f"
+    }
+  ],
+  "evidence_sha256": "sha256:78ff6aa1b8ffd5dc0545efc81cfe21cb035c242c94d567246b1aca632874f105",
+  "status": "adopted",
+  "gold": {
+    "status": "reviewed-derived",
+    "reviewed": 16,
+    "total": 16,
+    "unit": "queries"
+  },
+  "decision": {
+    "code": "retain-minilm",
+    "summary": "Retain MiniLM; Granite failed the recorded quality and resource gates."
+  }
+}

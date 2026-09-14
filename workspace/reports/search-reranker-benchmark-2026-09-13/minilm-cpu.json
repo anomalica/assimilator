@@ -1,0 +1,1186 @@
+{
+  "schema": "anomalica/search-reranker-result/1",
+  "fixture": {
+    "path": "workspace/reports/search-reranker-benchmark-2026-09-13/fixture.json",
+    "sha256": "5d80cc843239a393d3130b614d63f95d90b0d39d2501519ec30e0c31abe81c48",
+    "queries": 16,
+    "candidates_per_query": 50
+  },
+  "model": {
+    "repo": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+    "revision": "c5ee24cb16019beea0893ab7796b1df96625c6b8",
+    "architecture": "cross-encoder",
+    "snapshot": "/home/mark/.cache/huggingface/hub/models--cross-encoder--ms-marco-MiniLM-L-6-v2/snapshots/c5ee24cb16019beea0893ab7796b1df96625c6b8",
+    "weights_sha256": "821d1aa69520101d6e0737f78a042ae25b19e5cb9160701909d10434f4aeb0ae"
+  },
+  "runtime": {
+    "device": "cpu",
+    "gpu": null,
+    "batch_size": 32,
+    "iterations": 3,
+    "python": "3.13.13",
+    "torch": "2.8.0+cu128",
+    "transformers": "4.57.6",
+    "sentence_transformers": "5.2.2"
+  },
+  "quality": {
+    "ndcg_at_10": 0.5667671759105325,
+    "mrr_at_10": 0.6286458333333333,
+    "recall_at_10": 0.3751291681407602,
+    "candidate_recall_at_50": 0.06336379524212227
+  },
+  "performance": {
+    "model_load_seconds": 0.5406498330412433,
+    "query_latency_median_ms": 4916.06070054695,
+    "query_latency_p95_ms": 6588.653150945902,
+    "pairs_per_second": 10.15750748460527,
+    "rss_before_model_mib": 829.72265625,
+    "rss_after_model_mib": 846.78515625,
+    "rss_peak_mib": 1064.0703125,
+    "cuda_peak_allocated_mib": null,
+    "cuda_peak_reserved_mib": null
+  },
+  "queries": [
+    {
+      "id": "nimitz-encounter",
+      "ndcg_at_10": 0.6632947515340721,
+      "mrr_at_10": 1.0,
+      "recall_at_10": 0.625,
+      "candidate_recall_at_50": 0.01951219512195122,
+      "relevant_in_pool": 8,
+      "total_graph_relevant": 410,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "f38c8581-15c3-4da6-8b19-7887dbc0e3c8",
+          "relevance": 1,
+          "score": 1.5677216053009033
+        },
+        {
+          "rank": 2,
+          "claim_id": "24752b60-1587-443c-af87-e5dfac13ef8a",
+          "relevance": 1,
+          "score": 1.0819897651672363
+        },
+        {
+          "rank": 3,
+          "claim_id": "3ff3ce7f-77eb-4526-b9d8-21c45d4ddb72",
+          "relevance": 0,
+          "score": 0.28939536213874817
+        },
+        {
+          "rank": 4,
+          "claim_id": "2c52c9e5-eba0-4486-a38a-7d556fa96cf9",
+          "relevance": 0,
+          "score": -0.05326233431696892
+        },
+        {
+          "rank": 5,
+          "claim_id": "8669272b-dc03-4e35-aafc-0a4f4193ea8e",
+          "relevance": 1,
+          "score": -0.4033971130847931
+        },
+        {
+          "rank": 6,
+          "claim_id": "42c07de9-00b9-4b55-bff6-3701b709ffef",
+          "relevance": 0,
+          "score": -0.8807371854782104
+        },
+        {
+          "rank": 7,
+          "claim_id": "b1a0dc9e-5b6e-40b7-8ffa-93e4ccaf5156",
+          "relevance": 0,
+          "score": -1.2178881168365479
+        },
+        {
+          "rank": 8,
+          "claim_id": "f683eaef-f693-4867-ac91-c14f73e414d7",
+          "relevance": 1,
+          "score": -1.7939213514328003
+        },
+        {
+          "rank": 9,
+          "claim_id": "e842bafa-d6b6-42b1-828a-7b999dfa7720",
+          "relevance": 0,
+          "score": -1.933572769165039
+        },
+        {
+          "rank": 10,
+          "claim_id": "1257f724-6fef-436a-889f-407c6461dff3",
+          "relevance": 1,
+          "score": -2.2756214141845703
+        }
+      ]
+    },
+    {
+      "id": "roswell-incident",
+      "ndcg_at_10": 0.43735247915031,
+      "mrr_at_10": 1.0,
+      "recall_at_10": 0.14285714285714285,
+      "candidate_recall_at_50": 0.09859154929577464,
+      "relevant_in_pool": 21,
+      "total_graph_relevant": 213,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "54a8fbd7-770d-46f6-bc88-42a499f8a4f9",
+          "relevance": 1,
+          "score": 5.962400436401367
+        },
+        {
+          "rank": 2,
+          "claim_id": "da4ebfb3-ac09-4a64-8f0e-dd7bef065c9a",
+          "relevance": 1,
+          "score": 4.551340103149414
+        },
+        {
+          "rank": 3,
+          "claim_id": "f9e9cccb-34f1-4424-b2f2-798e1980a4fe",
+          "relevance": 0,
+          "score": 3.0946764945983887
+        },
+        {
+          "rank": 4,
+          "claim_id": "8038e5f9-55a6-43da-aedd-1779241e5e33",
+          "relevance": 0,
+          "score": 3.0207560062408447
+        },
+        {
+          "rank": 5,
+          "claim_id": "a799bc98-ece8-462d-8606-4b94309bb4ac",
+          "relevance": 0,
+          "score": 2.556187629699707
+        },
+        {
+          "rank": 6,
+          "claim_id": "25b7f4ef-4a4b-415b-9ea4-f5b560915bd0",
+          "relevance": 1,
+          "score": 2.501678228378296
+        },
+        {
+          "rank": 7,
+          "claim_id": "7bb9ecce-9536-45e6-9be4-2fd6e572518f",
+          "relevance": 0,
+          "score": 2.4499435424804688
+        },
+        {
+          "rank": 8,
+          "claim_id": "c2620eed-7d92-458e-b6b6-c3fb79aa25ad",
+          "relevance": 0,
+          "score": 2.3235020637512207
+        },
+        {
+          "rank": 9,
+          "claim_id": "52a9876c-b751-49e9-bd11-917b0ca90206",
+          "relevance": 0,
+          "score": 1.3766037225723267
+        },
+        {
+          "rank": 10,
+          "claim_id": "ac0754c2-4de7-47b5-9707-fc7c7761e17c",
+          "relevance": 0,
+          "score": 1.3407174348831177
+        }
+      ]
+    },
+    {
+      "id": "aatip",
+      "ndcg_at_10": 0.9363792118010481,
+      "mrr_at_10": 1.0,
+      "recall_at_10": 0.42857142857142855,
+      "candidate_recall_at_50": 0.0707070707070707,
+      "relevant_in_pool": 21,
+      "total_graph_relevant": 297,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "8c5ba5f4-e08e-487f-98ac-602e114480b5",
+          "relevance": 1,
+          "score": 6.89939022064209
+        },
+        {
+          "rank": 2,
+          "claim_id": "d18804aa-a138-4cf2-8047-0dd432dcb9c2",
+          "relevance": 1,
+          "score": 5.1509199142456055
+        },
+        {
+          "rank": 3,
+          "claim_id": "69f4cc41-8fb4-4f40-91df-cea376629471",
+          "relevance": 1,
+          "score": 4.668117046356201
+        },
+        {
+          "rank": 4,
+          "claim_id": "f0561d20-d166-4d65-8b3f-923674e03047",
+          "relevance": 1,
+          "score": 4.556845188140869
+        },
+        {
+          "rank": 5,
+          "claim_id": "24ab5866-164f-4e22-8474-1ebedb0af4a1",
+          "relevance": 1,
+          "score": 4.398111343383789
+        },
+        {
+          "rank": 6,
+          "claim_id": "09696a6b-d710-469d-8e8c-b8d2ecef8c0b",
+          "relevance": 1,
+          "score": 4.151499271392822
+        },
+        {
+          "rank": 7,
+          "claim_id": "2a11392f-3cf7-44fe-b7b9-bab0f93baef5",
+          "relevance": 1,
+          "score": 4.142075538635254
+        },
+        {
+          "rank": 8,
+          "claim_id": "05411631-60df-4d59-a680-f610db5e0285",
+          "relevance": 1,
+          "score": 4.093939781188965
+        },
+        {
+          "rank": 9,
+          "claim_id": "c010e9f0-fd73-4afc-9ee8-34c55bfe2d4d",
+          "relevance": 1,
+          "score": 3.9952340126037598
+        },
+        {
+          "rank": 10,
+          "claim_id": "a3ba7cef-e9eb-426e-b82f-44b81ae4c99a",
+          "relevance": 0,
+          "score": 3.5774850845336914
+        }
+      ]
+    },
+    {
+      "id": "aaro",
+      "ndcg_at_10": 0.905211635630449,
+      "mrr_at_10": 1.0,
+      "recall_at_10": 0.21951219512195122,
+      "candidate_recall_at_50": 0.1553030303030303,
+      "relevant_in_pool": 41,
+      "total_graph_relevant": 264,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "26660067-cc3f-461e-90f1-03106d5fe421",
+          "relevance": 1,
+          "score": 7.362980842590332
+        },
+        {
+          "rank": 2,
+          "claim_id": "51fb0e01-1cf1-415f-ae42-4e8f52ba53b1",
+          "relevance": 1,
+          "score": 6.932706832885742
+        },
+        {
+          "rank": 3,
+          "claim_id": "39831d97-5619-4c9e-af0d-42ca504938d7",
+          "relevance": 1,
+          "score": 6.56303596496582
+        },
+        {
+          "rank": 4,
+          "claim_id": "02bcfdba-d8f1-4475-a665-539a1fa9e66c",
+          "relevance": 0,
+          "score": 6.22707462310791
+        },
+        {
+          "rank": 5,
+          "claim_id": "aa7d65e2-ce1f-4507-93de-cc8c5d9da66d",
+          "relevance": 1,
+          "score": 5.898298263549805
+        },
+        {
+          "rank": 6,
+          "claim_id": "555ad2b2-8cd5-49bc-bb94-e0ab51ef1411",
+          "relevance": 1,
+          "score": 5.818477630615234
+        },
+        {
+          "rank": 7,
+          "claim_id": "8aeeffbd-db26-4ba2-bb2f-df034b31e9a0",
+          "relevance": 1,
+          "score": 5.463107109069824
+        },
+        {
+          "rank": 8,
+          "claim_id": "747fecd5-b092-42ab-889b-f1194e4f35c2",
+          "relevance": 1,
+          "score": 5.321083068847656
+        },
+        {
+          "rank": 9,
+          "claim_id": "1710a4d2-5b3e-4093-94e1-1f1b94926bbf",
+          "relevance": 1,
+          "score": 5.130134582519531
+        },
+        {
+          "rank": 10,
+          "claim_id": "112d419f-9e61-439d-8c34-053932579fe8",
+          "relevance": 1,
+          "score": 4.991758346557617
+        }
+      ]
+    },
+    {
+      "id": "remote-viewing",
+      "ndcg_at_10": 0.35623158861460086,
+      "mrr_at_10": 0.3333333333333333,
+      "recall_at_10": 0.21052631578947367,
+      "candidate_recall_at_50": 0.04086021505376344,
+      "relevant_in_pool": 19,
+      "total_graph_relevant": 465,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "67e103d4-28f3-4018-bb77-583de99fcae7",
+          "relevance": 0,
+          "score": -3.8242762088775635
+        },
+        {
+          "rank": 2,
+          "claim_id": "06868e54-23f1-4b9f-94b9-2f1d658b7ef2",
+          "relevance": 0,
+          "score": -4.393235206604004
+        },
+        {
+          "rank": 3,
+          "claim_id": "7a7dd402-5635-454e-a966-b8d554f566bf",
+          "relevance": 1,
+          "score": -4.917962074279785
+        },
+        {
+          "rank": 4,
+          "claim_id": "d0971fd0-825f-4f1b-881d-fb584568ceff",
+          "relevance": 1,
+          "score": -5.761646270751953
+        },
+        {
+          "rank": 5,
+          "claim_id": "0a1eb87a-dc41-4e12-a27f-cf5870077ec1",
+          "relevance": 1,
+          "score": -5.904490947723389
+        },
+        {
+          "rank": 6,
+          "claim_id": "ea57592b-fba8-4945-aaee-ac951818c87c",
+          "relevance": 0,
+          "score": -6.194660186767578
+        },
+        {
+          "rank": 7,
+          "claim_id": "fce09203-c1d8-4d13-beb0-481f8f69aac1",
+          "relevance": 0,
+          "score": -6.4536237716674805
+        },
+        {
+          "rank": 8,
+          "claim_id": "5c4453c8-8b7d-4807-baec-e992d74ceeef",
+          "relevance": 0,
+          "score": -6.509122848510742
+        },
+        {
+          "rank": 9,
+          "claim_id": "0a888106-4439-4288-a5ea-f930f77d6dd6",
+          "relevance": 1,
+          "score": -6.526500701904297
+        },
+        {
+          "rank": 10,
+          "claim_id": "91a734dc-4b9e-416b-9df5-fca69e224de8",
+          "relevance": 0,
+          "score": -6.546924114227295
+        }
+      ]
+    },
+    {
+      "id": "face-on-mars",
+      "ndcg_at_10": 0.06362078819895171,
+      "mrr_at_10": 0.1,
+      "recall_at_10": 0.1,
+      "candidate_recall_at_50": 0.02976190476190476,
+      "relevant_in_pool": 10,
+      "total_graph_relevant": 336,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "f8fc1ce2-63a4-482e-a327-a4adb93c0344",
+          "relevance": 0,
+          "score": 3.176584005355835
+        },
+        {
+          "rank": 2,
+          "claim_id": "87c7e9b8-c928-41ef-84d9-f73b39683502",
+          "relevance": 0,
+          "score": 2.790806293487549
+        },
+        {
+          "rank": 3,
+          "claim_id": "44732038-90df-4c77-ab6e-9e3fbae83082",
+          "relevance": 0,
+          "score": 2.4663524627685547
+        },
+        {
+          "rank": 4,
+          "claim_id": "8e11bf66-2998-46f2-b5bb-d121d619ef5b",
+          "relevance": 0,
+          "score": 2.3006129264831543
+        },
+        {
+          "rank": 5,
+          "claim_id": "294c467b-12cd-4db7-8e45-dfa8a9f39269",
+          "relevance": 0,
+          "score": 2.1479687690734863
+        },
+        {
+          "rank": 6,
+          "claim_id": "9705840d-9f47-4210-8caa-f3063c153078",
+          "relevance": 0,
+          "score": 1.9980673789978027
+        },
+        {
+          "rank": 7,
+          "claim_id": "3c06053b-9b9f-4de3-ad05-32568a75e986",
+          "relevance": 0,
+          "score": 1.9486403465270996
+        },
+        {
+          "rank": 8,
+          "claim_id": "1f5ca849-0be5-4789-84e5-8dbdd6ece7c3",
+          "relevance": 0,
+          "score": 1.7025959491729736
+        },
+        {
+          "rank": 9,
+          "claim_id": "963cb039-7e5b-493c-b063-340be91ee753",
+          "relevance": 0,
+          "score": 1.6756455898284912
+        },
+        {
+          "rank": 10,
+          "claim_id": "bfb25cc9-0b72-46bb-a767-e673e97788d6",
+          "relevance": 1,
+          "score": 1.2129690647125244
+        }
+      ]
+    },
+    {
+      "id": "alien-abduction",
+      "ndcg_at_10": 0.31546487678572877,
+      "mrr_at_10": 0.125,
+      "recall_at_10": 1.0,
+      "candidate_recall_at_50": 0.0036231884057971015,
+      "relevant_in_pool": 1,
+      "total_graph_relevant": 276,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "8b9331de-1fef-4438-b76c-99b6fc649fe0",
+          "relevance": 0,
+          "score": 3.5254263877868652
+        },
+        {
+          "rank": 2,
+          "claim_id": "4aad26da-7420-406d-b6cf-8ecc29edb0d7",
+          "relevance": 0,
+          "score": 2.8798739910125732
+        },
+        {
+          "rank": 3,
+          "claim_id": "34f171bf-4313-4f88-9ab3-e32933334a3c",
+          "relevance": 0,
+          "score": 2.225731372833252
+        },
+        {
+          "rank": 4,
+          "claim_id": "69b74b92-68fc-440c-a2e0-423b6f64bb00",
+          "relevance": 0,
+          "score": 2.080519437789917
+        },
+        {
+          "rank": 5,
+          "claim_id": "0fd3bb2a-33ca-408c-92f3-88fd67795e0a",
+          "relevance": 0,
+          "score": 1.604718804359436
+        },
+        {
+          "rank": 6,
+          "claim_id": "a1694682-0645-46c8-9a88-482abe4d8a55",
+          "relevance": 0,
+          "score": 1.5428227186203003
+        },
+        {
+          "rank": 7,
+          "claim_id": "39037ea7-83cb-4d48-9ce7-5fc930e4bdca",
+          "relevance": 0,
+          "score": 1.534191608428955
+        },
+        {
+          "rank": 8,
+          "claim_id": "cca547bc-f083-4c5b-b098-4741e38d50ff",
+          "relevance": 1,
+          "score": 1.5149143934249878
+        },
+        {
+          "rank": 9,
+          "claim_id": "52782d64-2c64-4fd2-b120-b80400f3afe5",
+          "relevance": 0,
+          "score": 1.4621362686157227
+        },
+        {
+          "rank": 10,
+          "claim_id": "0f805d9e-fd51-4c51-b71f-e9979c98f114",
+          "relevance": 0,
+          "score": 1.4459789991378784
+        }
+      ]
+    },
+    {
+      "id": "non-human-intelligence",
+      "ndcg_at_10": 0.2114502791144043,
+      "mrr_at_10": 0.16666666666666666,
+      "recall_at_10": 0.15789473684210525,
+      "candidate_recall_at_50": 0.059006211180124224,
+      "relevant_in_pool": 19,
+      "total_graph_relevant": 322,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "b10c9097-43c5-4304-b44c-38198a612b8b",
+          "relevance": 0,
+          "score": 4.802309989929199
+        },
+        {
+          "rank": 2,
+          "claim_id": "6a094069-5ab7-489a-8d2c-58d51cdb1e33",
+          "relevance": 0,
+          "score": 2.6183650493621826
+        },
+        {
+          "rank": 3,
+          "claim_id": "8f4d655b-2df8-40be-96f5-0b511ad500d0",
+          "relevance": 0,
+          "score": 2.316436767578125
+        },
+        {
+          "rank": 4,
+          "claim_id": "4b4abdec-a0d4-4e1e-9526-6f4d192a3987",
+          "relevance": 0,
+          "score": 2.164811611175537
+        },
+        {
+          "rank": 5,
+          "claim_id": "663d997c-06c6-4e7d-a455-0ac1f11dff06",
+          "relevance": 0,
+          "score": 0.6574946641921997
+        },
+        {
+          "rank": 6,
+          "claim_id": "4ccf9d36-7628-4e1c-9044-3b90de746449",
+          "relevance": 1,
+          "score": 0.5827974677085876
+        },
+        {
+          "rank": 7,
+          "claim_id": "9e871f8d-0a57-4300-a92f-33d62bf242d9",
+          "relevance": 0,
+          "score": 0.558834969997406
+        },
+        {
+          "rank": 8,
+          "claim_id": "b915b7f5-b08d-40dd-8801-465fa6f1c2ce",
+          "relevance": 1,
+          "score": 0.5290151834487915
+        },
+        {
+          "rank": 9,
+          "claim_id": "5b5d2775-96c9-4f78-83da-1c8a566b660e",
+          "relevance": 0,
+          "score": 0.49612247943878174
+        },
+        {
+          "rank": 10,
+          "claim_id": "0d18fc24-8bb0-4b85-9077-fe4dc74695a8",
+          "relevance": 1,
+          "score": 0.3270866274833679
+        }
+      ]
+    },
+    {
+      "id": "david-grusch",
+      "ndcg_at_10": 0.43118636071535105,
+      "mrr_at_10": 0.3333333333333333,
+      "recall_at_10": 0.75,
+      "candidate_recall_at_50": 0.008213552361396304,
+      "relevant_in_pool": 4,
+      "total_graph_relevant": 487,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "a72d7334-74c1-487f-b09e-c62ce819d9a5",
+          "relevance": 0,
+          "score": 5.805864334106445
+        },
+        {
+          "rank": 2,
+          "claim_id": "f915ea81-0753-4288-afa1-b9235adc71ae",
+          "relevance": 0,
+          "score": 4.7406005859375
+        },
+        {
+          "rank": 3,
+          "claim_id": "d25365e0-6f05-4ee4-a310-7fd9dd86d1e6",
+          "relevance": 1,
+          "score": 3.909468412399292
+        },
+        {
+          "rank": 4,
+          "claim_id": "9b26be1e-b978-4fb5-b313-eb69979c439b",
+          "relevance": 0,
+          "score": 3.81846022605896
+        },
+        {
+          "rank": 5,
+          "claim_id": "7c9827ea-c381-4ee0-b11f-8db62874c48c",
+          "relevance": 0,
+          "score": 3.404926300048828
+        },
+        {
+          "rank": 6,
+          "claim_id": "9c8e14c3-d6ce-4256-9a74-79ff2917829a",
+          "relevance": 0,
+          "score": 2.338204860687256
+        },
+        {
+          "rank": 7,
+          "claim_id": "c6685c93-384a-4c1f-973d-4f3b55a465fc",
+          "relevance": 0,
+          "score": 2.205247402191162
+        },
+        {
+          "rank": 8,
+          "claim_id": "2c101989-095c-4c91-b4ac-2ecb2d21ee69",
+          "relevance": 1,
+          "score": 1.9974557161331177
+        },
+        {
+          "rank": 9,
+          "claim_id": "a7acac7d-af1c-4b0d-a15a-459c141f8eac",
+          "relevance": 0,
+          "score": 1.97688889503479
+        },
+        {
+          "rank": 10,
+          "claim_id": "59ecef44-ce9b-4e75-8edd-4c205f1c429c",
+          "relevance": 1,
+          "score": 1.9116055965423584
+        }
+      ]
+    },
+    {
+      "id": "luis-elizondo",
+      "ndcg_at_10": 1.0,
+      "mrr_at_10": 1.0,
+      "recall_at_10": 0.5,
+      "candidate_recall_at_50": 0.013054830287206266,
+      "relevant_in_pool": 20,
+      "total_graph_relevant": 1532,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "8337fa99-92d9-47a9-ac73-c5086c2c203d",
+          "relevance": 1,
+          "score": 7.982877254486084
+        },
+        {
+          "rank": 2,
+          "claim_id": "8745d800-c911-4bbb-874b-692a5152d12e",
+          "relevance": 1,
+          "score": 7.920844078063965
+        },
+        {
+          "rank": 3,
+          "claim_id": "6f3e16e4-c0d9-4991-b028-8627a69f9083",
+          "relevance": 1,
+          "score": 7.79388427734375
+        },
+        {
+          "rank": 4,
+          "claim_id": "bcdc9782-9daf-4edd-9673-680d29fa6157",
+          "relevance": 1,
+          "score": 7.569464683532715
+        },
+        {
+          "rank": 5,
+          "claim_id": "e8b66203-41b2-4870-a6c0-36be7b16b0b6",
+          "relevance": 1,
+          "score": 7.37739372253418
+        },
+        {
+          "rank": 6,
+          "claim_id": "fc0641b0-037d-4290-96fa-c39ae73542f7",
+          "relevance": 1,
+          "score": 7.279304027557373
+        },
+        {
+          "rank": 7,
+          "claim_id": "c010e9f0-fd73-4afc-9ee8-34c55bfe2d4d",
+          "relevance": 1,
+          "score": 6.918890476226807
+        },
+        {
+          "rank": 8,
+          "claim_id": "e4bf2653-e19a-433d-bfd6-ed226ee9c8c2",
+          "relevance": 1,
+          "score": 6.906754970550537
+        },
+        {
+          "rank": 9,
+          "claim_id": "24ab5866-164f-4e22-8474-1ebedb0af4a1",
+          "relevance": 1,
+          "score": 6.83168888092041
+        },
+        {
+          "rank": 10,
+          "claim_id": "b5d84c79-a65d-447c-ad4f-e771b168b50d",
+          "relevance": 1,
+          "score": 6.829181671142578
+        }
+      ]
+    },
+    {
+      "id": "james-mcdonald",
+      "ndcg_at_10": 1.0,
+      "mrr_at_10": 1.0,
+      "recall_at_10": 0.21739130434782608,
+      "candidate_recall_at_50": 0.3898305084745763,
+      "relevant_in_pool": 46,
+      "total_graph_relevant": 118,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "eebff6e1-cf1a-4beb-84e0-56fc01c6288a",
+          "relevance": 1,
+          "score": 4.710510730743408
+        },
+        {
+          "rank": 2,
+          "claim_id": "23506c2e-47e6-410b-b0ef-78ea7decc416",
+          "relevance": 1,
+          "score": 4.49637508392334
+        },
+        {
+          "rank": 3,
+          "claim_id": "8afb305e-92e7-41d9-9b35-385879bfb796",
+          "relevance": 1,
+          "score": 4.205819129943848
+        },
+        {
+          "rank": 4,
+          "claim_id": "af73adc0-a46a-4de9-97cf-3badeb00816c",
+          "relevance": 1,
+          "score": 4.107438564300537
+        },
+        {
+          "rank": 5,
+          "claim_id": "2ff0b138-4cad-4a6e-aa68-d501ec955b1e",
+          "relevance": 1,
+          "score": 4.045137405395508
+        },
+        {
+          "rank": 6,
+          "claim_id": "4952a728-1063-4b27-bb5a-eb0001581902",
+          "relevance": 1,
+          "score": 3.891005277633667
+        },
+        {
+          "rank": 7,
+          "claim_id": "9edb7d2a-bedb-47cc-92d8-9d154e37c02b",
+          "relevance": 1,
+          "score": 3.8308348655700684
+        },
+        {
+          "rank": 8,
+          "claim_id": "c7cde16f-747e-41d0-81a9-25c653594f31",
+          "relevance": 1,
+          "score": 3.774430274963379
+        },
+        {
+          "rank": 9,
+          "claim_id": "f68a4026-c3e8-4f4e-9246-d0b58ec919bd",
+          "relevance": 1,
+          "score": 3.7155163288116455
+        },
+        {
+          "rank": 10,
+          "claim_id": "3c32e531-9ae4-4e24-9c96-ac718ee2a5e5",
+          "relevance": 1,
+          "score": 3.6976828575134277
+        }
+      ]
+    },
+    {
+      "id": "robert-monroe",
+      "ndcg_at_10": 0.40030566811860463,
+      "mrr_at_10": 0.5,
+      "recall_at_10": 0.3076923076923077,
+      "candidate_recall_at_50": 0.012807881773399015,
+      "relevant_in_pool": 13,
+      "total_graph_relevant": 1015,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "412fdeeb-03a7-4e6f-8716-42321f774f3e",
+          "relevance": 0,
+          "score": 3.481027841567993
+        },
+        {
+          "rank": 2,
+          "claim_id": "632a7cc3-1680-4c77-ab1b-3977c12dcfc5",
+          "relevance": 1,
+          "score": 1.8000686168670654
+        },
+        {
+          "rank": 3,
+          "claim_id": "a65a29f4-2a39-4e68-bf7d-c23b534bb304",
+          "relevance": 1,
+          "score": 1.4671447277069092
+        },
+        {
+          "rank": 4,
+          "claim_id": "9a7b224d-1ec1-4997-94fa-9714038037e7",
+          "relevance": 0,
+          "score": 0.9935765266418457
+        },
+        {
+          "rank": 5,
+          "claim_id": "5a40dbf2-fb05-428c-8bd8-b62fd95206cf",
+          "relevance": 1,
+          "score": 0.6152389049530029
+        },
+        {
+          "rank": 6,
+          "claim_id": "5c9160c2-8e52-4f9d-a832-06fbd0e76573",
+          "relevance": 0,
+          "score": 0.5992830395698547
+        },
+        {
+          "rank": 7,
+          "claim_id": "a82eaf4d-00ee-479a-a351-4e9d0d37acc0",
+          "relevance": 0,
+          "score": 0.523279070854187
+        },
+        {
+          "rank": 8,
+          "claim_id": "8e95c55f-91ed-4662-8f4a-859fb0664b34",
+          "relevance": 0,
+          "score": 0.5197926759719849
+        },
+        {
+          "rank": 9,
+          "claim_id": "14ed47f2-50d4-4c9f-8f02-3e1c5faaba13",
+          "relevance": 1,
+          "score": 0.40514352917671204
+        },
+        {
+          "rank": 10,
+          "claim_id": "be161c2d-d5c4-4dc3-bb84-6f198e2dd846",
+          "relevance": 0,
+          "score": -0.5598440170288086
+        }
+      ]
+    },
+    {
+      "id": "jacques-vallee",
+      "ndcg_at_10": 1.0,
+      "mrr_at_10": 1.0,
+      "recall_at_10": 0.5882352941176471,
+      "candidate_recall_at_50": 0.01706827309236948,
+      "relevant_in_pool": 17,
+      "total_graph_relevant": 996,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "2c112bb2-3e05-4957-913e-511cfaeb8a55",
+          "relevance": 1,
+          "score": 3.371534824371338
+        },
+        {
+          "rank": 2,
+          "claim_id": "813b7456-399b-4ab6-868b-9bf66d554aa7",
+          "relevance": 1,
+          "score": 3.239788055419922
+        },
+        {
+          "rank": 3,
+          "claim_id": "54d59d64-f4ac-4d01-a3a4-08dfdb4b1122",
+          "relevance": 1,
+          "score": 2.8789758682250977
+        },
+        {
+          "rank": 4,
+          "claim_id": "3bb60852-7f05-469c-94da-023226673ab9",
+          "relevance": 1,
+          "score": 2.072772979736328
+        },
+        {
+          "rank": 5,
+          "claim_id": "53315680-2270-4af3-985e-b842803c8089",
+          "relevance": 1,
+          "score": 2.0409770011901855
+        },
+        {
+          "rank": 6,
+          "claim_id": "4782951a-45e6-406d-bad8-642de4c660c2",
+          "relevance": 1,
+          "score": -0.2613216042518616
+        },
+        {
+          "rank": 7,
+          "claim_id": "62d509fc-ded2-43b8-8942-664a878daa1b",
+          "relevance": 1,
+          "score": -0.6176627278327942
+        },
+        {
+          "rank": 8,
+          "claim_id": "e866529d-cc94-4ac5-b17e-47e463cc29b8",
+          "relevance": 1,
+          "score": -0.8980216979980469
+        },
+        {
+          "rank": 9,
+          "claim_id": "b5e2391d-6576-4a07-9411-2928bbfede5a",
+          "relevance": 1,
+          "score": -0.9870032072067261
+        },
+        {
+          "rank": 10,
+          "claim_id": "de5b84b2-5986-48b2-b286-36629bb3532d",
+          "relevance": 1,
+          "score": -1.6156163215637207
+        }
+      ]
+    },
+    {
+      "id": "nasa",
+      "ndcg_at_10": 0.8389574121760601,
+      "mrr_at_10": 1.0,
+      "recall_at_10": 0.42105263157894735,
+      "candidate_recall_at_50": 0.02372034956304619,
+      "relevant_in_pool": 19,
+      "total_graph_relevant": 801,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "c55e69e9-ef10-4b4e-98df-578ce6fe9f97",
+          "relevance": 1,
+          "score": 1.1744139194488525
+        },
+        {
+          "rank": 2,
+          "claim_id": "50714eb3-4ab3-4588-8836-973ead997296",
+          "relevance": 1,
+          "score": 1.0158933401107788
+        },
+        {
+          "rank": 3,
+          "claim_id": "3a4b2a9f-fa0a-40ec-8fde-eedfd96661ea",
+          "relevance": 1,
+          "score": 1.0125426054000854
+        },
+        {
+          "rank": 4,
+          "claim_id": "cb9fd045-74a6-4dbb-a4fd-04932b663dc4",
+          "relevance": 0,
+          "score": 0.22965192794799805
+        },
+        {
+          "rank": 5,
+          "claim_id": "cf262ec5-9c04-4885-9324-6990301d9aca",
+          "relevance": 1,
+          "score": -0.3430865705013275
+        },
+        {
+          "rank": 6,
+          "claim_id": "907227d7-ee64-48c4-9921-beb4a9e1d3bd",
+          "relevance": 1,
+          "score": -0.36369016766548157
+        },
+        {
+          "rank": 7,
+          "claim_id": "2c6a01b7-d0c9-4c4a-a305-1c08a371ce0a",
+          "relevance": 1,
+          "score": -1.4784924983978271
+        },
+        {
+          "rank": 8,
+          "claim_id": "86567dc8-6933-438d-9725-c890e90e43cf",
+          "relevance": 1,
+          "score": -1.6638896465301514
+        },
+        {
+          "rank": 9,
+          "claim_id": "0ac7cff4-40e6-43d5-acb0-b52eee2f9ebb",
+          "relevance": 0,
+          "score": -1.9306331872940063
+        },
+        {
+          "rank": 10,
+          "claim_id": "7bb6d695-0f06-4383-b50c-47fabc88c469",
+          "relevance": 1,
+          "score": -1.933260440826416
+        }
+      ]
+    },
+    {
+      "id": "cia",
+      "ndcg_at_10": 0.5088197627289399,
+      "mrr_at_10": 0.5,
+      "recall_at_10": 0.3333333333333333,
+      "candidate_recall_at_50": 0.05202312138728324,
+      "relevant_in_pool": 18,
+      "total_graph_relevant": 346,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "550ac3c7-0cf3-4057-a146-c5b5b255864e",
+          "relevance": 0,
+          "score": 2.7776236534118652
+        },
+        {
+          "rank": 2,
+          "claim_id": "b01ab687-c383-4643-a06e-e08c420cad48",
+          "relevance": 1,
+          "score": 1.6823326349258423
+        },
+        {
+          "rank": 3,
+          "claim_id": "7d7ef1af-968e-4f7d-8e41-0ec3ab05e161",
+          "relevance": 0,
+          "score": 1.4950087070465088
+        },
+        {
+          "rank": 4,
+          "claim_id": "129ba904-0f7d-4a18-aa04-4cb265f2caed",
+          "relevance": 0,
+          "score": 0.6492335796356201
+        },
+        {
+          "rank": 5,
+          "claim_id": "6880c09a-8375-41f4-acd2-6e9e38f5cc49",
+          "relevance": 1,
+          "score": 0.32910841703414917
+        },
+        {
+          "rank": 6,
+          "claim_id": "08ea8ab1-7dbd-475f-9479-fe60b93cad3c",
+          "relevance": 1,
+          "score": 0.20126467943191528
+        },
+        {
+          "rank": 7,
+          "claim_id": "208e1cd5-f191-4988-bba6-4a83a5bdfda3",
+          "relevance": 1,
+          "score": 0.17256422340869904
+        },
+        {
+          "rank": 8,
+          "claim_id": "d69e29c0-93eb-43a8-9d15-b2e13d44803c",
+          "relevance": 1,
+          "score": 0.0209742970764637
+        },
+        {
+          "rank": 9,
+          "claim_id": "9a512374-dbec-4552-b5c8-b501926e0ba5",
+          "relevance": 0,
+          "score": -0.051822274923324585
+        },
+        {
+          "rank": 10,
+          "claim_id": "9f691f60-0b21-40de-95dc-a24170459d0e",
+          "relevance": 1,
+          "score": -0.3533119261264801
+        }
+      ]
+    },
+    {
+      "id": "us-congress",
+      "ndcg_at_10": 0.0,
+      "mrr_at_10": 0.0,
+      "recall_at_10": 0.0,
+      "candidate_recall_at_50": 0.019736842105263157,
+      "relevant_in_pool": 6,
+      "total_graph_relevant": 304,
+      "top_10": [
+        {
+          "rank": 1,
+          "claim_id": "7964877c-d194-4aa3-802f-ce2f00511747",
+          "relevance": 0,
+          "score": 6.130878925323486
+        },
+        {
+          "rank": 2,
+          "claim_id": "4b0b59fb-d23d-4934-ba8e-fbc22611928d",
+          "relevance": 0,
+          "score": 5.654116630554199
+        },
+        {
+          "rank": 3,
+          "claim_id": "6a8bf7c9-0c12-42fe-a67a-d4ed3104d075",
+          "relevance": 0,
+          "score": 5.400703430175781
+        },
+        {
+          "rank": 4,
+          "claim_id": "da8a6e35-ddaf-4404-8cc6-fc7e64ef4519",
+          "relevance": 0,
+          "score": 5.350613117218018
+        },
+        {
+          "rank": 5,
+          "claim_id": "0d9e73c6-0b8f-4648-ad28-62f5bd71d2ca",
+          "relevance": 0,
+          "score": 5.282070159912109
+        },
+        {
+          "rank": 6,
+          "claim_id": "2dc9c087-4b56-4a6c-ae66-725119807e9c",
+          "relevance": 0,
+          "score": 4.774229049682617
+        },
+        {
+          "rank": 7,
+          "claim_id": "9e8ff21e-c053-4e95-90d7-9ca99eb7f458",
+          "relevance": 0,
+          "score": 4.323370456695557
+        },
+        {
+          "rank": 8,
+          "claim_id": "990fd3c5-9057-4d60-9002-bb640ab40050",
+          "relevance": 0,
+          "score": 4.2186665534973145
+        },
+        {
+          "rank": 9,
+          "claim_id": "85065ef8-052f-4d04-925f-279ddc3f2fba",
+          "relevance": 0,
+          "score": 4.165738105773926
+        },
+        {
+          "rank": 10,
+          "claim_id": "41420ca6-cb36-4e52-b4a3-c8f486d32e06",
+          "relevance": 0,
+          "score": 3.804523468017578
+        }
+      ]
+    }
+  ],
+  "performance_validity": {
+    "exclusive_control_verified": false,
+    "decision_use": "invalid",
+    "reason": "no exclusive CPU control or system-load trace"
+  }
+}

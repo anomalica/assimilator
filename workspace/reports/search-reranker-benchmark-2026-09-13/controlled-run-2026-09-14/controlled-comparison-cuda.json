@@ -1,0 +1,51 @@
+{
+  "schema": "anomalica/search-reranker-comparison/1",
+  "device": "cuda",
+  "performance_valid": true,
+  "performance_decision_use": "valid",
+  "fixture_sha256": "5d80cc843239a393d3130b614d63f95d90b0d39d2501519ec30e0c31abe81c48",
+  "quality_delta_granite_minus_minilm": {
+    "ndcg_at_10": 0.006094449173329464,
+    "mrr_at_10": 0.028199404761904745,
+    "recall_at_10": -0.04521083724790398
+  },
+  "resource_ratios_granite_over_minilm": {
+    "median_latency": 4.749817572739569,
+    "peak_memory": 4.389504298893505,
+    "memory_measure": "cuda_peak_allocated_mib",
+    "scope": "process-local allocator",
+    "decision_use": "valid"
+  },
+  "query_ndcg_deltas": {
+    "luis-elizondo": -0.07839826897867541,
+    "non-human-intelligence": 0.2939100653227946,
+    "cia": -0.2188423975687281,
+    "james-mcdonald": 0.0,
+    "jacques-vallee": 0.0,
+    "nasa": 0.09478836436955085,
+    "david-grusch": -0.43118636071535105,
+    "aatip": -0.6528642754944292,
+    "remote-viewing": 0.23645093179430193,
+    "alien-abduction": 0.6845351232142712,
+    "nimitz-encounter": -0.24045750155159912,
+    "face-on-mars": 0.07336392209936003,
+    "roswell-incident": 0.050996704674899695,
+    "us-congress": 0.11706259313796355,
+    "robert-monroe": 0.07336392209936005,
+    "aaro": 0.09478836436955096
+  },
+  "severe_regressions": [
+    "aatip",
+    "cia",
+    "david-grusch",
+    "nimitz-encounter"
+  ],
+  "criteria": {
+    "ndcg_delta_at_least_0_03": false,
+    "mrr_does_not_decline": true,
+    "at_most_two_ndcg_regressions_below_minus_0_10": false,
+    "median_latency_no_more_than_2x": false,
+    "peak_memory_no_more_than_2x": false
+  },
+  "replace_minilm": false
+}

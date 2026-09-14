@@ -1,0 +1,312 @@
+Fetching 11 files:   0%|          | 0/11 [00:00<?, ?it/s]Fetching 11 files: 100%|██████████| 11/11 [00:00<00:00, 63813.75it/s]
+{
+  "quality": {
+    "ndcg_at_10": 0.572861625083862,
+    "mrr_at_10": 0.6568452380952381,
+    "recall_at_10": 0.3299183308928562,
+    "candidate_recall_at_50": 0.06336379524212227
+  },
+  "performance": {
+    "model_load_seconds": 2.7132462370209396,
+    "query_latency_median_ms": 381.90459145698696,
+    "query_latency_p95_ms": 505.12152700684965,
+    "cuda_event_latency_median_ms": 381.76521301269526,
+    "cuda_event_latency_p95_ms": 504.93499755859375,
+    "pairs_per_second": 127.84152759298874,
+    "rss_before_model_mib": 835.44921875,
+    "rss_after_model_mib": 1447.484375,
+    "rss_peak_mib": 1752.85546875,
+    "cuda_peak_allocated_mib": 689.30712890625,
+    "cuda_peak_reserved_mib": 780.0,
+    "latency_samples": [
+      {
+        "query_id": "us-congress",
+        "iteration": 0,
+        "wall_ms": 410.01366602722555,
+        "cuda_event_ms": 409.9428405761719
+      },
+      {
+        "query_id": "us-congress",
+        "iteration": 1,
+        "wall_ms": 450.87770198006183,
+        "cuda_event_ms": 450.66229248046875
+      },
+      {
+        "query_id": "us-congress",
+        "iteration": 2,
+        "wall_ms": 378.36064398288727,
+        "cuda_event_ms": 378.2498779296875
+      },
+      {
+        "query_id": "robert-monroe",
+        "iteration": 0,
+        "wall_ms": 502.3397870827466,
+        "cuda_event_ms": 502.13653564453125
+      },
+      {
+        "query_id": "robert-monroe",
+        "iteration": 1,
+        "wall_ms": 467.44348003994673,
+        "cuda_event_ms": 467.2649230957031
+      },
+      {
+        "query_id": "robert-monroe",
+        "iteration": 2,
+        "wall_ms": 494.4122839951888,
+        "cuda_event_ms": 494.22216796875
+      },
+      {
+        "query_id": "face-on-mars",
+        "iteration": 0,
+        "wall_ms": 505.12152700684965,
+        "cuda_event_ms": 504.93499755859375
+      },
+      {
+        "query_id": "face-on-mars",
+        "iteration": 1,
+        "wall_ms": 410.41927004698664,
+        "cuda_event_ms": 410.3042907714844
+      },
+      {
+        "query_id": "face-on-mars",
+        "iteration": 2,
+        "wall_ms": 382.01058795675635,
+        "cuda_event_ms": 381.88409423828125
+      },
+      {
+        "query_id": "cia",
+        "iteration": 0,
+        "wall_ms": 457.90520298760384,
+        "cuda_event_ms": 457.7101745605469
+      },
+      {
+        "query_id": "cia",
+        "iteration": 1,
+        "wall_ms": 452.6727929478511,
+        "cuda_event_ms": 452.51409912109375
+      },
+      {
+        "query_id": "cia",
+        "iteration": 2,
+        "wall_ms": 361.12409899942577,
+        "cuda_event_ms": 361.0260925292969
+      },
+      {
+        "query_id": "remote-viewing",
+        "iteration": 0,
+        "wall_ms": 328.44495109748095,
+        "cuda_event_ms": 328.34381103515625
+      },
+      {
+        "query_id": "remote-viewing",
+        "iteration": 1,
+        "wall_ms": 324.9020349467173,
+        "cuda_event_ms": 324.7799377441406
+      },
+      {
+        "query_id": "remote-viewing",
+        "iteration": 2,
+        "wall_ms": 397.50363992061466,
+        "cuda_event_ms": 397.36016845703125
+      },
+      {
+        "query_id": "nimitz-encounter",
+        "iteration": 0,
+        "wall_ms": 314.41503507085145,
+        "cuda_event_ms": 314.2590026855469
+      },
+      {
+        "query_id": "nimitz-encounter",
+        "iteration": 1,
+        "wall_ms": 429.38602704089135,
+        "cuda_event_ms": 429.24969482421875
+      },
+      {
+        "query_id": "nimitz-encounter",
+        "iteration": 2,
+        "wall_ms": 301.22835002839565,
+        "cuda_event_ms": 301.147216796875
+      },
+      {
+        "query_id": "nasa",
+        "iteration": 0,
+        "wall_ms": 446.9692800194025,
+        "cuda_event_ms": 446.8122863769531
+      },
+      {
+        "query_id": "nasa",
+        "iteration": 1,
+        "wall_ms": 342.9141140077263,
+        "cuda_event_ms": 342.8076171875
+      },
+      {
+        "query_id": "nasa",
+        "iteration": 2,
+        "wall_ms": 410.23373301140964,
+        "cuda_event_ms": 410.1046447753906
+      },
+      {
+        "query_id": "non-human-intelligence",
+        "iteration": 0,
+        "wall_ms": 356.5108389593661,
+        "cuda_event_ms": 356.3984680175781
+      },
+      {
+        "query_id": "non-human-intelligence",
+        "iteration": 1,
+        "wall_ms": 350.3755870042369,
+        "cuda_event_ms": 350.2935485839844
+      },
+      {
+        "query_id": "non-human-intelligence",
+        "iteration": 2,
+        "wall_ms": 363.05324896238744,
+        "cuda_event_ms": 362.9439392089844
+      },
+      {
+        "query_id": "aaro",
+        "iteration": 0,
+        "wall_ms": 433.13108407892287,
+        "cuda_event_ms": 433.0141906738281
+      },
+      {
+        "query_id": "aaro",
+        "iteration": 1,
+        "wall_ms": 427.39615798927844,
+        "cuda_event_ms": 427.29266357421875
+      },
+      {
+        "query_id": "aaro",
+        "iteration": 2,
+        "wall_ms": 513.1373259937391,
+        "cuda_event_ms": 513.0035400390625
+      },
+      {
+        "query_id": "luis-elizondo",
+        "iteration": 0,
+        "wall_ms": 449.55979695077986,
+        "cuda_event_ms": 449.3961486816406
+      },
+      {
+        "query_id": "luis-elizondo",
+        "iteration": 1,
+        "wall_ms": 343.50104990880936,
+        "cuda_event_ms": 343.3746337890625
+      },
+      {
+        "query_id": "luis-elizondo",
+        "iteration": 2,
+        "wall_ms": 350.6832499988377,
+        "cuda_event_ms": 350.57427978515625
+      },
+      {
+        "query_id": "alien-abduction",
+        "iteration": 0,
+        "wall_ms": 276.5934350900352,
+        "cuda_event_ms": 276.478515625
+      },
+      {
+        "query_id": "alien-abduction",
+        "iteration": 1,
+        "wall_ms": 268.247181084007,
+        "cuda_event_ms": 268.1274108886719
+      },
+      {
+        "query_id": "alien-abduction",
+        "iteration": 2,
+        "wall_ms": 351.32126102689654,
+        "cuda_event_ms": 351.18023681640625
+      },
+      {
+        "query_id": "roswell-incident",
+        "iteration": 0,
+        "wall_ms": 373.56815906241536,
+        "cuda_event_ms": 373.4212341308594
+      },
+      {
+        "query_id": "roswell-incident",
+        "iteration": 1,
+        "wall_ms": 332.3163070017472,
+        "cuda_event_ms": 332.2098388671875
+      },
+      {
+        "query_id": "roswell-incident",
+        "iteration": 2,
+        "wall_ms": 399.79893900454044,
+        "cuda_event_ms": 399.6654357910156
+      },
+      {
+        "query_id": "david-grusch",
+        "iteration": 0,
+        "wall_ms": 428.7663080031052,
+        "cuda_event_ms": 428.7138366699219
+      },
+      {
+        "query_id": "david-grusch",
+        "iteration": 1,
+        "wall_ms": 523.0195970507339,
+        "cuda_event_ms": 522.8583984375
+      },
+      {
+        "query_id": "david-grusch",
+        "iteration": 2,
+        "wall_ms": 432.95912293251604,
+        "cuda_event_ms": 432.810302734375
+      },
+      {
+        "query_id": "jacques-vallee",
+        "iteration": 0,
+        "wall_ms": 324.7134250123054,
+        "cuda_event_ms": 324.6231994628906
+      },
+      {
+        "query_id": "jacques-vallee",
+        "iteration": 1,
+        "wall_ms": 324.067838024348,
+        "cuda_event_ms": 323.956298828125
+      },
+      {
+        "query_id": "jacques-vallee",
+        "iteration": 2,
+        "wall_ms": 408.70683698449284,
+        "cuda_event_ms": 408.6231994628906
+      },
+      {
+        "query_id": "aatip",
+        "iteration": 0,
+        "wall_ms": 351.37724899686873,
+        "cuda_event_ms": 351.2320556640625
+      },
+      {
+        "query_id": "aatip",
+        "iteration": 1,
+        "wall_ms": 321.5445779496804,
+        "cuda_event_ms": 321.4308166503906
+      },
+      {
+        "query_id": "aatip",
+        "iteration": 2,
+        "wall_ms": 324.95600497350097,
+        "cuda_event_ms": 324.826904296875
+      },
+      {
+        "query_id": "james-mcdonald",
+        "iteration": 0,
+        "wall_ms": 381.7985949572176,
+        "cuda_event_ms": 381.6463317871094
+      },
+      {
+        "query_id": "james-mcdonald",
+        "iteration": 1,
+        "wall_ms": 360.1946820272133,
+        "cuda_event_ms": 360.07989501953125
+      },
+      {
+        "query_id": "james-mcdonald",
+        "iteration": 2,
+        "wall_ms": 433.2464400213212,
+        "cuda_event_ms": 433.101806640625
+      }
+    ]
+  }
+}
