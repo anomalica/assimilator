@@ -14,10 +14,8 @@ real ``digester.cli._do_extract`` rather than re-declared, so the digests under
 test are the ones the pipeline actually emits - location alignment, the review
 stamp, the copyright flattening and all.
 
-THREE KNOWN LOSSES ARE ENCODED AS STRICT XFAILS below, each asserting the
-behaviour we want rather than the behaviour we have. Each names the line that
-has to change. When one is fixed its test XPASSes, and ``strict=True`` turns
-that into a failure so the marker cannot outlive the defect.
+Previously known seam losses are asserted below as required behaviour. This
+module must fail if a canonical field is dropped between digest and graph.
 
 This module needs ``digester`` and ``assimilator`` importable in ONE process,
 which the assimilator's container cannot do - `just test` therefore skips it,
@@ -387,6 +385,21 @@ def test_each_claim_the_digest_carries_becomes_exactly_one_claim_row(pipeline):
         assert in_infrastructure == len(doc.get("infrastructure_claims") or []), key
 
 
+def test_claim_confidence_reaches_the_graph(pipeline):
+    for key in fixture_documents.DOCUMENTS:
+        expected = {
+            claim["text"]: claim.get("confidence", 1.0)
+            for claim in pipeline.digest_doc(key).get("domain_claims") or []
+        }
+        actual = dict(
+            pipeline.domain.execute(
+                "SELECT content, confidence FROM claims WHERE record_id = ?",
+                (pipeline.record_id(key),),
+            )
+        )
+        assert actual == expected
+
+
 def test_the_two_claim_lists_land_in_two_databases_not_one(pipeline):
     """A digest's infrastructure claims must not appear beside its domain ones.
 
@@ -572,26 +585,10 @@ def test_a_described_origin_is_stored_as_anonymous_whatever_the_digest_called_it
 
 
 # ---------------------------------------------------------------------------
-# THE KNOWN LOSSES.
-#
-# Each of these asserts the behaviour we want, is marked strict-xfail because we
-# do not have it, and names the change that would make it pass. A strict xfail
-# fails the run if it starts passing, so the marker cannot outlive the defect.
+# THE PREVIOUSLY KNOWN LOSSES, NOW REQUIRED PRESERVATION.
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "claim_node_refs.salience is never written. Everything upstream of the "
-        "insert has the value: the extractor emits a role per ref, "
-        "parse_digest_yaml turns them into `ref_roles`, and the graph Claim "
-        "model declares a `ref_roles` field. import_extraction resolves refs to "
-        "ids without them and database.insert_claim writes (claim_id, node_id) "
-        "only - assimilator/database.py:696-700. Fix: carry ref_roles through "
-        "import_extraction and write the third column."
-    ),
-)
 def test_the_role_a_node_plays_in_a_claim_reaches_the_edge_that_records_it(pipeline):
     """A ref's role is the difference between a claim's subject and a name in it.
 
@@ -608,18 +605,6 @@ def test_the_role_a_node_plays_in_a_claim_reaches_the_edge_that_records_it(pipel
     assert values == {"subject", "participant", "setting", "mentioned"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "origin_ref has no column on claims. It is built into the ProvenanceChain "
-        "at assimilator/import_markdown.py:1075 and then discarded by "
-        "database.insert_claim, which writes origin_kind, origin and relay only. "
-        "Fix: add the column, carry it in insert_claim and update_claim_chain, and "
-        "key the anonymous branch of database.provenance_root and "
-        "independence._root on (record_id, origin_ref) rather than collapsing "
-        "every anonymous origin to one root."
-    ),
-)
 def test_two_distinct_anonymous_sources_in_one_record_count_as_two_sources(pipeline):
     """The loss shows up as a WRONG NUMBER, not as a missing column.
 
@@ -657,17 +642,6 @@ def test_two_distinct_anonymous_sources_in_one_record_count_as_two_sources(pipel
     assert scored.sources == 3
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "attribution_in_text reaches no consumer. The parser passes it through "
-        "(anomalica_common/digest/yaml_format.py, _CLAIM_RENAMED carries unknown "
-        "keys), the claims table has no column for it, and insert_claim never "
-        "looks. Fix: add the column, carry it on the Claim model into "
-        "insert_claim, and read it where a renderer asks attribution_mode how a "
-        "claim may be shown."
-    ),
-)
 def test_the_graph_can_say_how_a_claim_may_be_rendered(pipeline):
     """The consequence, not the absence: every claim that rests on its source
     reads `unknown` from the graph, whatever the digest declared.
@@ -875,6 +849,7 @@ def test_changed_unknown_digest_is_inherited_and_blocks_metered_article_job(
     article = {
         "built_from": {
             "brief_hash": brief["brief_hash"],
+            "payload_hash": brief["payload_hash"],
             "claims": claims,
         },
         "built_by": {"body_sha256": hashlib.sha256(b"prose").hexdigest()},

@@ -34,15 +34,37 @@ def _parsed(claims):
     }
 
 
-def _claim(cid, content, refs=("David Fravor",), speaker="David Fravor"):
-    return {
+def _claim(
+    cid,
+    content,
+    refs=("David Fravor",),
+    speaker="David Fravor",
+    ref_roles=None,
+    origin_ref="",
+    attribution_in_text=None,
+    claim_role=None,
+    confidence=1.0,
+):
+    claim = {
         "id": cid,
         "content": content,
         "claim_type": "testimony",
         "attestation": "first_hand",
         "speaker": speaker,
         "node_references": list(refs),
+        "ref_roles": ref_roles,
+        "provenance_chain": {
+            "origin_kind": "anonymous",
+            "origin": "a source",
+            "origin_ref": origin_ref,
+            "relay": [],
+        },
+        "claim_role": claim_role,
+        "confidence": confidence,
     }
+    if attribution_in_text is not None:
+        claim["attribution_in_text"] = attribution_in_text
+    return claim
 
 
 def _conn():
@@ -89,6 +111,50 @@ def test_identical_reimport_carries_forward_and_does_not_duplicate():
     assert counts["claims_created"] == 0
     assert counts["claims_deleted"] == 0
     assert _claim_ids(conn) == ids_before  # original uuids carried forward
+
+
+def test_identical_reimport_refreshes_roles_provenance_identity_and_attribution():
+    conn = _conn()
+    import_extraction(conn, _parsed([_claim("c1", "Held radar 12 min.")]))
+    claim_id = next(iter(_claim_ids(conn)))
+
+    counts = import_extraction(
+        conn,
+        _parsed(
+            [
+                _claim(
+                    "x1",
+                    "Held radar 12 min.",
+                    ref_roles={"David Fravor": "subject"},
+                    origin_ref="radar-source-1",
+                    attribution_in_text=True,
+                    claim_role="witness_testimony",
+                    confidence=0.8,
+                )
+            ]
+        ),
+    )
+
+    assert counts["claims_carried"] == 1
+    assert _claim_ids(conn) == {claim_id}
+    assert conn.execute(
+        "SELECT origin_ref, attribution_in_text, claim_role, confidence "
+        "FROM claims WHERE id = ?",
+        (claim_id,),
+    ).fetchone() == ("radar-source-1", 1, "witness_testimony", 0.8)
+    assert conn.execute(
+        "SELECT salience FROM claim_node_refs WHERE claim_id = ?", (claim_id,)
+    ).fetchone() == ("subject",)
+
+    import_extraction(conn, _parsed([_claim("y1", "Held radar 12 min.")]))
+    assert conn.execute(
+        "SELECT origin_ref, attribution_in_text, claim_role, confidence "
+        "FROM claims WHERE id = ?",
+        (claim_id,),
+    ).fetchone() == ("", None, None, 1.0)
+    assert conn.execute(
+        "SELECT salience FROM claim_node_refs WHERE claim_id = ?", (claim_id,)
+    ).fetchone() == (None,)
 
 
 def test_changed_claim_replaces_only_itself():

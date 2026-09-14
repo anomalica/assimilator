@@ -26,11 +26,12 @@ from anomalica_common.digest.models import (
     Record,
 )
 from assimilator.database import init_db, insert_claim, insert_node, insert_record
-from assimilator.synthesise import build_entity_brief
+from assimilator.synthesise import brief_payload_hash, build_entity_brief
 
 ANONYMOUS_CHAIN = ProvenanceChain(
     origin_kind=OriginKind.anonymous,
     origin="a person claiming to work inside the Defense Intelligence Agency",
+    origin_ref="source-1",
     relay=["an email", "an intermediary known to the speaker"],
 )
 
@@ -63,6 +64,7 @@ def test_chain_reaches_the_brief_intact():
     assert chain["origin"] == (
         "a person claiming to work inside the Defense Intelligence Agency"
     )
+    assert chain["origin_ref"] == "source-1"
     assert chain["relay"] == ["an email", "an intermediary known to the speaker"]
 
 
@@ -78,6 +80,101 @@ def test_anonymous_claim_is_never_bare():
     )
     assert claim["attribution_mode"] == "unknown"
     assert claim["attribution_mode"] != "bare_ok"
+
+
+def test_declared_attribution_in_text_reaches_the_brief():
+    claim = _brief_with_claim(
+        content="An anonymous source said the filmed entity came from Tau Ceti.",
+        claim_type=ClaimType.testimony,
+        provenance_chain=ANONYMOUS_CHAIN,
+        attribution_in_text=True,
+    )
+    assert claim["attribution_mode"] == "in_text"
+
+
+def test_reference_role_reaches_the_brief():
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    subject = insert_node(conn, Node(node_type=NodeType.person, name="Subject"))
+    place = insert_node(conn, Node(node_type=NodeType.place, name="Test Range"))
+    record = insert_record(conn, Record(title="A Log"))
+    insert_claim(
+        conn,
+        Claim(
+            content="Subject observed a light at Test Range.",
+            claim_type=ClaimType.observation,
+            record_id=record.id,
+            node_references=[subject.id, place.id],
+            ref_roles={subject.id: "subject", place.id: "setting"},
+        ),
+    )
+    conn.commit()
+
+    claim = build_entity_brief(conn, subject.id)["claims"][0]
+    assert {ref["title"]: ref["role"] for ref in claim["node_refs"]} == {
+        "Subject": "subject",
+        "Test Range": "setting",
+    }
+
+
+def test_context_only_changes_preserve_the_contract_hash_but_change_the_payload():
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    subject = insert_node(conn, Node(node_type=NodeType.person, name="Subject"))
+    record = insert_record(conn, Record(title="A Log"))
+    inserted = insert_claim(
+        conn,
+        Claim(
+            content="A source described the light.",
+            claim_type=ClaimType.testimony,
+            record_id=record.id,
+            node_references=[subject.id],
+            ref_roles={subject.id: "mentioned"},
+            provenance_chain=ANONYMOUS_CHAIN,
+            attribution_in_text=None,
+        ),
+    )
+    conn.commit()
+    before = build_entity_brief(conn, subject.id)
+
+    conn.execute(
+        "UPDATE claims SET attribution_in_text = 1 WHERE id = ?", (inserted.id,)
+    )
+    conn.execute(
+        "UPDATE claim_node_refs SET salience = 'subject' WHERE claim_id = ?",
+        (inserted.id,),
+    )
+    after = build_entity_brief(conn, subject.id)
+
+    assert after["brief_hash"] == before["brief_hash"]
+    assert after["payload_hash"] != before["payload_hash"]
+    assert after["claims"] != before["claims"]
+
+
+def test_payload_hash_covers_exact_writer_page_projection():
+    page = {
+        "kind": "entity",
+        "title": "Subject",
+        "slug": "subject",
+        "node_type": "person",
+        "nodes": [{"node_id": "n1", "name": "Subject", "node_type": "person"}],
+        "listing": {"sort_name": "Subject"},
+        "claim_count": 1,
+    }
+    baseline = brief_payload_hash(page, [{"claim_id": "c1"}], [])
+
+    assert (
+        brief_payload_hash({**page, "title": "Renamed"}, [{"claim_id": "c1"}], [])
+        != baseline
+    )
+    assert (
+        brief_payload_hash(
+            {**page, "listing": {"sort_name": "Different"}, "claim_count": 99},
+            [{"claim_id": "c1"}],
+            [],
+        )
+        == baseline
+    )
 
 
 def test_conduit_claim_is_bare_ok():

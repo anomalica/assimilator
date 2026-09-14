@@ -93,6 +93,13 @@ def test_insert_record_and_claim():
             record_id=record.id,
             speaker_id=node.id,
             node_references=[node.id],
+            ref_roles={node.id: "subject"},
+            provenance_chain=ProvenanceChain(
+                origin_kind=OriginKind.anonymous,
+                origin="a duty officer",
+                origin_ref="duty-officer-1",
+            ),
+            attribution_in_text=True,
         ),
     )
     conn.commit()
@@ -101,6 +108,18 @@ def test_insert_record_and_claim():
     assert len(claims) == 1
     assert claims[0].content == "Alice saw something."
     assert claims[0].node_references == [node.id]
+    assert claims[0].ref_roles == {node.id: "subject"}
+    assert claims[0].provenance_chain.origin_ref == "duty-officer-1"
+    assert claims[0].attribution_in_text is True
+    assert conn.execute(
+        "SELECT salience FROM claim_node_refs WHERE claim_id = ? AND node_id = ?",
+        (claims[0].id, node.id),
+    ).fetchone() == ("subject",)
+
+    by_record = get_claims_for_record(conn, record.id)[0]
+    assert by_record.ref_roles == {node.id: "subject"}
+    assert by_record.provenance_chain.origin_ref == "duty-officer-1"
+    assert by_record.attribution_in_text is True
 
 
 def _first_hand(origin: str = "") -> ProvenanceChain:
@@ -453,12 +472,20 @@ def test_claim_role_migration_on_legacy_db():
             metadata TEXT,
             created_at TEXT NOT NULL
         );
+        CREATE TABLE claim_node_refs (
+            claim_id TEXT NOT NULL REFERENCES claims(id),
+            node_id TEXT NOT NULL REFERENCES nodes(id),
+            PRIMARY KEY (claim_id, node_id)
+        );
+        INSERT INTO nodes (id, node_type, name, created_at)
+            VALUES ('n1', 'person', 'Legacy person', '2025-01-01T00:00:00+00:00');
         INSERT INTO records (id, title, created_at)
             VALUES ('r1', 'Legacy record', '2025-01-01T00:00:00+00:00');
         INSERT INTO claims (id, content, claim_type, attestation,
             record_id, confidence, created_at)
             VALUES ('c1', 'legacy claim', 'observation', 'first_hand',
                     'r1', 1.0, '2025-01-01T00:00:00+00:00');
+        INSERT INTO claim_node_refs (claim_id, node_id) VALUES ('c1', 'n1');
         """
     )
     conn.commit()
@@ -470,11 +497,16 @@ def test_claim_role_migration_on_legacy_db():
 
     cols_after = [r[1] for r in conn.execute("PRAGMA table_info(claims)").fetchall()]
     assert "claim_role" in cols_after
+    assert "origin_ref" in cols_after
+    assert "attribution_in_text" in cols_after
     # Existing claim survives unchanged with a NULL role
     row = conn.execute(
         "SELECT content, claim_role FROM claims WHERE id = 'c1'"
     ).fetchone()
     assert row == ("legacy claim", None)
+    assert conn.execute(
+        "SELECT claim_id, node_id, salience FROM claim_node_refs"
+    ).fetchone() == ("c1", "n1", None)
 
     # Idempotent: re-running init_db is a no-op
     init_db(conn)

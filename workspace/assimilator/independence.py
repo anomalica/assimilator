@@ -75,7 +75,7 @@ def _root(row: tuple, aliases: dict[str, str]) -> tuple[str, str] | None:
     root would read as one shared source and quietly corroborate everything
     pre-0044 with everything else.
     """
-    speaker_id, record_id, origin_kind, origin = row
+    speaker_id, record_id, origin_kind, origin, _origin_ref = row
     if not origin_kind:
         return None
     if origin_kind in ("speaker", "unattributed"):
@@ -113,7 +113,8 @@ def independence_for_nodes(
 
     rows = conn.execute(
         f"""
-        SELECT x.node_id, c.speaker_id, c.record_id, c.origin_kind, c.origin
+        SELECT x.node_id, c.speaker_id, c.record_id, c.origin_kind, c.origin,
+               c.origin_ref
           FROM (
               SELECT node_id, claim_id FROM claim_node_refs
               UNION
@@ -127,9 +128,20 @@ def independence_for_nodes(
     ).fetchall()
 
     roots: dict[str, set] = {}
+    anonymous_refs: dict[str, dict[str, set[str]]] = {}
+    anonymous_records: dict[str, set[str]] = {}
     scored: dict[str, int] = {}
     unscored: dict[str, int] = {}
     for node_id, *claim_row in rows:
+        _speaker_id, record_id, origin_kind, _origin, origin_ref = claim_row
+        if origin_kind == "anonymous":
+            anonymous_records.setdefault(node_id, set()).add(record_id)
+            if origin_ref:
+                anonymous_refs.setdefault(node_id, {}).setdefault(record_id, set()).add(
+                    origin_ref
+                )
+            scored[node_id] = scored.get(node_id, 0) + 1
+            continue
         root = _root(tuple(claim_row), aliases)
         if root is None:
             unscored[node_id] = unscored.get(node_id, 0) + 1
@@ -140,8 +152,17 @@ def independence_for_nodes(
     out: dict[str, Independence] = {}
     for node_id in set(scored) | set(unscored):
         n_scored = scored.get(node_id, 0)
+        anonymous_count = max(
+            (
+                max(1, len(anonymous_refs.get(node_id, {}).get(record_id, set())))
+                for record_id in anonymous_records.get(node_id, set())
+            ),
+            default=0,
+        )
         out[node_id] = Independence(
-            sources=len(roots[node_id]) if n_scored else None,
+            sources=(len(roots.get(node_id, set())) + anonymous_count)
+            if n_scored
+            else None,
             scored_claims=n_scored,
             unscored_claims=unscored.get(node_id, 0),
         )

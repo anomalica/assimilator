@@ -28,6 +28,7 @@ from assimilator.database import (
     insert_record,
     put_digest_import_receipt,
     update_claim_chain,
+    update_claim_context,
     update_claim_entailment,
     update_claim_hash,
 )
@@ -772,6 +773,11 @@ def import_extraction(
             c["node_references"] = [
                 name_rewrites.get(r, r) for r in c.get("node_references", [])
             ]
+            if c.get("ref_roles"):
+                c["ref_roles"] = {
+                    name_rewrites.get(name, name): role
+                    for name, role in c["ref_roles"].items()
+                }
             rewritten.append(c)
         return rewritten
 
@@ -1037,17 +1043,24 @@ def import_extraction(
     for claim_def in claims:
         # Resolve node references by name
         ref_ids = []
+        resolved_ref_roles = {}
+        source_ref_roles = claim_def.get("ref_roles") or {}
         for ref_name in claim_def.get("node_references", []):
+            resolved_id = None
             if ref_name in node_name_to_id:
-                ref_ids.append(node_name_to_id[ref_name])
+                resolved_id = node_name_to_id[ref_name]
             else:
                 for lookup_conn in all_conns:
                     ref_match = match_node(lookup_conn, ref_name, record_id=record.id)
                     if ref_match:
                         local_id = _materialise_locally(conn, lookup_conn, ref_match[0])
-                        ref_ids.append(local_id)
+                        resolved_id = local_id
                         node_name_to_id[ref_name] = local_id
                         break
+            if resolved_id:
+                ref_ids.append(resolved_id)
+                if role := source_ref_roles.get(ref_name):
+                    resolved_ref_roles[resolved_id] = role
 
         # Resolve speaker
         speaker_id = None
@@ -1111,8 +1124,10 @@ def import_extraction(
             id=claim_def["id"],
             content=claim_def["content"],
             provenance_chain=chain,
+            attribution_in_text=claim_def.get("attribution_in_text"),
             original_excerpt=claim_def.get("original_excerpt"),
             claim_type=claim_def["claim_type"],
+            claim_role=claim_def.get("claim_role"),
             attestation=claim_def.get("attestation"),
             record_id=record.id,
             speaker_id=speaker_id,
@@ -1120,6 +1135,8 @@ def import_extraction(
             date=claim_def.get("date"),
             date_end=claim_def.get("date_end"),
             node_references=ref_ids,
+            ref_roles=resolved_ref_roles or None,
+            confidence=claim_def.get("confidence", 1.0),
         )
         chash = claim_hash(
             content=claim.content,
@@ -1156,6 +1173,14 @@ def import_extraction(
             # their digests carried a chain on 87% of them.
             claim_id, _created = pool.pop()
             update_claim_chain(conn, claim_id, claim.provenance_chain)
+            update_claim_context(
+                conn,
+                claim_id,
+                claim.ref_roles,
+                claim.attribution_in_text,
+                claim.claim_role,
+                claim.confidence,
+            )
             update_claim_entailment(conn, claim_id, entailment)
             carried.append((claim, chash))
         else:

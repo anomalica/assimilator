@@ -97,6 +97,38 @@ def test_every_anonymous_origin_collapses_to_one_root(conn):
     assert independence_for_nodes(conn, ["subject"])["subject"].sources == 1
 
 
+def test_origin_refs_split_anonymous_sources_only_within_one_record(conn):
+    _claim(
+        conn,
+        "c1",
+        "r1",
+        ProvenanceChain(
+            origin_kind="anonymous", origin="a controller", origin_ref="controller-1"
+        ),
+    )
+    _claim(
+        conn,
+        "c2",
+        "r1",
+        ProvenanceChain(
+            origin_kind="anonymous", origin="a technician", origin_ref="technician-1"
+        ),
+    )
+    # Different source-local handles in another record cannot prove two more
+    # global sources. The conservative count is the maximum distinct set in any
+    # one record, not the sum across records.
+    _claim(
+        conn,
+        "c3",
+        "r2",
+        ProvenanceChain(
+            origin_kind="anonymous", origin="a witness", origin_ref="witness-1"
+        ),
+    )
+
+    assert independence_for_nodes(conn, ["subject"])["subject"].sources == 2
+
+
 def test_distinct_speakers_are_distinct_sources(conn):
     """The other direction: independence must still RISE where the evidence
     supports it, or the measure is just a constant."""

@@ -425,11 +425,27 @@ def brief_hash(
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
+def brief_payload_hash(
+    page: dict, claims: list[dict], related_nodes: list[dict]
+) -> str:
+    """Fingerprint the complete stable input consumed by the article writer."""
+    writer_page = {
+        key: page.get(key) for key in ("kind", "title", "slug", "node_type", "nodes")
+    }
+    blob = json.dumps(
+        {"page": writer_page, "claims": claims, "related_nodes": related_nodes},
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
 def _claim_node_refs(
     conn: sqlite3.Connection, claim_id: str, slug_map: dict[str, str]
 ) -> list[dict]:
     rows = conn.execute(
-        "SELECT n.id, n.name, n.metadata FROM claim_node_refs cnr "
+        "SELECT n.id, n.name, n.metadata, cnr.salience FROM claim_node_refs cnr "
         "JOIN nodes n ON n.id = cnr.node_id WHERE cnr.claim_id = ?",
         (claim_id,),
     ).fetchall()
@@ -441,6 +457,7 @@ def _claim_node_refs(
             "node_id": r[0],
             "title": r[1],
             "slug": slug_map.get(r[0]) or node_slug(r[1], r[2]),
+            "role": r[3],
         }
         for r in rows
     ]
@@ -524,10 +541,9 @@ def _attribution_mode(
 
     ``attribution_in_text`` is DECLARED by the extraction model - the thing that
     wrote the sentence is the only thing that can say what is in the sentence. It is
-    not yet carried on the claim (it lands with the post-0044 extraction schema), so
-    we pass None until the column exists. That is fail-closed, not a gap: with no
-    declared flag, a claim whose truth rests on its attribution (anonymous, hearsay,
-    opinion, second-/third-hand) resolves to `unknown` rather than being asserted.
+    carried on the claim. Legacy rows retain None and therefore fail closed: a claim
+    whose truth rests on its attribution resolves to `unknown` rather than being
+    asserted.
     """
     return common_attribution_mode(
         claim_type=claim_type,
@@ -590,7 +606,7 @@ def build_entity_brief(
                c.record_id, r.title, r.date, r.reference, r.content_hash, r.friendly_name,
                c.origin_kind, c.origin, c.relay, COALESCE(r.work_id, c.record_id),
                c.entailment_label, c.entailment_score, c.entailment_model,
-               c.entailment_premise
+               c.entailment_premise, c.origin_ref, c.attribution_in_text
         FROM claims c
         LEFT JOIN records r ON r.id = c.record_id
         LEFT JOIN nodes sp ON sp.id = c.speaker_id
@@ -683,80 +699,86 @@ def build_entity_brief(
             _ent_score,
             _ent_model,
             _ent_premise,
+            origin_ref,
+            attribution_in_text,
         ) = row
-        claims.append(
-            {
-                "claim_id": cid,
-                "claim_hash": chash,
-                "content": content,
-                "original_excerpt": excerpt,
-                "claim_type": claim_type,
-                "attestation": attestation,
-                "speaker": {"node_id": speaker_id, "title": speaker_name}
-                if speaker_id
-                else None,
-                # The claim's own chain (ADR 0044) - who asserted it and through
-                # whom it reached the speaker. Distinct from `provenance` below,
-                # which is the RECORD's source metadata. Null when the digest
-                # predates 0044. `attribution_mode` is the derived rendering
-                # contract: in_text | bare_ok | unknown - see attribution_mode().
-                "provenance_chain": {
-                    "origin_kind": origin_kind,
-                    "origin": origin or "",
-                    "relay": json.loads(relay) if relay else [],
-                }
-                if origin_kind
-                else None,
-                "attribution_mode": _attribution_mode(
-                    origin_kind, claim_type, attestation
-                ),
-                # INTERNAL AUDIT SIGNAL, NOT READER-FACING. Do not render this
-                # or hedge prose on it: whether WE have checked a claim belongs
-                # is a fact about our process, not about the evidence, and a
-                # misattached claim is still correctly attributed to its source -
-                # it is simply in the wrong article, which no qualifier in the
-                # text can fix. The protection is the suspect EXCLUSION above,
-                # or nothing. (Settled with the assembler, 2026-09-01.)
-                #
-                # Whether this claim BELONGS on this page's node, as distinct
-                # from being ATTACHED to it. "unreviewed" is NOT "verified":
-                # a consumer asserting an unreviewed claim in its own voice is
-                # making a judgement and should say so, and a "suspect" claim
-                # must not be asserted at all. See database.claim_ref_status.
-                "attachment": ref_status.get(cid, "unreviewed"),
-                # The digester's check that the excerpt supports the claim as
-                # written. Absent when not assessed, as in the digest. Shown,
-                # not weighted: the evidence score's definition is Mark's.
-                **(
-                    {
-                        "entailment": {
-                            "label": row[_COL_ENTAILMENT],
-                            "score": row[_COL_ENTAILMENT + 1],
-                            "model": row[_COL_ENTAILMENT + 2],
-                            "premise": row[_COL_ENTAILMENT + 3],
-                        }
-                    }
-                    if row[_COL_ENTAILMENT]
-                    else {}
-                ),
-                "node_refs": _claim_node_refs(conn, cid, slug_map),
-                "date": date,
-                "date_end": date_end,
-                "location_in_record": location,
-                "evidence": {
-                    "score": None,  # neutral until algorithmic-evidence-scoring pins
-                    "independent_sources": get_independent_source_count(conn, cid),
-                },
-                "provenance": {
-                    "record_id": rec_id,
-                    "record_title": rtitle,
-                    "record_date": rdate,
-                    "record_reference": rref,
-                    "content_hash": rhash,
-                    "friendly_name": rfriendly,
-                },
+        node_refs = _claim_node_refs(conn, cid, slug_map)
+        claim_payload = {
+            "claim_id": cid,
+            "claim_hash": chash,
+            "content": content,
+            "original_excerpt": excerpt,
+            "claim_type": claim_type,
+            "attestation": attestation,
+            "speaker": {"node_id": speaker_id, "title": speaker_name}
+            if speaker_id
+            else None,
+            # The claim's own chain (ADR 0044) - who asserted it and through
+            # whom it reached the speaker. Distinct from `provenance` below,
+            # which is the RECORD's source metadata. Null when the digest
+            # predates 0044. `attribution_mode` is the derived rendering
+            # contract: in_text | bare_ok | unknown - see attribution_mode().
+            "provenance_chain": {
+                "origin_kind": origin_kind,
+                "origin": origin or "",
+                "origin_ref": origin_ref or "",
+                "relay": json.loads(relay) if relay else [],
             }
-        )
+            if origin_kind
+            else None,
+            "attribution_mode": _attribution_mode(
+                origin_kind,
+                claim_type,
+                attestation,
+                bool(attribution_in_text) if attribution_in_text is not None else None,
+            ),
+            # INTERNAL AUDIT SIGNAL, NOT READER-FACING. Do not render this
+            # or hedge prose on it: whether WE have checked a claim belongs
+            # is a fact about our process, not about the evidence, and a
+            # misattached claim is still correctly attributed to its source -
+            # it is simply in the wrong article, which no qualifier in the
+            # text can fix. The protection is the suspect EXCLUSION above,
+            # or nothing. (Settled with the assembler, 2026-09-01.)
+            #
+            # Whether this claim BELONGS on this page's node, as distinct
+            # from being ATTACHED to it. "unreviewed" is NOT "verified":
+            # a consumer asserting an unreviewed claim in its own voice is
+            # making a judgement and should say so, and a "suspect" claim
+            # must not be asserted at all. See database.claim_ref_status.
+            "attachment": ref_status.get(cid, "unreviewed"),
+            # The digester's check that the excerpt supports the claim as
+            # written. Absent when not assessed, as in the digest. Shown,
+            # not weighted: the evidence score's definition is Mark's.
+            **(
+                {
+                    "entailment": {
+                        "label": row[_COL_ENTAILMENT],
+                        "score": row[_COL_ENTAILMENT + 1],
+                        "model": row[_COL_ENTAILMENT + 2],
+                        "premise": row[_COL_ENTAILMENT + 3],
+                    }
+                }
+                if row[_COL_ENTAILMENT]
+                else {}
+            ),
+            "node_refs": node_refs,
+            "date": date,
+            "date_end": date_end,
+            "location_in_record": location,
+            "evidence": {
+                "score": None,  # neutral until algorithmic-evidence-scoring pins
+                "independent_sources": get_independent_source_count(conn, cid),
+            },
+            "provenance": {
+                "record_id": rec_id,
+                "record_title": rtitle,
+                "record_date": rdate,
+                "record_reference": rref,
+                "content_hash": rhash,
+                "friendly_name": rfriendly,
+            },
+        }
+        claims.append(claim_payload)
         ordered_pairs.append((cid, chash or ""))
 
     related = conn.execute(
@@ -795,28 +817,30 @@ def build_entity_brief(
         )
         if row
     ]
+    page_data = {
+        "kind": "entity",
+        # A PAGE COVERS A LIST OF NODES (brief/2): one entry for an ordinary
+        # page, several for a composed one, never absent. A consumer acting
+        # on a covered node must act on EVERY entry - under the old singular
+        # field a page whose second member was retired or vetoed stayed up
+        # and kept publishing that member's claims.
+        "nodes": [
+            {"node_id": r[0], "name": r[1], "node_type": r[2]} for r in member_rows
+        ],
+        "node_type": page.get("node_type") or node_type,
+        # The PAGE's own name, never a member's: a title lifted from a
+        # member would silently rename the page, and move its URL, when a
+        # member is added or removed.
+        "title": page_title(page.get("name") or name),
+        "slug": page.get("slug") or _slug(nid, name, metadata),
+        "claim_count": len(claims),
+        "claim_count_total": claim_count_total,
+    }
     brief = {
         "schema": SCHEMA,
         "brief_hash": brief_hash(members, "entity", ordered_pairs),
-        "page": {
-            "kind": "entity",
-            # A PAGE COVERS A LIST OF NODES (brief/2): one entry for an ordinary
-            # page, several for a composed one, never absent. A consumer acting
-            # on a covered node must act on EVERY entry - under the old singular
-            # field a page whose second member was retired or vetoed stayed up
-            # and kept publishing that member's claims.
-            "nodes": [
-                {"node_id": r[0], "name": r[1], "node_type": r[2]} for r in member_rows
-            ],
-            "node_type": page.get("node_type") or node_type,
-            # The PAGE's own name, never a member's: a title lifted from a
-            # member would silently rename the page, and move its URL, when a
-            # member is added or removed.
-            "title": page_title(page.get("name") or name),
-            "slug": page.get("slug") or _slug(nid, name, metadata),
-            "claim_count": len(claims),
-            "claim_count_total": claim_count_total,
-        },
+        "payload_hash": brief_payload_hash(page_data, claims, related_nodes),
+        "page": page_data,
         "generated": {"graph_version": _graph_version(conn)},
         # How big this brief is AS A CONSUMER RENDERS IT (claim text plus a
         # line of framing per claim - see _claim_token_cost), so a consumer can

@@ -108,7 +108,12 @@ CREATE TABLE IF NOT EXISTS claims (
     -- (the record text around it, tried when the quote alone is neutral). An
     -- entails-by-window is the weaker verdict, so the entailed fraction is
     -- always reported split by premise, never as one number.
-    entailment_premise TEXT
+    entailment_premise TEXT,
+    -- Appended so fresh and migrated databases retain the positional layout used
+    -- by _row_to_claim. origin_ref is source-local (ADR 0044); attribution is the
+    -- writer's nullable declaration, not a value consumers may infer.
+    origin_ref TEXT,
+    attribution_in_text INTEGER CHECK (attribution_in_text IN (0, 1))
 );
 
 -- salience: what ROLE the node plays in this claim, which the edge alone never
@@ -483,6 +488,15 @@ def init_db(conn: sqlite3.Connection) -> None:
         ):
             if column not in cols:
                 conn.execute(f"ALTER TABLE claims ADD COLUMN {column} {kind}")
+        for column, kind in (
+            ("origin_ref", "TEXT"),
+            (
+                "attribution_in_text",
+                "INTEGER CHECK (attribution_in_text IN (0, 1))",
+            ),
+        ):
+            if column not in cols:
+                conn.execute(f"ALTER TABLE claims ADD COLUMN {column} {kind}")
     relations_exist = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='record_relations'"
     ).fetchone()
@@ -732,8 +746,8 @@ def insert_claim(
         "INSERT INTO claims (id, content, original_excerpt, claim_type, attestation, record_id, speaker_id, "
         "location_in_record, date, date_end, claim_hash, confidence, metadata, created_at, claim_role, "
         "origin_kind, origin, relay, entailment_label, entailment_score, "
-        "entailment_model, entailment_premise) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "entailment_model, entailment_premise, origin_ref, attribution_in_text) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             claim.id,
             claim.content,
@@ -757,12 +771,15 @@ def insert_claim(
             ent.get("score"),
             ent.get("model"),
             ent.get("premise"),
+            chain.origin_ref if chain else None,
+            claim.attribution_in_text,
         ),
     )
     for node_id in claim.node_references:
         conn.execute(
-            "INSERT OR IGNORE INTO claim_node_refs (claim_id, node_id) VALUES (?, ?)",
-            (claim.id, node_id),
+            "INSERT OR IGNORE INTO claim_node_refs (claim_id, node_id, salience) "
+            "VALUES (?, ?, ?)",
+            (claim.id, node_id, (claim.ref_roles or {}).get(node_id)),
         )
     return claim.model_copy(update={"created_at": datetime.fromisoformat(now)})
 
@@ -830,14 +847,46 @@ def update_claim_chain(
     changed) matches by hash and keeps the stale value indefinitely.
     """
     conn.execute(
-        "UPDATE claims SET origin_kind = ?, origin = ?, relay = ? WHERE id = ?",
+        "UPDATE claims SET origin_kind = ?, origin = ?, relay = ?, origin_ref = ? "
+        "WHERE id = ?",
         (
             chain.origin_kind.value if chain else None,
             chain.origin if chain else None,
             json.dumps(chain.relay) if chain and chain.relay else None,
+            chain.origin_ref if chain else None,
             claim_id,
         ),
     )
+
+
+def update_claim_context(
+    conn: sqlite3.Connection,
+    claim_id: str,
+    ref_roles: dict[str, str] | None,
+    attribution_in_text: bool | None,
+    claim_role: ClaimRole | None,
+    confidence: float,
+) -> None:
+    """Refresh digest context excluded from the semantic claim hash."""
+    conn.execute(
+        "UPDATE claims SET attribution_in_text = ?, claim_role = ?, confidence = ? "
+        "WHERE id = ?",
+        (
+            attribution_in_text,
+            claim_role.value if claim_role else None,
+            confidence,
+            claim_id,
+        ),
+    )
+    roles = ref_roles or {}
+    rows = conn.execute(
+        "SELECT node_id FROM claim_node_refs WHERE claim_id = ?", (claim_id,)
+    ).fetchall()
+    for (node_id,) in rows:
+        conn.execute(
+            "UPDATE claim_node_refs SET salience = ? WHERE claim_id = ? AND node_id = ?",
+            (roles.get(node_id), claim_id, node_id),
+        )
 
 
 def update_claim_hash(conn: sqlite3.Connection, claim_id: str, claim_hash: str) -> None:
@@ -857,7 +906,7 @@ def get_claims_for_node(conn: sqlite3.Connection, node_id: str) -> list[Claim]:
     claims = []
     for row in rows:
         claim = _row_to_claim(row)
-        claim.node_references = _get_claim_refs(conn, claim.id)
+        claim.node_references, claim.ref_roles = _get_claim_refs(conn, claim.id)
         claims.append(claim)
     return claims
 
@@ -869,7 +918,7 @@ def get_claims_for_record(conn: sqlite3.Connection, record_id: str) -> list[Clai
     claims = []
     for row in rows:
         claim = _row_to_claim(row)
-        claim.node_references = _get_claim_refs(conn, claim.id)
+        claim.node_references, claim.ref_roles = _get_claim_refs(conn, claim.id)
         claims.append(claim)
     return claims
 
@@ -955,7 +1004,36 @@ def get_independent_source_count(conn: sqlite3.Connection, claim_id: str) -> int
     reporting one press release is one source, not ten."""
     corroborated = get_corroborations(conn, claim_id)
     all_claim_ids = [claim_id] + [cid for cid, _ in corroborated]
-    return len({provenance_root(conn, cid) for cid in all_claim_ids})
+    rows = conn.execute(
+        f"SELECT speaker_id, record_id, origin_kind, origin, origin_ref FROM claims "
+        f"WHERE id IN ({','.join('?' for _ in all_claim_ids)})",  # noqa: S608
+        all_claim_ids,
+    ).fetchall()
+    roots = set()
+    anonymous_by_record: dict[str, set[str]] = {}
+    anonymous_records: set[str] = set()
+    for speaker_id, record_id, origin_kind, origin, origin_ref in rows:
+        if origin_kind == "anonymous":
+            anonymous_records.add(record_id)
+            if origin_ref:
+                anonymous_by_record.setdefault(record_id, set()).add(origin_ref)
+            continue
+        if not origin_kind:
+            roots.add(("unknown", ""))
+        elif origin_kind in ("speaker", "unattributed"):
+            roots.add(("speaker", speaker_id) if speaker_id else ("record", record_id))
+        else:
+            name = (origin or "").strip()
+            node = find_node_by_name(conn, name) if name else None
+            roots.add(("node", node.id) if node else (origin_kind, name.casefold()))
+    anonymous_count = max(
+        (
+            max(1, len(anonymous_by_record.get(record_id, set())))
+            for record_id in anonymous_records
+        ),
+        default=0,
+    )
+    return len(roots) + anonymous_count
 
 
 def get_stats(conn: sqlite3.Connection) -> dict:
@@ -1022,11 +1100,14 @@ def summarise_entailment(groups: list[tuple[str | None, str | None, int]]) -> di
     }
 
 
-def _get_claim_refs(conn: sqlite3.Connection, claim_id: str) -> list[str]:
+def _get_claim_refs(
+    conn: sqlite3.Connection, claim_id: str
+) -> tuple[list[str], dict[str, str] | None]:
     rows = conn.execute(
-        "SELECT node_id FROM claim_node_refs WHERE claim_id = ?", (claim_id,)
+        "SELECT node_id, salience FROM claim_node_refs WHERE claim_id = ?", (claim_id,)
     ).fetchall()
-    return [row[0] for row in rows]
+    roles = {node_id: salience for node_id, salience in rows if salience}
+    return [row[0] for row in rows], roles or None
 
 
 def _row_to_node(row: tuple) -> Node:
@@ -1073,6 +1154,9 @@ def _row_to_claim(row: tuple) -> Claim:
         created_at=datetime.fromisoformat(row[12]),
         claim_role=ClaimRole(row[13]) if len(row) > 13 and row[13] else None,
         provenance_chain=_row_to_chain(row),
+        attribution_in_text=bool(row[23])
+        if len(row) > 23 and row[23] is not None
+        else None,
     )
 
 
@@ -1085,6 +1169,7 @@ def _row_to_chain(row: tuple) -> ProvenanceChain | None:
     return ProvenanceChain(
         origin_kind=OriginKind(row[15]),
         origin=row[16] or "",
+        origin_ref=(row[22] or "") if len(row) > 22 else "",
         relay=json.loads(row[17]) if len(row) > 17 and row[17] else [],
     )
 
