@@ -1,0 +1,178 @@
+{
+  "schema": "anomalica/claim-context-impact/1",
+  "report_only": true,
+  "canonical_activation": "forbidden",
+  "snapshot": {
+    "database": "/home/mark/.local/share/assimilator/knowledge.db",
+    "database_sha256": "1b10dfa6e84d29fee974e267f65fe48139da44c69d43439902080c8f3de7084e",
+    "canonical_digest_count": 157,
+    "graph_bound_digest_count": 156,
+    "published_briefs": "/home/mark/repos/anomalica/content/briefs",
+    "articles": "/home/mark/repos/anomalica/content/pages"
+  },
+  "measured": {
+    "digest_corpus": {
+      "domain_claims": {
+        "claims": 40473,
+        "references": 88757,
+        "claims_with_references": 39964,
+        "claims_with_provenance_chain": 39895,
+        "claims_with_origin_ref": 1548,
+        "claims_with_attribution": 39895,
+        "attribution_true": 15828,
+        "attribution_false": 24067,
+        "claims_with_reference_roles": 935,
+        "references_with_roles": 2101,
+        "anonymous_origin_claims": 1744,
+        "anonymous_origin_without_ref": 250
+      },
+      "infrastructure_claims": {
+        "claims": 2710,
+        "references": 7654,
+        "claims_with_references": 2707,
+        "claims_with_provenance_chain": 2668,
+        "claims_with_origin_ref": 31,
+        "claims_with_attribution": 2668,
+        "attribution_true": 1337,
+        "attribution_false": 1331,
+        "claims_with_reference_roles": 37,
+        "references_with_roles": 93,
+        "anonymous_origin_claims": 34,
+        "anonymous_origin_without_ref": 4
+      },
+      "all_claims": {
+        "claims": 43183,
+        "references": 96411,
+        "claims_with_references": 42671,
+        "claims_with_provenance_chain": 42563,
+        "claims_with_origin_ref": 1579,
+        "claims_with_attribution": 42563,
+        "attribution_true": 17165,
+        "attribution_false": 25398,
+        "claims_with_reference_roles": 972,
+        "references_with_roles": 2194,
+        "anonymous_origin_claims": 1778,
+        "anonymous_origin_without_ref": 254
+      }
+    },
+    "graph": {
+      "records": 156,
+      "claims": 40400,
+      "claim_node_refs": 87326,
+      "origin_ref_present": 0,
+      "attribution_present": 0,
+      "salience_present": 0,
+      "digest_import_receipts": 0
+    },
+    "graph_mapping": {
+      "matched_claims": 40400,
+      "unmatched_graph_claims": 0,
+      "origin_ref_available": 1543,
+      "origin_ref_omitted": 1543,
+      "attribution_available": 39822,
+      "attribution_true_available": 15755,
+      "attribution_false_available": 24067,
+      "attribution_omitted": 39822,
+      "raw_reference_roles_available": 1913,
+      "distinct_reference_roles_available": 1912,
+      "reference_roles_collapsed_on_resolution": 1,
+      "role_edges_available": 1849,
+      "salience_omitted": 1849,
+      "role_references_without_graph_edge": 63
+    },
+    "independence": {
+      "nodes_changed": 223,
+      "proposed_nodes_changed": 96,
+      "total_source_undercount": 625,
+      "maximum_node_undercount": 36,
+      "largest_changes": [
+        {
+          "node_id": "e35bbf74-c136-4298-a2fe-c6d56968b926",
+          "name": "Ross Coulthart",
+          "delta": 36
+        },
+        {
+          "node_id": "87788ebc-018b-47aa-a6e2-a7773c5a3d1d",
+          "name": "Luis Elizondo",
+          "delta": 31
+        },
+        {
+          "node_id": "467aae89-c62d-4faa-aa95-a49b2bcd735f",
+          "name": "Whitley Strieber",
+          "delta": 19
+        },
+        {
+          "node_id": "b9c07d0e-c2cc-40bf-bc17-9987f4942e9e",
+          "name": "Grant Cameron",
+          "delta": 16
+        },
+        {
+          "node_id": "06412ca6-a1b6-411b-9e8b-2100b8c961bd",
+          "name": "Jacques Vallée",
+          "delta": 15
+        },
+        {
+          "node_id": "f8d46a79-bb25-455f-ae28-f8e5f915f322",
+          "name": "R. J. Stewart",
+          "delta": 15
+        },
+        {
+          "node_id": "e1650a1d-8feb-4841-a403-0d71e176d2d9",
+          "name": "Richard C. Hoagland",
+          "delta": 14
+        },
+        {
+          "node_id": "039c59a5-c92b-48c3-9b54-9944e4d81e54",
+          "name": "Richard Doty",
+          "delta": 12
+        },
+        {
+          "node_id": "98bef724-cfbc-458b-812f-02a59097adc9",
+          "name": "Unidentified Flying Object (UFO)",
+          "delta": 12
+        },
+        {
+          "node_id": "8625ca77-9860-40fe-b2fe-6ee74f1b5174",
+          "name": "Jeremy Corbell",
+          "delta": 11
+        }
+      ]
+    },
+    "published_briefs": {
+      "briefs": 805,
+      "with_payload_hash": 0,
+      "attribution_declared_occurrences": 38461,
+      "attribution_true_occurrences": 16297,
+      "origin_ref_occurrences": 1238,
+      "affected": {
+        "origin_ref": 222,
+        "attribution": 746,
+        "salience": 0,
+        "any": 747
+      }
+    },
+    "articles": {
+      "articles": 404,
+      "without_built_from": 130,
+      "with_built_from": 274,
+      "without_payload_hash": 274,
+      "resolving_to_published_brief": 272,
+      "stale_resolved_payload_binding": 272,
+      "without_published_brief": 2,
+      "affected": {
+        "origin_ref": 111,
+        "attribution": 269,
+        "salience": 1,
+        "any": 269
+      }
+    }
+  },
+  "unknowns": [
+    "Anonymous-origin claims without origin_ref cannot be split into source identities from current data.",
+    "Digest references without a graph edge have no row on which salience could have been stored.",
+    "Null roles on references without a digest declaration are unassessed, not non-salient.",
+    "The exact article prose changes are unknown without a metered reassembly run.",
+    "The graph has no digest import receipts, so exact digest-byte/import-generation freshness is unknown.",
+    "New payload hashes bind graph content; they cannot prove digest context was imported before the graph is rebuilt or reconciled."
+  ]
+}
