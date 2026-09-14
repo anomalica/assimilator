@@ -14,8 +14,8 @@ prior_names) - never node ids, which are ephemeral uuid4-per-extraction - becaus
 that is the identity the importer itself resolves entities by. Node ids are
 recorded as an audit snapshot only.
 
-A node id is referenced in exactly four places (re-pointed here): claim_node_refs,
-claims.speaker_id, records.producer_id, aliases.
+A node merge re-points claim refs, speakers, producers and aliases. Claim rows and
+their source/provenance envelope remain unchanged.
 
 Host-runnable: `python -m assimilator.merge --survivor <id> --victims <id,id>
 --name "<canonical>"` and `--undo <merge_id>`. No Claude, no money.
@@ -96,6 +96,20 @@ def _aliases(conn: sqlite3.Connection, node_id: str) -> list[str]:
     ]
 
 
+_SALIENCE_ORDER = {
+    None: 0,
+    "mentioned": 1,
+    "setting": 2,
+    "participant": 3,
+    "subject": 4,
+}
+
+
+def _stronger_salience(a: str | None, b: str | None) -> str | None:
+    """Keep the strongest aboutness when two aliases occur in one claim."""
+    return max((a, b), key=lambda value: _SALIENCE_ORDER[value])
+
+
 # --- The merge operation (live DB) ---
 
 
@@ -123,23 +137,35 @@ def merge_nodes(
         victim_name = victim[0]
 
         victim_claims = {
-            r[0]
+            r[0]: r[1]
             for r in conn.execute(
-                "SELECT claim_id FROM claim_node_refs WHERE node_id = ?", (victim_id,)
+                "SELECT claim_id, salience FROM claim_node_refs WHERE node_id = ?",
+                (victim_id,),
             ).fetchall()
         }
         survivor_claims = {
-            r[0]
+            r[0]: r[1]
             for r in conn.execute(
-                "SELECT claim_id FROM claim_node_refs WHERE node_id = ?", (survivor_id,)
+                "SELECT claim_id, salience FROM claim_node_refs WHERE node_id = ?",
+                (survivor_id,),
             ).fetchall()
         }
-        refs_only_victim = sorted(victim_claims - survivor_claims)
-        refs_both = sorted(victim_claims & survivor_claims)
+        refs_only_victim = sorted(victim_claims.keys() - survivor_claims.keys())
+        refs_both = sorted(victim_claims.keys() & survivor_claims.keys())
         for cid in refs_only_victim:
             conn.execute(
-                "INSERT OR IGNORE INTO claim_node_refs (claim_id, node_id) VALUES (?, ?)",
-                (cid, survivor_id),
+                "INSERT OR IGNORE INTO claim_node_refs (claim_id, node_id, salience) "
+                "VALUES (?, ?, ?)",
+                (cid, survivor_id, victim_claims[cid]),
+            )
+        for cid in refs_both:
+            conn.execute(
+                "UPDATE claim_node_refs SET salience = ? WHERE claim_id = ? AND node_id = ?",
+                (
+                    _stronger_salience(survivor_claims[cid], victim_claims[cid]),
+                    cid,
+                    survivor_id,
+                ),
             )
         conn.execute("DELETE FROM claim_node_refs WHERE node_id = ?", (victim_id,))
 
@@ -191,6 +217,8 @@ def merge_nodes(
             {
                 "refs_only_victim": refs_only_victim,
                 "refs_both": refs_both,
+                "victim_ref_salience": victim_claims,
+                "survivor_ref_salience": survivor_claims,
                 "speaker_claims": speaker_claims,
                 "producer_records": producer_records,
                 "moved_aliases": moved_aliases,
@@ -232,7 +260,8 @@ def undo_merge(conn: sqlite3.Connection, merge_id: str) -> int:
     the number of victims restored."""
     rows = conn.execute(
         "SELECT survivor_id, victim_id, survivor_prior_name, reversal "
-        "FROM node_merges WHERE merge_id = ? AND undone_at IS NULL",
+        "FROM node_merges WHERE merge_id = ? AND undone_at IS NULL "
+        "ORDER BY rowid DESC",
         (merge_id,),
     ).fetchall()
     if not rows:
@@ -241,11 +270,14 @@ def undo_merge(conn: sqlite3.Connection, merge_id: str) -> int:
     survivor_prior_name = rows[0][2]
     for survivor_id, victim_id, survivor_prior_name, reversal_json in rows:
         rev = json.loads(reversal_json)
+        victim_salience = rev.get("victim_ref_salience", {})
+        survivor_salience = rev.get("survivor_ref_salience", {})
         conn.execute("UPDATE nodes SET retired_at = NULL WHERE id = ?", (victim_id,))
         for cid in rev["refs_only_victim"]:
             conn.execute(
-                "INSERT OR IGNORE INTO claim_node_refs (claim_id, node_id) VALUES (?, ?)",
-                (cid, victim_id),
+                "INSERT OR IGNORE INTO claim_node_refs (claim_id, node_id, salience) "
+                "VALUES (?, ?, ?)",
+                (cid, victim_id, victim_salience.get(cid)),
             )
             conn.execute(
                 "DELETE FROM claim_node_refs WHERE claim_id = ? AND node_id = ?",
@@ -253,8 +285,13 @@ def undo_merge(conn: sqlite3.Connection, merge_id: str) -> int:
             )
         for cid in rev["refs_both"]:
             conn.execute(
-                "INSERT OR IGNORE INTO claim_node_refs (claim_id, node_id) VALUES (?, ?)",
-                (cid, victim_id),
+                "INSERT OR IGNORE INTO claim_node_refs (claim_id, node_id, salience) "
+                "VALUES (?, ?, ?)",
+                (cid, victim_id, victim_salience.get(cid)),
+            )
+            conn.execute(
+                "UPDATE claim_node_refs SET salience = ? WHERE claim_id = ? AND node_id = ?",
+                (survivor_salience.get(cid), cid, survivor_id),
             )
         for cid in rev["speaker_claims"]:
             conn.execute(

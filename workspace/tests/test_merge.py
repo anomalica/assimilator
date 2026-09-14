@@ -10,7 +10,14 @@ import yaml
 from assimilator import merge
 
 from assimilator.database import init_db, insert_claim, insert_node, insert_record
-from anomalica_common.digest.models import Claim, Node, NodeType, Record
+from anomalica_common.digest.models import (
+    Claim,
+    Node,
+    NodeType,
+    OriginKind,
+    ProvenanceChain,
+    Record,
+)
 
 _CONFIRMED = {"by": "test", "at": "2026-09-03T03:00:00Z", "via": "workbench-queue"}
 
@@ -32,6 +39,15 @@ def _graph():
             claim_type="observation",
             record_id="r1",
             node_references=["B"],
+            ref_roles={"B": "participant"},
+            location_in_record="00:01:02",
+            date="2004-11-14",
+            provenance_chain=ProvenanceChain(
+                origin_kind=OriginKind.anonymous,
+                origin="a controller",
+                origin_ref="controller-1",
+            ),
+            attribution_in_text=True,
         ),
     )
     insert_claim(
@@ -42,6 +58,7 @@ def _graph():
             claim_type="observation",
             record_id="r1",
             node_references=["A", "B"],
+            ref_roles={"A": "mentioned", "B": "subject"},
         ),
     )
     insert_claim(
@@ -65,12 +82,31 @@ def _refs(conn, node_id):
     }
 
 
+def _edge_rows(conn):
+    return conn.execute(
+        "SELECT claim_id, node_id, salience FROM claim_node_refs ORDER BY claim_id, node_id"
+    ).fetchall()
+
+
+def _claim_envelope(conn):
+    return conn.execute(
+        "SELECT id, content, original_excerpt, claim_type, attestation, record_id, "
+        "location_in_record, date, date_end, confidence, metadata, created_at, "
+        "claim_role, claim_hash, origin_kind, origin, relay, entailment_label, "
+        "entailment_score, entailment_model, entailment_premise, origin_ref, "
+        "attribution_in_text FROM claims ORDER BY id"
+    ).fetchall()
+
+
 def test_merge_repoints_retires_and_renames():
     conn = _graph()
+    envelope = _claim_envelope(conn)
     merge.merge_nodes(conn, "A", ["B"], "2004 Nimitz Encounter", "m1")
     # B's claim refs now on A (c1 moved, c2 already there)
     assert _refs(conn, "A") == {"c1", "c2"}
     assert _refs(conn, "B") == set()
+    assert _edge_rows(conn) == [("c1", "A", "participant"), ("c2", "A", "subject")]
+    assert _claim_envelope(conn) == envelope
     # speaker + producer re-pointed
     assert (
         conn.execute("SELECT speaker_id FROM claims WHERE id='c3'").fetchone()[0] == "A"
@@ -105,10 +141,14 @@ def test_undo_restores_exactly():
     conn = _graph()
     before_a = _refs(conn, "A")
     before_b = _refs(conn, "B")
+    before_edges = _edge_rows(conn)
+    before_envelope = _claim_envelope(conn)
     merge.merge_nodes(conn, "A", ["B"], "Canonical", "m1")
     merge.undo_merge(conn, "m1")
     assert _refs(conn, "A") == before_a  # A back to {c2}
     assert _refs(conn, "B") == before_b  # B back to {c1, c2}
+    assert _edge_rows(conn) == before_edges
+    assert _claim_envelope(conn) == before_envelope
     assert (
         conn.execute("SELECT speaker_id FROM claims WHERE id='c3'").fetchone()[0] == "B"
     )
@@ -131,6 +171,24 @@ def test_undo_restores_exactly():
     )
 
 
+def test_multi_victim_undo_restores_original_survivor_salience():
+    conn = _graph()
+    insert_node(conn, Node(id="C", node_type="event", name="Third Fragment"))
+    conn.execute(
+        "INSERT INTO claim_node_refs (claim_id, node_id, salience) "
+        "VALUES ('c2', 'C', 'setting')"
+    )
+    before = _edge_rows(conn)
+
+    merge.merge_nodes(conn, "A", ["B", "C"], "Canonical", "m-many")
+    assert conn.execute(
+        "SELECT salience FROM claim_node_refs WHERE claim_id = 'c2' AND node_id = 'A'"
+    ).fetchone() == ("subject",)
+
+    merge.undo_merge(conn, "m-many")
+    assert _edge_rows(conn) == before
+
+
 def test_replay_by_natural_identity(tmp_path, monkeypatch):
     monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
     # Write a ledger entry against a graph, then replay over a FRESH graph where
@@ -149,12 +207,15 @@ def test_replay_by_natural_identity(tmp_path, monkeypatch):
     )
 
     fresh = _graph()  # same names, ids happen to match here, but replay uses names
+    before_envelope = _claim_envelope(fresh)
     result = merge.replay_ledger(fresh)
     assert result["applied"] == 1
     # the merge took effect on the fresh graph
     assert _name(fresh, "A") == "2004 Nimitz Encounter"
     assert _refs(fresh, "B") == set()
     assert _name(fresh, "B") is not None  # B still exists, just retired
+    assert _edge_rows(fresh) == [("c1", "A", "participant"), ("c2", "A", "subject")]
+    assert _claim_envelope(fresh) == before_envelope
     assert (
         fresh.execute("SELECT retired_at FROM nodes WHERE id='B'").fetchone()[0]
         is not None
