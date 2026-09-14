@@ -1,0 +1,132 @@
+{
+  "schema": "anomalica/merge-safety-fixture/1",
+  "license": "CC0-1.0",
+  "rights_note": "All names, records and claims are invented project-authored test material.",
+  "review_status": "pending-human-review",
+  "records": [
+    {
+      "id": "record-lantern-a",
+      "title": "Lantern Reef field log",
+      "date": "2031-04-02",
+      "nodes": [
+        {"id": "lantern-a", "name": "Operation Lantern Reef", "node_type": "project"}
+      ],
+      "claims": [
+        {"id": "claim-lantern-a", "text": "Operation Lantern Reef mapped the eastern shelf.", "quote": "Lantern Reef mapped the eastern shelf.", "type": "administrative", "claim_role": "investigation_finding", "attestation": "second_hand", "confidence": 0.9, "location": "10", "date": "2031-04-02", "refs": [{"name": "Operation Lantern Reef", "role": "subject"}], "provenance_chain": {"origin_kind": "document", "origin": "Lantern Reef field log", "origin_ref": "log-1", "relay": []}, "attribution_in_text": true}
+      ]
+    },
+    {
+      "id": "record-lantern-b",
+      "title": "Eastern shelf survey register",
+      "date": "2031-04-03",
+      "nodes": [
+        {"id": "lantern-b", "name": "Eastern Shelf Survey", "node_type": "project"}
+      ],
+      "claims": [
+        {"id": "claim-lantern-b", "text": "The Eastern Shelf Survey was the register name for Operation Lantern Reef.", "type": "administrative", "location": "12", "date": "2031-04-02", "refs": [{"name": "Eastern Shelf Survey", "role": "subject"}], "provenance_chain": {"origin_kind": "document", "origin": "Eastern shelf survey register", "origin_ref": "register-1", "relay": []}, "attribution_in_text": true}
+      ]
+    },
+    {
+      "id": "record-witnesses",
+      "title": "Gullrock watch transcript",
+      "date": "2031-05-11",
+      "nodes": [
+        {"id": "mara-vale", "name": "Mara Vale", "node_type": "person"},
+        {"id": "ivo-vale", "name": "Ivo Vale", "node_type": "person"},
+        {"id": "nera-quill", "name": "Nera Quill", "node_type": "person"},
+        {"id": "tomas-rook", "name": "Tomas Rook", "node_type": "person"}
+      ],
+      "claims": [
+        {"id": "claim-mara", "text": "Mara Vale said her brother Ivo watched from the lower platform.", "type": "testimony", "location": "5", "refs": [{"name": "Mara Vale", "role": "subject"}, {"name": "Ivo Vale", "role": "mentioned"}], "provenance_chain": {"origin_kind": "speaker", "origin": "Mara Vale", "origin_ref": "mara", "relay": []}, "attribution_in_text": true},
+        {"id": "claim-ivo", "text": "Ivo Vale watched from the lower platform while Mara recorded times.", "type": "testimony", "location": "6", "refs": [{"name": "Ivo Vale", "role": "subject"}, {"name": "Mara Vale", "role": "participant"}], "provenance_chain": {"origin_kind": "speaker", "origin": "Ivo Vale", "origin_ref": "ivo", "relay": []}, "attribution_in_text": true},
+        {"id": "claim-nera", "text": "Nera Quill observed the same light from Gullrock watch station.", "type": "testimony", "location": "25", "date": "2031-05-10", "refs": [{"name": "Nera Quill", "role": "subject"}], "provenance_chain": {"origin_kind": "speaker", "origin": "Nera Quill", "origin_ref": "nera", "relay": []}, "attribution_in_text": true},
+        {"id": "claim-tomas", "text": "Tomas Rook observed the same light beside Nera Quill.", "type": "testimony", "location": "26", "date": "2031-05-10", "refs": [{"name": "Tomas Rook", "role": "subject"}, {"name": "Nera Quill", "role": "participant"}], "provenance_chain": {"origin_kind": "speaker", "origin": "Tomas Rook", "origin_ref": "tomas", "relay": []}, "attribution_in_text": true},
+        {"id": "claim-continued", "text": "Nera Quill resumed her account after the equipment note.", "type": "testimony", "location": "55", "date": "2031-05-10", "refs": [{"name": "Nera Quill", "role": "subject"}], "provenance_chain": {"origin_kind": "speaker", "origin": "Nera Quill", "origin_ref": "nera", "relay": []}, "attribution_in_text": true}
+      ]
+    },
+    {
+      "id": "record-paper",
+      "title": "Tidal Echoes bibliography",
+      "nodes": [
+        {"id": "lysa-fen", "name": "Lysa Fen", "node_type": "person"},
+        {"id": "tidal-paper", "name": "Tidal Echoes Study", "node_type": "document"}
+      ],
+      "claims": [
+        {"id": "claim-lysa", "text": "Lysa Fen authored the Tidal Echoes Study.", "type": "administrative", "location": "1", "refs": [{"name": "Lysa Fen", "role": "subject"}, {"name": "Tidal Echoes Study", "role": "mentioned"}], "provenance_chain": {"origin_kind": "document", "origin": "Tidal Echoes bibliography", "relay": []}, "attribution_in_text": true},
+        {"id": "claim-paper", "text": "The Tidal Echoes Study reports measurements by Lysa Fen.", "type": "measurement", "location": "2", "refs": [{"name": "Tidal Echoes Study", "role": "subject"}, {"name": "Lysa Fen", "role": "participant"}], "provenance_chain": {"origin_kind": "document", "origin": "Tidal Echoes bibliography", "relay": []}, "attribution_in_text": true}
+      ]
+    },
+    {
+      "id": "record-mission",
+      "title": "Beacon mission chronology",
+      "nodes": [
+        {"id": "beacon-mission", "name": "Beacon Mission", "node_type": "project"},
+        {"id": "beacon-event", "name": "Beacon Flash Event", "node_type": "event"}
+      ],
+      "claims": [
+        {"id": "claim-mission", "text": "The Beacon Mission deployed instruments before the flash.", "type": "administrative", "location": "1", "refs": [{"name": "Beacon Mission", "role": "subject"}, {"name": "Beacon Flash Event", "role": "mentioned"}], "provenance_chain": {"origin_kind": "document", "origin": "Beacon mission chronology", "relay": []}, "attribution_in_text": true},
+        {"id": "claim-event", "text": "The Beacon Flash Event occurred during the Beacon Mission.", "type": "observation", "location": "2", "refs": [{"name": "Beacon Flash Event", "role": "subject"}, {"name": "Beacon Mission", "role": "setting"}], "provenance_chain": {"origin_kind": "document", "origin": "Beacon mission chronology", "relay": []}, "attribution_in_text": true}
+      ]
+    },
+    {
+      "id": "record-surveyors",
+      "title": "Surveyor succession register",
+      "nodes": [
+        {"id": "surveyor-one", "name": "Surveyor One", "node_type": "object"},
+        {"id": "surveyor-two", "name": "Surveyor Two", "node_type": "object"}
+      ],
+      "claims": [
+        {"id": "claim-surveyor-one", "text": "Surveyor One completed the first traverse before Surveyor Two.", "type": "administrative", "location": "1", "refs": [{"name": "Surveyor One", "role": "subject"}, {"name": "Surveyor Two", "role": "mentioned"}], "provenance_chain": {"origin_kind": "document", "origin": "Surveyor succession register", "relay": []}, "attribution_in_text": true},
+        {"id": "claim-surveyor-two", "text": "Surveyor Two succeeded Surveyor One on the northern traverse.", "type": "administrative", "location": "2", "refs": [{"name": "Surveyor Two", "role": "subject"}, {"name": "Surveyor One", "role": "mentioned"}], "provenance_chain": {"origin_kind": "document", "origin": "Surveyor succession register", "relay": []}, "attribution_in_text": true}
+      ]
+    },
+    {
+      "id": "record-gullrock",
+      "title": "Gullrock gazetteer",
+      "nodes": [
+        {"id": "gullrock-place", "name": "Gullrock Basin", "node_type": "place"},
+        {"id": "gullrock-event", "name": "Gullrock Basin Lightfall", "node_type": "event"}
+      ],
+      "claims": [
+        {"id": "claim-gullrock-place", "text": "Gullrock Basin is the location of the later lightfall.", "type": "administrative", "location": "1", "refs": [{"name": "Gullrock Basin", "role": "subject"}, {"name": "Gullrock Basin Lightfall", "role": "mentioned"}], "provenance_chain": {"origin_kind": "document", "origin": "Gullrock gazetteer", "relay": []}, "attribution_in_text": true},
+        {"id": "claim-gullrock-event", "text": "The Gullrock Basin Lightfall was an event observed at Gullrock Basin.", "type": "observation", "location": "2", "refs": [{"name": "Gullrock Basin Lightfall", "role": "subject"}, {"name": "Gullrock Basin", "role": "setting"}], "provenance_chain": {"origin_kind": "document", "origin": "Gullrock gazetteer", "relay": []}, "attribution_in_text": true}
+      ]
+    },
+    {
+      "id": "record-selene",
+      "title": "Selene programme manifest",
+      "nodes": [
+        {"id": "selene-four", "name": "Selene 4", "node_type": "project"},
+        {"id": "selene-five", "name": "Selene 5", "node_type": "project"}
+      ],
+      "claims": [
+        {"id": "claim-selene-four", "text": "Selene 4 preceded Selene 5 in the programme manifest.", "type": "administrative", "location": "1", "refs": [{"name": "Selene 4", "role": "subject"}, {"name": "Selene 5", "role": "mentioned"}], "provenance_chain": {"origin_kind": "document", "origin": "Selene programme manifest", "relay": []}, "attribution_in_text": true},
+        {"id": "claim-selene-five", "text": "Selene 5 followed Selene 4 with a separate payload.", "type": "administrative", "location": "2", "refs": [{"name": "Selene 5", "role": "subject"}, {"name": "Selene 4", "role": "mentioned"}], "provenance_chain": {"origin_kind": "document", "origin": "Selene programme manifest", "relay": []}, "attribution_in_text": true}
+      ]
+    }
+  ],
+  "accounts": [
+    {"record_id": "record-witnesses", "id": "watch-account", "spans": [[0, 60]]},
+    {"record_id": "record-witnesses", "id": "quill-account", "spans": [[20, 30], [50, 60]]}
+  ],
+  "expected_bindings": {
+    "claim-mara": "watch-account",
+    "claim-ivo": "watch-account",
+    "claim-nera": "quill-account",
+    "claim-tomas": "quill-account",
+    "claim-continued": "quill-account"
+  },
+  "temporal_relations": [
+    {"record_id": "record-witnesses", "account_id": "quill-account", "before": "claim-nera", "after": "claim-continued"}
+  ],
+  "cases": [
+    {"id": "identity-variant", "category": "identity", "node_ids": ["lantern-a", "lantern-b"], "same_entity": true, "fixture_score": 0.96},
+    {"id": "relatives", "category": "relatives", "node_ids": ["mara-vale", "ivo-vale"], "same_entity": false, "fixture_score": 0.31},
+    {"id": "co-witnesses", "category": "co-witnesses", "node_ids": ["nera-quill", "tomas-rook"], "same_entity": false, "fixture_score": 0.42},
+    {"id": "paper-author", "category": "paper-author", "node_ids": ["lysa-fen", "tidal-paper"], "same_entity": false, "fixture_score": 0.18},
+    {"id": "mission-event", "category": "mission-event", "node_ids": ["beacon-mission", "beacon-event"], "same_entity": false, "fixture_score": 0.24},
+    {"id": "predecessor-successor", "category": "predecessor-successor", "node_ids": ["surveyor-one", "surveyor-two"], "same_entity": false, "fixture_score": 0.36},
+    {"id": "place-event", "category": "place-event", "node_ids": ["gullrock-place", "gullrock-event"], "same_entity": false, "fixture_score": 0.21},
+    {"id": "numbered-siblings", "category": "numbered-siblings", "node_ids": ["selene-four", "selene-five"], "same_entity": false, "fixture_score": 0.39}
+  ]
+}
