@@ -365,6 +365,14 @@ def read_rename_proposals() -> list[dict]:
         except (OSError, ValueError) as exc:
             out.append({"_path": str(path), "_error": f"{type(exc).__name__}: {exc}"})
             continue
+        if not isinstance(doc, dict):
+            out.append(
+                {
+                    "_path": str(path),
+                    "_error": f"expected a JSON object, got {type(doc).__name__}",
+                }
+            )
+            continue
         doc["_path"] = str(path)
         out.append(doc)
     return out
@@ -704,28 +712,60 @@ def un_reject(conn: sqlite3.Connection, rejection_id: str) -> int:
 
 
 def replay_rejections(conn: sqlite3.Connection, on_progress=None) -> dict:
-    """Re-populate node_rejections from the durable ledger after a rebuild,
-    resolving each rejection's nodes by natural identity."""
+    """Re-materialise active rejection IDs from their natural identities.
+
+    The table is wholly derived, so replay clears it first. Each rejection ID has
+    one diagnostic outcome: two or more distinct nodes are applied, one is
+    absorbed by graph contraction, and none is loudly lost.
+    """
     log = on_progress or (lambda _: None)
     entries = read_rejections()
-    undone = {e["rejection_id"] for e in entries if e.get("op") == "unreject"}
-    applied = 0
+    active: dict[str, dict] = {}
     for e in entries:
-        if e.get("op") != "reject" or e["rejection_id"] in undone:
+        rejection_id = e.get("rejection_id")
+        if not rejection_id:
             continue
-        ids = {nid for nid in (_resolve_natural(conn, n) for n in e["nodes"]) if nid}
-        if len(ids) < 2:
+        if e.get("op") == "reject":
+            active[rejection_id] = e
+        elif e.get("op") == "unreject":
+            active.pop(rejection_id, None)
+
+    conn.execute("DELETE FROM node_rejections")
+    applied = absorbed = lost = 0
+    for rejection_id in sorted(active):
+        e = active[rejection_id]
+        nodes = e.get("nodes") if isinstance(e.get("nodes"), list) else []
+        nodes = [node for node in nodes if isinstance(node, dict)]
+        ids = {
+            nid for nid in (_resolve_natural(conn, n) for n in nodes) if nid is not None
+        }
+        if not ids:
+            log(
+                f"  ERROR replay rejection LOST {rejection_id}: no natural node "
+                "is in the graph - this curation decision is dropped"
+            )
+            lost += 1
+            continue
+        if len(ids) == 1:
+            node_id = next(iter(ids))
+            name = conn.execute(
+                "SELECT name FROM nodes WHERE id = ?", (node_id,)
+            ).fetchone()[0]
+            log(f"  replay rejection {rejection_id}: absorbed; only {name!r} remains")
+            absorbed += 1
             continue
         for node_id in sorted(ids):
             conn.execute(
                 "INSERT OR REPLACE INTO node_rejections (rejection_id, node_id, reason, "
                 "created_at, created_by, undone_at) VALUES (?, ?, ?, ?, ?, NULL)",
-                (e["rejection_id"], node_id, e.get("reason"), e.get("at"), e.get("by")),
+                (rejection_id, node_id, e.get("reason"), e.get("at"), e.get("by")),
             )
         applied += 1
     conn.commit()
-    log(f"Replayed {applied} rejections")
-    return {"applied": applied}
+    summary = f"Replayed {applied} rejections ({absorbed} absorbed"
+    summary += f", {lost} LOST" if lost else ""
+    log(summary + ")")
+    return {"applied": applied, "absorbed": absorbed, "lost": lost}
 
 
 def rejected_sets(conn: sqlite3.Connection) -> set[frozenset]:
@@ -844,6 +884,143 @@ def replay_renames(conn: sqlite3.Connection, on_progress=None) -> dict:
     conn.commit()
     log(f"Replayed {applied} renames ({skipped} skipped)")
     return {"applied": applied, "skipped": skipped}
+
+
+def _live_ids_for_name(conn: sqlite3.Connection, name: str) -> set[str]:
+    """Live nodes carrying an exact canonical name or alias."""
+    return {
+        row[0]
+        for row in conn.execute(
+            "SELECT id FROM nodes WHERE name = ? AND retired_at IS NULL "
+            "UNION SELECT n.id FROM aliases a JOIN nodes n ON n.id = a.node_id "
+            "WHERE a.alias = ? AND n.retired_at IS NULL",
+            (name, name),
+        ).fetchall()
+    }
+
+
+def replay_rename_proposals(conn: sqlite3.Connection, on_progress=None) -> dict:
+    """Reconstruct rename proposal outcome rows without applying a rename.
+
+    A matching active rename-ledger entry is the durable evidence that a proposal
+    was applied. A proposal absent from that ledger is rejected only when its old
+    identity and requested name still resolve to disjoint live nodes, proving the
+    name collision. Otherwise it remains pending when still actionable, or is
+    loudly lost when the outcome can no longer be reconstructed.
+    """
+    log = on_progress or (lambda _: None)
+    rename_entries: dict[str, dict] = {}
+    for entry in read_renames():
+        rename_id = entry.get("rename_id")
+        if not rename_id:
+            continue
+        if entry.get("op") == "rename":
+            rename_entries[rename_id] = entry
+        elif entry.get("op") == "unrename":
+            rename_entries.pop(rename_id, None)
+
+    conn.execute("DELETE FROM rename_proposals")
+    counts = {"applied": 0, "rejected": 0, "pending": 0, "lost": 0, "malformed": 0}
+    seen: set[str] = set()
+    required = (
+        "id",
+        "node_id",
+        "node_name_at_proposal",
+        "proposed_name",
+        "proposed_at",
+    )
+    for proposal in read_rename_proposals():
+        path = proposal.get("_path", "<rename proposal>")
+        invalid = [
+            key
+            for key in required
+            if not isinstance(proposal.get(key), str) or not proposal[key].strip()
+        ]
+        invalid_optional = [
+            key
+            for key in ("reason", "proposed_by")
+            if proposal.get(key) is not None and not isinstance(proposal.get(key), str)
+        ]
+        if proposal.get("_error") or invalid or invalid_optional:
+            detail = proposal.get("_error")
+            if not detail:
+                fields = invalid + invalid_optional
+                detail = f"missing or invalid {', '.join(fields)}"
+            log(f"  ERROR rename proposal MALFORMED {path}: {detail}")
+            counts["malformed"] += 1
+            continue
+        proposal_id = proposal["id"]
+        if proposal_id in seen:
+            log(f"  ERROR rename proposal MALFORMED {path}: duplicate id {proposal_id}")
+            counts["malformed"] += 1
+            continue
+        seen.add(proposal_id)
+
+        old_name = proposal["node_name_at_proposal"]
+        proposed_name = proposal["proposed_name"]
+        matching_entries = []
+        for entry in rename_entries.values():
+            natural = entry.get("node") if isinstance(entry.get("node"), dict) else {}
+            prior_names = natural.get("prior_names")
+            if not isinstance(prior_names, list):
+                prior_names = []
+            old_names = {natural.get("name"), *prior_names}
+            if entry.get("new_name") == proposed_name and old_name in old_names:
+                matching_entries.append(entry)
+
+        old_ids = _live_ids_for_name(conn, old_name)
+        proposed_ids = _live_ids_for_name(conn, proposed_name)
+        status = "pending"
+        resolved_at = None
+        note = None
+        if matching_entries:
+            candidates = old_ids | proposed_ids
+            if len(candidates) == 1:
+                status = "applied"
+                resolved_at = max(
+                    (e.get("at") for e in matching_entries if e.get("at")),
+                    default=proposal["proposed_at"],
+                )
+            else:
+                status = "lost"
+                note = "applied rename no longer resolves to one current node"
+        elif old_ids and proposed_ids and old_ids.isdisjoint(proposed_ids):
+            status = "rejected"
+            note = "name already taken (reconstructed)"
+        elif old_ids and not proposed_ids:
+            status = "pending"
+        elif old_name == proposed_name and old_ids:
+            status = "pending"
+        else:
+            status = "lost"
+            note = "proposal outcome no longer resolves deterministically"
+
+        if status == "lost":
+            log(f"  ERROR rename proposal LOST {proposal_id}: {note}")
+        counts[status] += 1
+        conn.execute(
+            "INSERT INTO rename_proposals (id, node_id, node_name_at_proposal, "
+            "proposed_name, reason, proposed_by, proposed_at, status, resolved_at, "
+            "resolution_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                proposal_id,
+                proposal["node_id"],
+                old_name,
+                proposed_name,
+                proposal.get("reason"),
+                proposal.get("proposed_by"),
+                proposal["proposed_at"],
+                status,
+                resolved_at,
+                note,
+            ),
+        )
+    conn.commit()
+    log(
+        "Materialised rename proposals: "
+        + ", ".join(f"{key} {value}" for key, value in counts.items())
+    )
+    return counts
 
 
 # --- Host CLI ---

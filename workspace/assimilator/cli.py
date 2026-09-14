@@ -200,6 +200,7 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
     if not no_replay:
         from assimilator.merge import (
             replay_ledger,
+            replay_rename_proposals,
             replay_rejections,
             replay_renames,
         )
@@ -210,6 +211,14 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
         # Renames run AFTER merges - a renamed node may be a merge survivor whose
         # name the merge replay set first (ADR 0038).
         replay_renames(domain_conn, on_progress=click.echo)
+        # Proposal rows are derived diagnostics. Reconstruct their outcomes only
+        # after durable renames have established the graph's current names.
+        replay_rename_proposals(domain_conn, on_progress=click.echo)
+        # Claim-ref decisions key nodes by their post-curation natural identity,
+        # so resolve them only after both merges and renames have settled.
+        from assimilator.claim_ref_status_ledger import replay_claim_ref_status
+
+        replay_claim_ref_status(domain_conn, on_progress=click.echo)
         # Tags resolve a node by its name, so they run after renames too.
         from assimilator.tags import replay_tags
 
@@ -1171,15 +1180,53 @@ def replay_curation_cmd(ctx: click.Context) -> None:
 
     Deterministic, no AI.
     """
-    from assimilator.merge import replay_ledger, replay_rejections, replay_renames
+    from assimilator.merge import (
+        replay_ledger,
+        replay_rename_proposals,
+        replay_rejections,
+        replay_renames,
+    )
     from assimilator.propose_pages import replay_vetoes
+    from assimilator.claim_ref_status_ledger import replay_claim_ref_status
 
     conn = _connect(ctx.obj["db_path"])
     replay_ledger(conn, on_progress=click.echo)
     replay_rejections(conn, on_progress=click.echo)
     replay_renames(conn, on_progress=click.echo)
+    replay_rename_proposals(conn, on_progress=click.echo)
+    replay_claim_ref_status(conn, on_progress=click.echo)
     replay_vetoes(conn, on_progress=click.echo)
     conn.close()
+
+
+@main.command(name="export-claim-ref-status")
+@click.option(
+    "--out",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Ledger path (default: ANOMALICA_CURATION_DIR/claim-ref-status.yaml).",
+)
+@click.pass_context
+def export_claim_ref_status_cmd(ctx: click.Context, out: Path | None) -> None:
+    """Export attached claim-ref review decisions to the durable YAML ledger."""
+    from assimilator.claim_ref_status_ledger import export_claim_ref_status
+
+    conn = _connect(ctx.obj["db_path"])
+    try:
+        result = export_claim_ref_status(conn, out)
+    finally:
+        conn.close()
+    click.echo(
+        f"Appended {result['exported']} claim-ref status set event(s) to "
+        f"{result['path']}"
+    )
+    if result["stale"]:
+        click.echo(
+            f"WARNING: {result['stale']} stale claim_ref_status row(s) lack refs "
+            "and were not exported:"
+        )
+        for row in result["stale_rows"]:
+            click.echo(f"  {row['claim_id']} -> {row['node_id']}")
 
 
 @main.command(name="link-works")

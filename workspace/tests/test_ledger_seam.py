@@ -115,7 +115,11 @@ def test_reject_then_unreject_replays_to_no_op(tmp_path, monkeypatch):
     assert rejs[0]["nodes"][1]["name"] == "@anonymous source"  # single-quoted @
     assert rejs[0]["nodes"][1]["prior_names"] == ["#redacted"]  # single-quoted #
     conn = _graph()
-    assert merge.replay_rejections(conn)["applied"] == 0  # reject + unreject = no-op
+    assert merge.replay_rejections(conn) == {
+        "applied": 0,
+        "absorbed": 0,
+        "lost": 0,
+    }  # reject + unreject = no-op
 
 
 def test_reject_positive_path_resolves_real_bytes(tmp_path, monkeypatch):
