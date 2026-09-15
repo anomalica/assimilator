@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 
+import yaml
+
 from anomalica_common.digest.models import Node, Record
 from assimilator.database import init_db, insert_node, insert_record
 from assimilator.merge import (
@@ -39,7 +41,7 @@ def _aliases(conn, nid):
 def test_rename_applies_and_keeps_old_as_alias(tmp_path, monkeypatch):
     monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path))
     conn = _graph()
-    rename_node(conn, "n1", "United States Navy (USN)", "rn1")
+    rename_node(conn, "n1", "United States Navy (USN)", "rn1", created_by="test")
     assert _name(conn, "n1") == "United States Navy (USN)"
     assert "United States Navy" in _aliases(conn, "n1")
 
@@ -58,7 +60,7 @@ def test_rename_is_recorded_in_ledger(tmp_path, monkeypatch):
 def test_replay_resolves_by_natural_identity(tmp_path, monkeypatch):
     monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path))
     # Record the rename on one graph...
-    rename_node(_graph(), "n1", "United States Navy (USN)", "rn1")
+    rename_node(_graph(), "n1", "United States Navy (USN)", "rn1", created_by="test")
     # ...then replay it onto a FRESH import (node has the OLD name, new id).
     fresh = sqlite3.connect(":memory:")
     init_db(fresh)
@@ -75,8 +77,45 @@ def test_replay_resolves_by_natural_identity(tmp_path, monkeypatch):
 
 def test_replay_skips_node_no_longer_in_graph(tmp_path, monkeypatch):
     monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path))
-    rename_node(_graph(), "n1", "United States Navy (USN)", "rn1")
+    rename_node(_graph(), "n1", "United States Navy (USN)", "rn1", created_by="test")
     empty = sqlite3.connect(":memory:")
     init_db(empty)
     result = replay_renames(empty)
     assert result == {"applied": 0, "skipped": 1}
+
+
+def test_replay_orders_equal_timestamps_by_stable_operation_id(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path))
+    entries = [
+        {
+            "op": "rename",
+            "rename_id": "rename-z",
+            "at": "2026-09-15T00:00:00Z",
+            "node": {
+                "name": "Intermediate Navy",
+                "node_type": "organisation",
+                "prior_names": [],
+            },
+            "new_name": "Final Navy",
+        },
+        {
+            "op": "rename",
+            "rename_id": "rename-a",
+            "at": "2026-09-15T00:00:00Z",
+            "node": {
+                "name": "United States Navy",
+                "node_type": "organisation",
+                "prior_names": [],
+            },
+            "new_name": "Intermediate Navy",
+        },
+    ]
+    (tmp_path / "renames.yaml").write_text(
+        "".join("---\n" + yaml.safe_dump(entry, sort_keys=False) for entry in entries)
+    )
+    conn = _graph()
+
+    result = replay_renames(conn)
+
+    assert result == {"applied": 2, "skipped": 0}
+    assert _name(conn, "n1") == "Final Navy"

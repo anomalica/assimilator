@@ -754,14 +754,23 @@ def import_deltas(conn: sqlite3.Connection, digest_index: dict[str, dict]) -> di
     return {key: native[key] for key in ("current", "missing", "changed", "orphan")}
 
 
-def _curation_sha256() -> str:
-    root = Path(
+def _curation_sha256(curation_dir: Path | None = None) -> str:
+    root = curation_dir or Path(
         os.environ.get(
             "ANOMALICA_CURATION_DIR",
             str(Path(__file__).resolve().parents[3] / "curation"),
         )
     )
-    files = sorted(p for p in root.rglob("*") if p.is_file()) if root.is_dir() else []
+    files = (
+        sorted(
+            p
+            for p in root.rglob("*")
+            if p.is_file()
+            and p.relative_to(root).as_posix() != "replay-dispositions.yaml"
+        )
+        if root.is_dir()
+        else []
+    )
     if not files:
         return "sha256:" + hashlib.sha256(b"").hexdigest()
     manifest = json.dumps(
@@ -776,7 +785,10 @@ def _curation_sha256() -> str:
 
 
 def graph_input_diagnostics(
-    conn: sqlite3.Connection, digest_index: dict[str, dict], digests_dir: Path
+    conn: sqlite3.Connection,
+    digest_index: dict[str, dict],
+    digests_dir: Path,
+    curation_dir: Path | None = None,
 ) -> dict:
     receipts = _import_receipts(conn)
     triples = sorted(
@@ -787,7 +799,7 @@ def graph_input_diagnostics(
         {
             "import_generation": CURRENT_IMPORT_GENERATION,
             "digests": triples,
-            "curation_sha256": _curation_sha256(),
+            "curation_sha256": _curation_sha256(curation_dir),
         },
         ensure_ascii=False,
         separators=(",", ":"),

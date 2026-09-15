@@ -88,9 +88,12 @@ def test_deleting_a_claim_takes_its_stamp_and_its_vector(graph):
     assert _state(graph, "claim", "c1") == (0, 0)
 
 
-def test_renaming_a_node_drops_the_vector_of_its_old_name(graph):
+def test_renaming_a_node_drops_the_vector_of_its_old_name(graph, tmp_path, monkeypatch):
     """The stamp would still read current, so nothing would ever re-embed it."""
-    from assimilator.merge import rename_node
+    from assimilator.merge import rename_node, renames_ledger_path
+
+    isolated_curation = tmp_path / "curation"
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(isolated_curation))
 
     node = insert_node(graph, Node(id="n1", node_type="person", name="Bob Smith"))
     graph.commit()
@@ -100,6 +103,9 @@ def test_renaming_a_node_drops_the_vector_of_its_old_name(graph):
     graph.commit()
 
     assert _state(graph, "node", node.id) == (0, 0)
+    assert renames_ledger_path() == isolated_curation / "renames.yaml"
+    assert renames_ledger_path().is_file()
+    assert "Robert Smith" in renames_ledger_path().read_text()
 
 
 def test_retiring_a_node_in_a_merge_drops_both(graph):

@@ -216,6 +216,7 @@ CREATE TABLE IF NOT EXISTS corroboration_rejections (
 -- rather than silently dropped.
 CREATE TABLE IF NOT EXISTS rename_proposals (
     id TEXT PRIMARY KEY,
+    proposal_operation_id TEXT NOT NULL UNIQUE,
     node_id TEXT NOT NULL,
     node_name_at_proposal TEXT NOT NULL,
     proposed_name TEXT NOT NULL,
@@ -223,9 +224,14 @@ CREATE TABLE IF NOT EXISTS rename_proposals (
     proposed_by TEXT,
     proposed_at TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'applied', 'rejected', 'lost')),
+        CHECK (status IN ('pending', 'applied', 'merged', 'rejected', 'compensated',
+                          'contraction_drop', 'unresolved_drift', 'invalid')),
     resolved_at TEXT,
-    resolution_note TEXT
+    resolution_note TEXT,
+    resolution_phase TEXT CHECK (resolution_phase IN ('merge', 'rename')),
+    resolution_operation_id TEXT,
+    compensation_operation_id TEXT,
+    replay_disposition_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_rename_proposals_status ON rename_proposals(status);
 
@@ -512,6 +518,43 @@ def init_db(conn: sqlite3.Connection) -> None:
         ):
             if column not in rcols:
                 conn.execute(f"ALTER TABLE record_relations ADD COLUMN {column} {kind}")
+    rename_proposals_exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='rename_proposals'"
+    ).fetchone()
+    if rename_proposals_exists:
+        proposal_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(rename_proposals)")
+        }
+        if "proposal_operation_id" not in proposal_columns:
+            conn.execute("DROP INDEX IF EXISTS idx_rename_proposals_status")
+            conn.execute(
+                "ALTER TABLE rename_proposals RENAME TO rename_proposals_legacy"
+            )
+            conn.executescript(
+                """
+                CREATE TABLE rename_proposals (
+                    id TEXT PRIMARY KEY,
+                    proposal_operation_id TEXT NOT NULL UNIQUE,
+                    node_id TEXT NOT NULL,
+                    node_name_at_proposal TEXT NOT NULL,
+                    proposed_name TEXT NOT NULL,
+                    reason TEXT,
+                    proposed_by TEXT,
+                    proposed_at TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending', 'applied', 'merged', 'rejected',
+                                          'compensated', 'contraction_drop',
+                                          'unresolved_drift', 'invalid')),
+                    resolved_at TEXT,
+                    resolution_note TEXT,
+                    resolution_phase TEXT CHECK (resolution_phase IN ('merge', 'rename')),
+                    resolution_operation_id TEXT,
+                    compensation_operation_id TEXT,
+                    replay_disposition_id TEXT
+                );
+                DROP TABLE rename_proposals_legacy;
+                """
+            )
     # Work-identity migration: which WORK a record manifests. Backfilled to the
     # record's own id (one record, one work) so a pre-existing database counts
     # sources exactly as it did before the column existed - the guard lands as a
@@ -1289,27 +1332,6 @@ def records_declaring(conn: sqlite3.Connection, node_id: str) -> "list[tuple]":
     ).fetchall()
 
 
-def propose_rename(
-    conn: sqlite3.Connection,
-    node_id: str,
-    node_name: str,
-    proposed_name: str,
-    reason: str | None = None,
-    proposed_by: str | None = None,
-) -> str:
-    """Record a reviewer's proposed node name. Returns the proposal id."""
-    import uuid as _uuid
-
-    pid = str(_uuid.uuid4())
-    conn.execute(
-        "INSERT INTO rename_proposals (id, node_id, node_name_at_proposal,"
-        " proposed_name, reason, proposed_by, proposed_at, status)"
-        " VALUES (?, ?, ?, ?, ?, ?, datetime('now'), 'pending')",
-        (pid, node_id, node_name, proposed_name, reason, proposed_by),
-    )
-    return pid
-
-
 def pending_renames(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute(
         "SELECT id, node_id, node_name_at_proposal, proposed_name, reason,"
@@ -1326,13 +1348,3 @@ def pending_renames(conn: sqlite3.Connection) -> list[dict]:
         "proposed_at",
     )
     return [dict(zip(keys, r)) for r in rows]
-
-
-def resolve_rename(
-    conn: sqlite3.Connection, proposal_id: str, status: str, note: str | None = None
-) -> None:
-    conn.execute(
-        "UPDATE rename_proposals SET status = ?, resolved_at = datetime('now'),"
-        " resolution_note = ? WHERE id = ?",
-        (status, note, proposal_id),
-    )

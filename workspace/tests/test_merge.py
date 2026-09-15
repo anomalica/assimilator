@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
+import pytest
 import yaml
 
 from assimilator import merge
@@ -281,6 +282,80 @@ def test_resolve_natural_keeps_the_deterministic_tiers():
     )
 
 
+def test_resolve_natural_requires_one_exact_node_across_all_declared_names():
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(conn, Node(id="A", node_type="event", name="Current event"))
+    insert_node(conn, Node(id="B", node_type="event", name="Prior event"))
+
+    assert (
+        merge._resolve_natural(
+            conn,
+            {
+                "name": "Current event",
+                "node_type": "event",
+                "prior_names": ["Prior event"],
+            },
+        )
+        is None
+    )
+
+
+def test_merge_replay_orders_equal_timestamps_by_stable_operation_id(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path))
+    entries = []
+    for merge_id, suffix in (("merge-z", "Z"), ("merge-a", "A")):
+        entries.append(
+            {
+                "op": "merge",
+                "merge_id": merge_id,
+                "at": "2026-09-15T00:00:00Z",
+                "by": "test",
+                "canonical_name": f"Canonical {suffix}",
+                "survivor": {
+                    "name": f"Survivor {suffix}",
+                    "node_type": "event",
+                    "prior_names": [],
+                },
+                "victims": [
+                    {
+                        "name": f"Victim {suffix}",
+                        "node_type": "event",
+                        "prior_names": [],
+                    }
+                ],
+                "confirmation": _CONFIRMED,
+            }
+        )
+    (tmp_path / "merges.yaml").write_text(
+        "".join("---\n" + yaml.safe_dump(entry, sort_keys=False) for entry in entries)
+    )
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    for suffix in ("A", "Z"):
+        insert_node(
+            conn,
+            Node(id=f"survivor-{suffix}", node_type="event", name=f"Survivor {suffix}"),
+        )
+        insert_node(
+            conn,
+            Node(id=f"victim-{suffix}", node_type="event", name=f"Victim {suffix}"),
+        )
+    applied = []
+    original = merge.merge_nodes
+
+    def recording_merge(*args, **kwargs):
+        applied.append(args[4])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(merge, "merge_nodes", recording_merge)
+
+    assert merge.replay_ledger(conn)["applied"] == 2
+    assert applied == ["merge-a", "merge-z"]
+
+
 def test_an_unconfirmed_merge_is_a_proposal_not_a_merge(tmp_path, monkeypatch):
     """Mark's rule of 2026-09-03: no session applies a merge. Without a
     confirmation the command queues the cluster for the workbench and touches
@@ -387,3 +462,177 @@ def test_replay_applies_grandfathered_and_confirmed_entries_only(tmp_path, monke
 
     assert result["applied"] == 1 and result["unconfirmed"] == 1
     assert any("UNCONFIRMED" in ln for ln in lines)
+
+
+def _write_merge_proposal(
+    tmp_path, proposal_id, old_name="Nimitz Incident", proposed_name="Canonical"
+):
+    directory = tmp_path / "curation" / "rename-proposals"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"{proposal_id}.json").write_text(
+        json.dumps(
+            {
+                "id": proposal_id,
+                "node_id": "audit",
+                "node_name_at_proposal": old_name,
+                "proposed_name": proposed_name,
+                "reason": None,
+                "proposed_by": "test",
+                "proposed_at": "2026-09-15T00:00:00Z",
+            }
+        )
+    )
+
+
+def test_merge_append_with_proposal_refs_is_idempotent_and_collision_safe(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    _write_merge_proposal(tmp_path, "p1")
+    conn = _graph()
+    arguments = (
+        conn,
+        "A",
+        ["B"],
+        "Canonical",
+        "merge-proposal",
+        "2026-09-15T01:00:00Z",
+        "operator",
+    )
+    kwargs = {
+        "confirmation": _CONFIRMED,
+        "proposal_ids": ["rename-proposal:p1"],
+    }
+
+    merge.append_merge_entry(*arguments, **kwargs)
+    before = merge.ledger_path().read_bytes()
+    merge.append_merge_entry(*arguments, **kwargs)
+    assert merge.ledger_path().read_bytes() == before
+    with pytest.raises(ValueError, match="not pending"):
+        merge.append_merge_entry(
+            conn,
+            "A",
+            ["B"],
+            "Canonical",
+            "different-merge",
+            "2026-09-15T02:00:00Z",
+            "operator",
+            **kwargs,
+        )
+    with pytest.raises(ValueError, match="collision"):
+        merge.append_merge_entry(*arguments[:3], "Different", *arguments[4:], **kwargs)
+
+
+def test_merge_proposal_refs_require_known_pending_unique_ids(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    _write_merge_proposal(tmp_path, "p1")
+    conn = _graph()
+    common = (
+        conn,
+        "A",
+        ["B"],
+        "Canonical",
+        "merge-proposal",
+        "2026-09-15T01:00:00Z",
+        "operator",
+    )
+    with pytest.raises(ValueError, match="unique sorted"):
+        merge.append_merge_entry(
+            *common,
+            confirmation=_CONFIRMED,
+            proposal_ids=["rename-proposal:p1", "rename-proposal:p1"],
+        )
+    with pytest.raises(ValueError, match="unknown"):
+        merge.append_merge_entry(
+            *common,
+            confirmation=_CONFIRMED,
+            proposal_ids=["rename-proposal:missing"],
+        )
+
+
+def test_merge_rejects_a_proposal_unrelated_to_the_selected_nodes(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    _write_merge_proposal(tmp_path, "p1", old_name="Unrelated")
+
+    with pytest.raises(ValueError, match="does not resolve to one selected node"):
+        merge.append_merge_entry(
+            _graph(),
+            "A",
+            ["B"],
+            "Canonical",
+            "merge-unrelated",
+            "2026-09-15T01:00:00Z",
+            "operator",
+            confirmation=_CONFIRMED,
+            proposal_ids=["rename-proposal:p1"],
+        )
+
+
+def test_cli_proposal_refs_do_not_confirm_a_merge(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    _write_merge_proposal(tmp_path, "p1")
+    db = tmp_path / "graph.db"
+    conn = sqlite3.connect(db)
+    init_db(conn)
+    insert_node(conn, Node(id="A", node_type="event", name="Nimitz Incident"))
+    insert_node(conn, Node(id="B", node_type="event", name="Nimitz encounter"))
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(SystemExit):
+        merge.main(
+            [
+                "--db",
+                str(db),
+                "--survivor",
+                "A",
+                "--victims",
+                "B",
+                "--name",
+                "Canonical",
+                "--proposal-id",
+                "rename-proposal:p1",
+            ]
+        )
+    assert not merge.ledger_path().exists()
+
+
+def test_cli_accepts_repeated_exact_proposal_id_flags(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path / "curation"))
+    _write_merge_proposal(tmp_path, "p1")
+    _write_merge_proposal(tmp_path, "p2")
+    db = tmp_path / "graph.db"
+    conn = sqlite3.connect(db)
+    init_db(conn)
+    insert_node(conn, Node(id="A", node_type="event", name="Nimitz Incident"))
+    insert_node(conn, Node(id="B", node_type="event", name="Nimitz encounter"))
+    conn.commit()
+    conn.close()
+
+    assert (
+        merge.main(
+            [
+                "--db",
+                str(db),
+                "--survivor",
+                "A",
+                "--victims",
+                "B",
+                "--name",
+                "Canonical",
+                "--confirmed-by",
+                "operator",
+                "--proposal-id",
+                "rename-proposal:p1",
+                "--proposal-id",
+                "rename-proposal:p2",
+            ]
+        )
+        == 0
+    )
+    assert merge.read_ledger()[0]["proposal_ids"] == [
+        "rename-proposal:p1",
+        "rename-proposal:p2",
+    ]

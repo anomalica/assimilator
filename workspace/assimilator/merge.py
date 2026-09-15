@@ -24,11 +24,14 @@ Host-runnable: `python -m assimilator.merge --survivor <id> --victims <id,id>
 from __future__ import annotations
 
 import json
+import fcntl
 import os
 import sqlite3
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Literal
 
 import yaml
 
@@ -36,6 +39,18 @@ from assimilator.embed_batches import forget_embeddings
 from assimilator.database import init_db
 from assimilator.matching import match_node
 from assimilator.data_dir import data_dir
+from assimilator.rename_ledger import (
+    OPERATION_ID_PREFIX,
+    PROPOSAL_ID_PREFIX,
+    RenameLedgerError,
+    RenameProposal,
+    RenameStream,
+    append_event_if_absent,
+    build_rename_event,
+    legacy_operation_identity,
+    parse_proposal_document,
+    read_stream,
+)
 
 
 def _now() -> str:
@@ -75,7 +90,14 @@ def confirmed(entry: dict) -> bool:
     """Whether a ledger merge entry may be applied: it carries a confirmation
     block, or it predates the rule."""
     block = entry.get("confirmation")
-    if isinstance(block, dict) and block.get("by"):
+    if (
+        isinstance(block, dict)
+        and set(block) == {"by", "at", "via"}
+        and isinstance(block.get("by"), str)
+        and block["by"].strip()
+        and _valid_timestamp(block.get("at"))
+        and block.get("via") in CONFIRMATION_VIAS
+    ):
         return True
     return str(entry.get("at") or "") < CONFIRMATION_REQUIRED_FROM
 
@@ -396,6 +418,7 @@ def append_merge_entry(
     created_at: str,
     created_by: str | None,
     confirmation: dict | None = None,
+    proposal_ids: list[str] | None = None,
 ) -> None:
     """Append a merge entry to the durable ledger, keyed on natural identity
     (names), with ids as an audit snapshot. Captured BEFORE the live merge so the
@@ -408,6 +431,16 @@ def append_merge_entry(
             "a merge is written to the ledger only with Mark's confirmation; "
             "without one it is a proposal (propose_merge)"
         )
+    proposal_ids = list(proposal_ids or [])
+    if proposal_ids != sorted(set(proposal_ids)) or any(
+        not isinstance(proposal_id, str)
+        or not proposal_id.startswith(PROPOSAL_ID_PREFIX)
+        or not proposal_id.removeprefix(PROPOSAL_ID_PREFIX)
+        for proposal_id in proposal_ids
+    ):
+        raise ValueError(
+            "proposal_ids must be unique sorted rename-proposal:<id> values"
+        )
     entry = {
         "op": "merge",
         "merge_id": merge_id,
@@ -419,7 +452,115 @@ def append_merge_entry(
         "victims": [_natural(conn, v) for v in victim_ids if _node(conn, v)],
         "audit": {"survivor_id": survivor_id, "victim_ids": list(victim_ids)},
     }
-    _append(entry)
+    if proposal_ids:
+        entry["proposal_ids"] = proposal_ids
+    existing = [
+        item
+        for item in read_ledger()
+        if isinstance(item, dict)
+        and item.get("op") == "merge"
+        and item.get("merge_id") == merge_id
+    ]
+    if existing:
+        if len(existing) == 1 and existing[0] == entry:
+            return
+        raise ValueError(f"merge id collision for {merge_id}")
+    if proposal_ids:
+        _validate_pending_merge_proposals(
+            conn,
+            proposal_ids,
+            survivor_id,
+            victim_ids,
+            canonical_name,
+            excluding_merge_id=merge_id,
+        )
+    _append_merge_if_absent(entry)
+
+
+def _validate_pending_merge_proposals(
+    conn: sqlite3.Connection,
+    proposal_ids: list[str],
+    survivor_id: str,
+    victim_ids: list[str],
+    canonical_name: str,
+    *,
+    excluding_merge_id: str | None = None,
+) -> None:
+    proposals, diagnostics, blockers = _parse_proposals(read_rename_proposals())
+    if diagnostics or blockers:
+        raise ValueError("rename proposal source contains malformed entries")
+    by_id = {proposal.operation_id: proposal for proposal in proposals}
+    unknown = sorted(set(proposal_ids) - set(by_id))
+    if unknown:
+        raise ValueError(f"unknown rename proposal ids: {unknown!r}")
+    stream = read_stream(renames_ledger_path())
+    resolved = {
+        operation.event["proposal_id"]
+        for operation in stream.active_operations
+        if operation.event.get("proposal_id") is not None
+    }
+    merge_entries = read_ledger()
+    undone = {
+        entry.get("merge_id")
+        for entry in merge_entries
+        if isinstance(entry, dict) and entry.get("op") == "undo"
+    }
+    for entry in merge_entries:
+        if isinstance(entry, dict) and entry.get("op") == "merge":
+            if (
+                entry.get("merge_id") != excluding_merge_id
+                and entry.get("merge_id") not in undone
+                and confirmed(entry)
+            ):
+                resolved.update(entry.get("proposal_ids") or [])
+    nonpending = sorted(set(proposal_ids) & resolved)
+    if nonpending:
+        raise ValueError(f"rename proposal ids are not pending: {nonpending!r}")
+    selected_ids = {survivor_id, *victim_ids}
+    resulting_names = {canonical_name}
+    for node_id in selected_ids:
+        node = _node(conn, node_id)
+        if node is not None:
+            resulting_names.add(node[0])
+            resulting_names.update(_aliases(conn, node_id))
+    for proposal_id in proposal_ids:
+        proposal = by_id[proposal_id]
+        source_ids = _proposal_source_ids(conn, proposal)
+        if len(source_ids) != 1 or not source_ids <= selected_ids:
+            raise ValueError(
+                f"rename proposal {proposal_id} does not resolve to one selected node"
+            )
+        if proposal.proposed_name not in resulting_names:
+            raise ValueError(
+                f"merge does not preserve requested name for proposal {proposal_id}"
+            )
+
+
+def _append_merge_if_absent(entry: dict[str, Any]) -> bool:
+    path = ledger_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_name(path.name + ".lock")
+    with lock_path.open("a+") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            existing = read_ledger()
+            matches = [
+                item
+                for item in existing
+                if isinstance(item, dict)
+                and item.get("op") == "merge"
+                and item.get("merge_id") == entry["merge_id"]
+            ]
+            if matches:
+                if len(matches) == 1 and matches[0] == entry:
+                    return False
+                raise ValueError(f"merge id collision for {entry['merge_id']}")
+            with path.open("a", encoding="utf-8") as stream:
+                stream.write("---\n")
+                stream.write(yaml.safe_dump(entry, sort_keys=False, allow_unicode=True))
+            return True
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
 def propose_merge(
@@ -528,19 +669,451 @@ def _resolve_natural(conn: sqlite3.Connection, nat: dict) -> str | None:
     resolve to a different node.
     """
     node_type = nat.get("node_type")
-    for name in [nat.get("name"), *(nat.get("prior_names") or [])]:
-        if not name:
+    names = sorted(
+        {name for name in [nat.get("name"), *(nat.get("prior_names") or [])] if name}
+    )
+    if not names:
+        return None
+    placeholders = ",".join("?" for _ in names)
+    exact = conn.execute(
+        "SELECT id FROM nodes WHERE node_type = ? AND retired_at IS NULL "
+        f"AND name IN ({placeholders}) "
+        "UNION SELECT n.id FROM aliases a JOIN nodes n ON n.id = a.node_id "
+        "WHERE n.node_type = ? AND n.retired_at IS NULL "
+        f"AND a.alias IN ({placeholders}) ORDER BY id",
+        (node_type, *names, node_type, *names),
+    ).fetchall()
+    if len(exact) == 1:
+        return exact[0][0]
+    if exact:
+        return None
+
+    deterministic: set[str] = set()
+    for name in names:
+        matched = match_node(conn, name, node_type)
+        if matched and matched[1] != "fuzzy":
+            deterministic.add(matched[0])
+    return next(iter(deterministic)) if len(deterministic) == 1 else None
+
+
+def _operation_sort_key(entry: dict, id_field: str) -> tuple[str, str]:
+    return str(entry.get("at") or ""), str(entry.get(id_field) or "")
+
+
+ReplayPhase = Literal["merge", "rejection", "rename"]
+ReplayOutcome = Literal[
+    "applied_normally",
+    "compensated_normally",
+    "pending_normally",
+    "rejected_normally",
+    "absorbed",
+    "unresolved_drift",
+    "unconfirmed",
+    "invalid",
+]
+_REPLAY_PHASES: tuple[ReplayPhase, ...] = ("merge", "rejection", "rename")
+
+
+@dataclass(frozen=True)
+class ReplayDiagnostic:
+    """One canonical result for one source operation with a stable ID."""
+
+    source_phase: ReplayPhase
+    operation_id: str
+    outcome: ReplayOutcome
+    cause: str
+    details: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ReplayBlocker:
+    """A source entry that cannot join the operation inventory without an ID."""
+
+    source_phase: ReplayPhase
+    cause: str
+    details: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class CandidateReplayResult:
+    """Strict replay result over an isolated, writable rebuild candidate."""
+
+    diagnostics: tuple[ReplayDiagnostic, ...]
+    blockers: tuple[ReplayBlocker, ...]
+    operation_inventory: tuple[tuple[ReplayPhase, str], ...]
+
+    @property
+    def replacement_safe(self) -> bool:
+        return not self.blockers and all(
+            diagnostic.outcome not in {"unresolved_drift", "unconfirmed", "invalid"}
+            for diagnostic in self.diagnostics
+        )
+
+
+class CandidateReplaySourceError(ValueError):
+    """The replay source cannot form an unambiguous operation inventory."""
+
+
+@dataclass(frozen=True)
+class _SourceOperation:
+    phase: ReplayPhase
+    operation_id: str
+    entry: dict[str, Any]
+    reversal: dict[str, Any] | None
+
+
+RENAME_OPERATION_ID_PREFIX = OPERATION_ID_PREFIX
+
+
+def legacy_rename_operation_identity(entry: dict[str, Any]) -> dict[str, Any]:
+    """Return the exact canonical payload and derived ID for one legacy rename."""
+    return legacy_operation_identity(entry)
+
+
+def _invalid_fields(entry: dict, requirements: dict[str, type]) -> list[str]:
+    invalid = []
+    for field, expected_type in requirements.items():
+        value = entry.get(field)
+        if not isinstance(value, expected_type) or (
+            expected_type is str and not value.strip()
+        ):
+            invalid.append(field)
+    return invalid
+
+
+def _valid_timestamp(value: Any) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
+
+
+def _invalid_natural_paths(value: Any, path: str) -> list[str]:
+    if not isinstance(value, dict):
+        return [path]
+    invalid = []
+    for field in ("name", "node_type"):
+        member = value.get(field)
+        if not isinstance(member, str) or not member.strip():
+            invalid.append(f"{path}/{field}")
+    prior_names = value.get("prior_names", [])
+    if not isinstance(prior_names, list) or any(
+        not isinstance(name, str) or not name.strip() for name in prior_names
+    ):
+        invalid.append(f"{path}/prior_names")
+    return invalid
+
+
+def _source_operations(
+    phase: ReplayPhase,
+    entries: list[Any],
+    *,
+    apply_op: str,
+    reverse_op: str,
+    id_field: str,
+) -> tuple[list[_SourceOperation], list[ReplayBlocker]]:
+    """Build the strict source inventory and validate compensating links."""
+    ordered = sorted(
+        enumerate(entries),
+        key=lambda item: (
+            str(item[1].get("at") or "") if isinstance(item[1], dict) else "",
+            str(item[1].get(id_field) or "") if isinstance(item[1], dict) else "",
+            item[0],
+        ),
+    )
+    bases: dict[str, tuple[dict[str, Any], tuple[str, str]]] = {}
+    reversals: dict[str, dict[str, Any]] = {}
+    blockers: list[ReplayBlocker] = []
+    for source_index, raw in ordered:
+        entry = raw if isinstance(raw, dict) else {}
+        operation_id = entry.get(id_field)
+        if not isinstance(operation_id, str) or not operation_id.strip():
+            blockers.append(
+                ReplayBlocker(
+                    source_phase=phase,
+                    cause="missing_stable_operation_id",
+                    details={
+                        "source_index": source_index,
+                        "operation": entry.get("op"),
+                        "timestamp": entry.get("at"),
+                        "entry_type": type(raw).__name__,
+                    },
+                )
+            )
             continue
-        m = match_node(conn, name, node_type)
-        if m and m[1] != "fuzzy":
-            return m[0]
-    return None
+        operation = entry.get("op")
+        order = _operation_sort_key(entry, id_field)
+        if operation == reverse_op:
+            if not _valid_timestamp(entry.get("at")):
+                blockers.append(
+                    ReplayBlocker(
+                        source_phase=phase,
+                        cause="invalid_reversal_timestamp",
+                        details={"operation_id": operation_id},
+                    )
+                )
+                continue
+            base = bases.get(operation_id)
+            if base is None:
+                raise CandidateReplaySourceError(
+                    f"{phase} reversal references unknown replay ID {operation_id!r}"
+                )
+            if operation_id in reversals:
+                raise CandidateReplaySourceError(
+                    f"duplicate {phase} reversal for replay ID {operation_id!r}"
+                )
+            if order <= base[1]:
+                raise CandidateReplaySourceError(
+                    f"{phase} reversal for replay ID {operation_id!r} is not later"
+                )
+            reversals[operation_id] = entry
+            continue
+        if operation_id in bases:
+            raise CandidateReplaySourceError(
+                f"duplicate {phase} replay ID {operation_id!r}"
+            )
+        bases[operation_id] = (entry, order)
+
+    operations = [
+        _SourceOperation(phase, operation_id, entry, reversals.get(operation_id))
+        for operation_id, (entry, _order) in bases.items()
+    ]
+    operations.sort(key=lambda item: _operation_sort_key(item.entry, id_field))
+    return operations, blockers
+
+
+def _compensation_diagnostic(operation: _SourceOperation) -> ReplayDiagnostic:
+    assert operation.reversal is not None
+    return ReplayDiagnostic(
+        source_phase=operation.phase,
+        operation_id=operation.operation_id,
+        outcome="compensated_normally",
+        cause="explicit_later_reversal",
+        details={
+            "base_operation": {
+                "operation": operation.entry.get("op"),
+                "operation_id": operation.operation_id,
+                "timestamp": operation.entry.get("at"),
+            },
+            "reversal_event": {
+                "operation": operation.reversal.get("op"),
+                "event_id": operation.reversal.get("id"),
+                "reverses_operation_id": operation.operation_id,
+                "timestamp": operation.reversal.get("at"),
+            },
+        },
+    )
 
 
 def _claim_ref_count(conn: sqlite3.Connection, node_id: str) -> int:
     return conn.execute(
         "SELECT COUNT(*) FROM claim_node_refs WHERE node_id = ?", (node_id,)
     ).fetchone()[0]
+
+
+def _materialise_merge(
+    conn: sqlite3.Connection, e: dict, log, *, strict_source: bool = True
+) -> ReplayDiagnostic:
+    merge_id = e["merge_id"]
+    requirements = {"canonical_name": str, "survivor": dict, "victims": list}
+    if strict_source:
+        requirements["at"] = str
+    invalid = _invalid_fields(e, requirements)
+    field_paths = [f"/{field}" for field in invalid]
+    if strict_source and "at" not in invalid and not _valid_timestamp(e["at"]):
+        field_paths.append("/at")
+    confirmation = e.get("confirmation")
+    if confirmation is not None and not (
+        isinstance(confirmation, dict)
+        and set(confirmation) == {"by", "at", "via"}
+        and isinstance(confirmation.get("by"), str)
+        and confirmation["by"].strip()
+        and _valid_timestamp(confirmation.get("at"))
+        and confirmation.get("via") in CONFIRMATION_VIAS
+    ):
+        field_paths.append("/confirmation")
+    proposal_ids = e.get("proposal_ids", [])
+    if (
+        not isinstance(proposal_ids, list)
+        or proposal_ids != sorted(set(proposal_ids))
+        or any(
+            not isinstance(proposal_id, str)
+            or not proposal_id.startswith(PROPOSAL_ID_PREFIX)
+            or not proposal_id.removeprefix(PROPOSAL_ID_PREFIX)
+            for proposal_id in proposal_ids
+        )
+    ):
+        field_paths.append("/proposal_ids")
+    if not invalid:
+        field_paths.extend(_invalid_natural_paths(e["survivor"], "/survivor"))
+        if not e["victims"]:
+            field_paths.append("/victims")
+        for index, victim in enumerate(e["victims"]):
+            field_paths.extend(_invalid_natural_paths(victim, f"/victims/{index}"))
+    if field_paths or e.get("op") != "merge":
+        return ReplayDiagnostic(
+            "merge",
+            merge_id,
+            "invalid",
+            "invalid_merge_source_operation",
+            {
+                "field_paths": sorted(set(field_paths)) or ["/op"],
+                "operation": e.get("op"),
+            },
+        )
+    if not confirmed(e):
+        log(
+            f"  replay UNCONFIRMED {merge_id}: no confirmation block and "
+            f"dated after the rule - not applied ({e.get('canonical_name')!r})"
+        )
+        return ReplayDiagnostic(
+            "merge",
+            merge_id,
+            "unconfirmed",
+            "confirmation_required",
+            {"canonical_name": e["canonical_name"], "timestamp": e.get("at")},
+        )
+
+    identities = [e["survivor"], *e["victims"]]
+    resolved_identities = [
+        (identity, _resolve_natural(conn, identity)) for identity in identities
+    ]
+    survivor_id = resolved_identities[0][1]
+    resolved = [survivor_id] if survivor_id else []
+    for _identity, victim_id in resolved_identities[1:]:
+        if victim_id and victim_id not in resolved:
+            resolved.append(victim_id)
+    unresolved_identities = [
+        identity for identity, node_id in resolved_identities if node_id is None
+    ]
+
+    if not resolved:
+        log(
+            f"  ERROR replay LOST {merge_id}: no node of "
+            f"'{e['survivor'].get('name')}' is in the graph - this curation "
+            "decision is dropped"
+        )
+        return ReplayDiagnostic(
+            "merge",
+            merge_id,
+            "unresolved_drift",
+            "no_natural_identity_resolved",
+            {"unresolved_identities": identities},
+        )
+
+    if len(resolved) == 1:
+        current_name = conn.execute(
+            "SELECT name FROM nodes WHERE id = ?", (resolved[0],)
+        ).fetchone()[0]
+        if current_name != e["canonical_name"]:
+            log(
+                f"  replay {merge_id}: single node remains as "
+                f"{current_name!r}; the ledger's canonical "
+                f"{e['canonical_name']!r} is NOT applied (naming is the "
+                "renames ledger's job, not a merge's)"
+            )
+        details = {
+            "resolved_node_id": resolved[0],
+            "resolved_name": current_name,
+            "requested_canonical_name": e["canonical_name"],
+            "postcondition": "no_duplicate_nodes_remain",
+        }
+        if strict_source and unresolved_identities:
+            details["unresolved_identities"] = unresolved_identities
+            return ReplayDiagnostic(
+                "merge",
+                merge_id,
+                "unresolved_drift",
+                "partial_natural_identity_resolution",
+                details,
+            )
+        return ReplayDiagnostic(
+            "merge", merge_id, "absorbed", "single_resolved_node", details
+        )
+
+    if survivor_id is None:
+        survivor_id = max(resolved, key=lambda node_id: _claim_ref_count(conn, node_id))
+        kept = conn.execute(
+            "SELECT name, node_type FROM nodes WHERE id = ?", (survivor_id,)
+        ).fetchone()
+        log(
+            f"  replay {merge_id}: chosen survivor "
+            f"'{e['survivor'].get('name')}' ({e['survivor'].get('node_type')}) "
+            "is no longer in the graph - merging into the most-cited "
+            f"resolved node instead, {kept[0]!r} ({kept[1]})"
+        )
+    victim_ids = [node_id for node_id in resolved if node_id != survivor_id]
+    merged = merge_nodes(
+        conn,
+        survivor_id,
+        victim_ids,
+        e["canonical_name"],
+        merge_id,
+        created_at=e.get("at"),
+        created_by=e.get("by"),
+    )
+    retired = {
+        row[0]: row[1] is not None
+        for row in conn.execute(
+            f"SELECT id, retired_at FROM nodes WHERE id IN ({','.join('?' for _ in victim_ids)})",
+            victim_ids,
+        )
+    }
+    current_name = conn.execute(
+        "SELECT name FROM nodes WHERE id = ?", (survivor_id,)
+    ).fetchone()[0]
+    postcondition = {
+        "survivor_id": survivor_id,
+        "canonical_name": current_name,
+        "victim_ids": victim_ids,
+        "victims_retired": retired,
+        "merged_victim_count": merged,
+    }
+    exact = (
+        current_name == e["canonical_name"]
+        and merged == len(victim_ids)
+        and retired == {victim_id: True for victim_id in victim_ids}
+    )
+    if strict_source and unresolved_identities:
+        return ReplayDiagnostic(
+            "merge",
+            merge_id,
+            "unresolved_drift",
+            "partial_natural_identity_resolution",
+            {
+                "resolved_node_ids": resolved,
+                "unresolved_identities": unresolved_identities,
+                "postcondition": postcondition,
+            },
+        )
+    return ReplayDiagnostic(
+        "merge",
+        merge_id,
+        "applied_normally" if exact else "unresolved_drift",
+        "merge_materialised" if exact else "merge_postcondition_mismatch",
+        {
+            "resolved_node_ids": resolved,
+            "postcondition": postcondition,
+        },
+    )
+
+
+def _replay_merge_operations(
+    conn: sqlite3.Connection,
+    operations: list[_SourceOperation],
+    log,
+    *,
+    strict_source: bool = True,
+) -> list[ReplayDiagnostic]:
+    return [
+        _compensation_diagnostic(operation)
+        if operation.reversal is not None
+        else _materialise_merge(conn, operation.entry, log, strict_source=strict_source)
+        for operation in operations
+    ]
 
 
 def replay_ledger(conn: sqlite3.Connection, on_progress=None) -> dict:
@@ -566,71 +1139,31 @@ def replay_ledger(conn: sqlite3.Connection, on_progress=None) -> dict:
     """
     log = on_progress or (lambda _: None)
     entries = read_ledger()
-    undone = {e["merge_id"] for e in entries if e.get("op") == "undo"}
-    applied = absorbed = lost = 0
-    unconfirmed = 0
-    for e in entries:
-        if e.get("op") != "merge" or e["merge_id"] in undone:
-            continue
-        if not confirmed(e):
-            log(
-                f"  replay UNCONFIRMED {e['merge_id']}: no confirmation block and "
-                f"dated after the rule - not applied ({e.get('canonical_name')!r})"
-            )
-            unconfirmed += 1
-            continue
-        survivor_id = _resolve_natural(conn, e["survivor"])
-        resolved = [survivor_id] if survivor_id else []
-        for v in e["victims"]:
-            vid = _resolve_natural(conn, v)
-            if vid and vid not in resolved:
-                resolved.append(vid)
-
-        if not resolved:
-            log(
-                f"  ERROR replay LOST {e['merge_id']}: no node of "
-                f"'{e['survivor']['name']}' is in the graph - this curation "
-                f"decision is dropped"
-            )
-            lost += 1
-            continue
-
-        if len(resolved) == 1:
-            absorbed += 1
-            current_name = conn.execute(
-                "SELECT name FROM nodes WHERE id = ?", (resolved[0],)
-            ).fetchone()[0]
-            if current_name != e["canonical_name"]:
-                log(
-                    f"  replay {e['merge_id']}: single node remains as "
-                    f"{current_name!r}; the ledger's canonical "
-                    f"{e['canonical_name']!r} is NOT applied (naming is the "
-                    f"renames ledger's job, not a merge's)"
-                )
-            continue
-
-        if survivor_id is None:
-            survivor_id = max(resolved, key=lambda n: _claim_ref_count(conn, n))
-            kept = conn.execute(
-                "SELECT name, node_type FROM nodes WHERE id = ?", (survivor_id,)
-            ).fetchone()
-            log(
-                f"  replay {e['merge_id']}: chosen survivor "
-                f"'{e['survivor']['name']}' ({e['survivor'].get('node_type')}) "
-                f"is no longer in the graph - merging into the most-cited "
-                f"resolved node instead, {kept[0]!r} ({kept[1]})"
-            )
-        victim_ids = [n for n in resolved if n != survivor_id]
-        merge_nodes(
-            conn,
-            survivor_id,
-            victim_ids,
-            e["canonical_name"],
+    undone = {
+        e["merge_id"]
+        for e in entries
+        if isinstance(e, dict) and e.get("op") == "undo" and "merge_id" in e
+    }
+    operations = [
+        _SourceOperation(
+            "merge",
             e["merge_id"],
-            created_at=e.get("at"),
-            created_by=e.get("by"),
+            e,
+            {"op": "undo", "merge_id": e["merge_id"]}
+            if e["merge_id"] in undone
+            else None,
         )
-        applied += 1
+        for e in sorted(
+            (entry for entry in entries if isinstance(entry, dict)),
+            key=lambda entry: _operation_sort_key(entry, "merge_id"),
+        )
+        if e.get("op") == "merge" and "merge_id" in e
+    ]
+    diagnostics = _replay_merge_operations(conn, operations, log, strict_source=False)
+    applied = sum(d.outcome == "applied_normally" for d in diagnostics)
+    absorbed = sum(d.outcome == "absorbed" for d in diagnostics)
+    lost = sum(d.outcome in {"unresolved_drift", "invalid"} for d in diagnostics)
+    unconfirmed = sum(d.outcome == "unconfirmed" for d in diagnostics)
     summary = f"Replayed {applied} merges ({absorbed} already single-node"
     summary += f", {lost} LOST" if lost else ""
     summary += f", {unconfirmed} unconfirmed" if unconfirmed else ""
@@ -711,6 +1244,139 @@ def un_reject(conn: sqlite3.Connection, rejection_id: str) -> int:
     return cur.rowcount
 
 
+def _materialise_rejection(
+    conn: sqlite3.Connection, e: dict, log, *, strict_source: bool = True
+) -> ReplayDiagnostic:
+    rejection_id = e["rejection_id"]
+    requirements = {"nodes": list}
+    if strict_source:
+        requirements["at"] = str
+    invalid = _invalid_fields(e, requirements)
+    field_paths = [f"/{field}" for field in invalid]
+    if strict_source and "at" not in invalid and not _valid_timestamp(e["at"]):
+        field_paths.append("/at")
+    if not invalid:
+        if len(e["nodes"]) < 2:
+            field_paths.append("/nodes")
+        for index, node in enumerate(e["nodes"]):
+            field_paths.extend(_invalid_natural_paths(node, f"/nodes/{index}"))
+    if field_paths or e.get("op") != "reject":
+        return ReplayDiagnostic(
+            "rejection",
+            rejection_id,
+            "invalid",
+            "invalid_rejection_source_operation",
+            {
+                "field_paths": sorted(set(field_paths)) or ["/op"],
+                "operation": e.get("op"),
+            },
+        )
+    nodes = e["nodes"]
+    resolved_identities = [(node, _resolve_natural(conn, node)) for node in nodes]
+    ids = {node_id for _node, node_id in resolved_identities if node_id is not None}
+    unresolved_identities = [
+        node for node, node_id in resolved_identities if node_id is None
+    ]
+    if not ids:
+        log(
+            f"  ERROR replay rejection LOST {rejection_id}: no natural node "
+            "is in the graph - this curation decision is dropped"
+        )
+        return ReplayDiagnostic(
+            "rejection",
+            rejection_id,
+            "unresolved_drift",
+            "no_natural_identity_resolved",
+            {"unresolved_identities": nodes},
+        )
+    if len(ids) == 1:
+        node_id = next(iter(ids))
+        name = conn.execute(
+            "SELECT name FROM nodes WHERE id = ?", (node_id,)
+        ).fetchone()[0]
+        log(f"  replay rejection {rejection_id}: absorbed; only {name!r} remains")
+        details = {
+            "resolved_node_id": node_id,
+            "resolved_name": name,
+            "postcondition": "no_distinct_pair_remains",
+        }
+        if strict_source and unresolved_identities:
+            details["unresolved_identities"] = unresolved_identities
+            return ReplayDiagnostic(
+                "rejection",
+                rejection_id,
+                "unresolved_drift",
+                "partial_natural_identity_resolution",
+                details,
+            )
+        return ReplayDiagnostic(
+            "rejection", rejection_id, "absorbed", "single_resolved_node", details
+        )
+    for node_id in sorted(ids):
+        conn.execute(
+            "INSERT OR REPLACE INTO node_rejections (rejection_id, node_id, reason, "
+            "created_at, created_by, undone_at) VALUES (?, ?, ?, ?, ?, NULL)",
+            (rejection_id, node_id, e.get("reason"), e.get("at"), e.get("by")),
+        )
+    materialised_ids = [
+        row[0]
+        for row in conn.execute(
+            "SELECT node_id FROM node_rejections WHERE rejection_id = ? "
+            "AND undone_at IS NULL ORDER BY node_id",
+            (rejection_id,),
+        )
+    ]
+    exact = materialised_ids == sorted(ids) and len(materialised_ids) >= 2
+    if strict_source and unresolved_identities:
+        return ReplayDiagnostic(
+            "rejection",
+            rejection_id,
+            "unresolved_drift",
+            "partial_natural_identity_resolution",
+            {
+                "resolved_node_ids": sorted(ids),
+                "unresolved_identities": unresolved_identities,
+                "postcondition": {
+                    "rejection_id": rejection_id,
+                    "distinct_node_ids": materialised_ids,
+                },
+            },
+        )
+    return ReplayDiagnostic(
+        "rejection",
+        rejection_id,
+        "applied_normally" if exact else "unresolved_drift",
+        "rejection_materialised" if exact else "rejection_postcondition_mismatch",
+        {
+            "resolved_node_ids": sorted(ids),
+            "postcondition": {
+                "rejection_id": rejection_id,
+                "distinct_node_ids": materialised_ids,
+            },
+        },
+    )
+
+
+def _replay_rejection_operations(
+    conn: sqlite3.Connection,
+    operations: list[_SourceOperation],
+    log,
+    *,
+    strict_source: bool = True,
+) -> list[ReplayDiagnostic]:
+    conn.execute("DELETE FROM node_rejections")
+    diagnostics = [
+        _compensation_diagnostic(operation)
+        if operation.reversal is not None
+        else _materialise_rejection(
+            conn, operation.entry, log, strict_source=strict_source
+        )
+        for operation in operations
+    ]
+    conn.commit()
+    return diagnostics
+
+
 def replay_rejections(conn: sqlite3.Connection, on_progress=None) -> dict:
     """Re-materialise active rejection IDs from their natural identities.
 
@@ -721,7 +1387,9 @@ def replay_rejections(conn: sqlite3.Connection, on_progress=None) -> dict:
     log = on_progress or (lambda _: None)
     entries = read_rejections()
     active: dict[str, dict] = {}
-    for e in entries:
+    for e in sorted(
+        entries, key=lambda entry: _operation_sort_key(entry, "rejection_id")
+    ):
         rejection_id = e.get("rejection_id")
         if not rejection_id:
             continue
@@ -730,38 +1398,16 @@ def replay_rejections(conn: sqlite3.Connection, on_progress=None) -> dict:
         elif e.get("op") == "unreject":
             active.pop(rejection_id, None)
 
-    conn.execute("DELETE FROM node_rejections")
-    applied = absorbed = lost = 0
-    for rejection_id in sorted(active):
-        e = active[rejection_id]
-        nodes = e.get("nodes") if isinstance(e.get("nodes"), list) else []
-        nodes = [node for node in nodes if isinstance(node, dict)]
-        ids = {
-            nid for nid in (_resolve_natural(conn, n) for n in nodes) if nid is not None
-        }
-        if not ids:
-            log(
-                f"  ERROR replay rejection LOST {rejection_id}: no natural node "
-                "is in the graph - this curation decision is dropped"
-            )
-            lost += 1
-            continue
-        if len(ids) == 1:
-            node_id = next(iter(ids))
-            name = conn.execute(
-                "SELECT name FROM nodes WHERE id = ?", (node_id,)
-            ).fetchone()[0]
-            log(f"  replay rejection {rejection_id}: absorbed; only {name!r} remains")
-            absorbed += 1
-            continue
-        for node_id in sorted(ids):
-            conn.execute(
-                "INSERT OR REPLACE INTO node_rejections (rejection_id, node_id, reason, "
-                "created_at, created_by, undone_at) VALUES (?, ?, ?, ?, ?, NULL)",
-                (rejection_id, node_id, e.get("reason"), e.get("at"), e.get("by")),
-            )
-        applied += 1
-    conn.commit()
+    operations = [
+        _SourceOperation("rejection", rejection_id, entry, None)
+        for rejection_id, entry in sorted(active.items())
+    ]
+    diagnostics = _replay_rejection_operations(
+        conn, operations, log, strict_source=False
+    )
+    applied = sum(d.outcome == "applied_normally" for d in diagnostics)
+    absorbed = sum(d.outcome == "absorbed" for d in diagnostics)
+    lost = sum(d.outcome in {"unresolved_drift", "invalid"} for d in diagnostics)
     summary = f"Replayed {applied} rejections ({absorbed} absorbed"
     summary += f", {lost} LOST" if lost else ""
     log(summary + ")")
@@ -792,14 +1438,6 @@ def renames_ledger_path() -> Path:
     return base / "renames.yaml"
 
 
-def _append_rename(entry: dict) -> None:
-    path = renames_ledger_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as f:
-        f.write("---\n")
-        f.write(yaml.safe_dump(entry, sort_keys=False, allow_unicode=True))
-
-
 def read_renames() -> list[dict]:
     path = renames_ledger_path()
     if not path.is_file():
@@ -813,20 +1451,21 @@ def append_rename_entry(
     rename_id: str,
     created_at: str,
     created_by: str | None,
-) -> None:
+    proposal_id: str | None = None,
+) -> str:
     """Record a node-name correction in the durable ledger, keyed on the node's
     PRE-rename natural identity (the name a fresh import carries) so replay can
     resolve it. Used directly when the live rename has already been applied."""
-    _append_rename(
-        {
-            "op": "rename",
-            "rename_id": rename_id,
-            "at": created_at,
-            "by": created_by,
-            "new_name": new_name,
-            "node": old_natural,
-        }
+    del rename_id
+    event = build_rename_event(
+        at=created_at,
+        by=created_by,
+        new_name=new_name,
+        node=old_natural,
+        proposal_id=proposal_id,
     )
+    append_event_if_absent(renames_ledger_path(), event)
+    return event["operation_id"]
 
 
 def rename_node(
@@ -836,6 +1475,7 @@ def rename_node(
     rename_id: str,
     created_at: str | None = None,
     created_by: str | None = None,
+    proposal_id: str | None = None,
 ) -> None:
     """Apply a node-name correction to the live graph (old name kept as an alias)
     and record it in the durable ledger, keyed on the pre-rename natural identity.
@@ -846,7 +1486,12 @@ def rename_node(
         raise ValueError(f"node not found: {node_id}")
     old_name = cur[0]
     append_rename_entry(
-        _natural(conn, node_id), new_name, rename_id, created_at, created_by
+        _natural(conn, node_id),
+        new_name,
+        rename_id,
+        created_at,
+        created_by,
+        proposal_id=proposal_id,
     )
     conn.execute("UPDATE nodes SET name = ? WHERE id = ?", (new_name, node_id))
     forget_embeddings(conn, "node", node_id)
@@ -857,33 +1502,547 @@ def rename_node(
     conn.commit()
 
 
+def _materialise_rename(
+    conn: sqlite3.Connection, e: dict, operation_id: str | None = None
+) -> ReplayDiagnostic:
+    rename_id = operation_id or e["rename_id"]
+    if e.get("op") == "reject_proposal":
+        return ReplayDiagnostic(
+            "rename",
+            rename_id,
+            "applied_normally",
+            "proposal_rejection_recorded",
+            {
+                "proposal_id": e["proposal_id"],
+                "postcondition": "explicit_rejection_event_is_active",
+            },
+        )
+    invalid = _invalid_fields(e, {"node": dict, "new_name": str})
+    field_paths = [f"/{field}" for field in invalid]
+    if not invalid:
+        field_paths.extend(_invalid_natural_paths(e["node"], "/node"))
+    if field_paths or e.get("op") != "rename":
+        return ReplayDiagnostic(
+            "rename",
+            rename_id,
+            "invalid",
+            "invalid_rename_source_operation",
+            {
+                "field_paths": sorted(set(field_paths)) or ["/op"],
+                "operation": e.get("op"),
+            },
+        )
+    node_id = _resolve_natural(conn, e["node"])
+    if node_id is None:
+        return ReplayDiagnostic(
+            "rename",
+            rename_id,
+            "unresolved_drift",
+            "natural_identity_did_not_resolve",
+            {"unresolved_identity": e["node"], "requested_name": e["new_name"]},
+        )
+    old_name = _node(conn, node_id)[0]
+    conn.execute("UPDATE nodes SET name = ? WHERE id = ?", (e["new_name"], node_id))
+    forget_embeddings(conn, "node", node_id)
+    conn.execute(
+        "INSERT OR IGNORE INTO aliases (alias, node_id) VALUES (?, ?)",
+        (old_name, node_id),
+    )
+    current_name = _node(conn, node_id)[0]
+    old_name_is_alias = (
+        conn.execute(
+            "SELECT 1 FROM aliases WHERE alias = ? AND node_id = ?",
+            (old_name, node_id),
+        ).fetchone()
+        is not None
+    )
+    exact = current_name == e["new_name"] and old_name_is_alias
+    return ReplayDiagnostic(
+        "rename",
+        rename_id,
+        "applied_normally" if exact else "unresolved_drift",
+        "rename_materialised" if exact else "rename_postcondition_mismatch",
+        {
+            "resolved_node_id": node_id,
+            "postcondition": {
+                "canonical_name": current_name,
+                "prior_name": old_name,
+                "prior_name_is_alias": old_name_is_alias,
+            },
+        },
+    )
+
+
+def _replay_rename_operations(
+    conn: sqlite3.Connection,
+    operations: list[_SourceOperation],
+) -> list[ReplayDiagnostic]:
+    diagnostics = [
+        _compensation_diagnostic(operation)
+        if operation.reversal is not None
+        else _materialise_rename(conn, operation.entry, operation.operation_id)
+        for operation in operations
+    ]
+    conn.commit()
+    return diagnostics
+
+
+def _parse_proposals(
+    raw_proposals: list[Any],
+) -> tuple[list[RenameProposal], list[ReplayDiagnostic], list[ReplayBlocker]]:
+    proposals: list[RenameProposal] = []
+    diagnostics: list[ReplayDiagnostic] = []
+    blockers: list[ReplayBlocker] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(raw_proposals):
+        document = raw if isinstance(raw, dict) else {}
+        path = str(document.get("_path") or "<rename proposal>")
+        source = {
+            key: value for key, value in document.items() if not key.startswith("_")
+        }
+        raw_id = source.get("id")
+        if not isinstance(raw_id, str) or not raw_id.strip():
+            blockers.append(
+                ReplayBlocker(
+                    "rename",
+                    "malformed_rename_proposal_without_id",
+                    {
+                        "source_index": index,
+                        "path": path,
+                        "detail": document.get("_error"),
+                    },
+                )
+            )
+            continue
+        operation_id = PROPOSAL_ID_PREFIX + raw_id
+        if operation_id in seen:
+            raise CandidateReplaySourceError(
+                f"duplicate rename proposal operation id {operation_id}"
+            )
+        seen.add(operation_id)
+        try:
+            if document.get("_error"):
+                raise RenameLedgerError(str(document["_error"]))
+            proposals.append(parse_proposal_document(source, path))
+        except RenameLedgerError as exc:
+            diagnostics.append(
+                ReplayDiagnostic(
+                    "rename",
+                    operation_id,
+                    "invalid",
+                    "malformed_rename_proposal",
+                    {
+                        "path": path,
+                        "detail": str(exc),
+                        "source_timestamp": source.get("proposed_at"),
+                    },
+                )
+            )
+    proposals.sort(key=lambda proposal: (proposal.at, proposal.operation_id))
+    return proposals, diagnostics, blockers
+
+
+def _proposal_source_ids(
+    conn: sqlite3.Connection, proposal: RenameProposal
+) -> set[str]:
+    if proposal.node is not None:
+        resolved = _resolve_natural(conn, proposal.node)
+        return {resolved} if resolved else set()
+    return _live_ids_for_name(conn, proposal.source_name)
+
+
+def _linked_proposal_diagnostics(
+    conn: sqlite3.Connection,
+    raw_proposals: list[Any],
+    rename_stream: RenameStream,
+    merge_operations: list[_SourceOperation],
+) -> tuple[list[ReplayDiagnostic], list[ReplayBlocker]]:
+    proposals, malformed, blockers = _parse_proposals(raw_proposals)
+    known = {proposal.operation_id for proposal in proposals}
+    for operation in rename_stream.operations:
+        proposal_id = operation.event.get("proposal_id")
+        if proposal_id is not None and proposal_id not in known:
+            blockers.append(
+                ReplayBlocker(
+                    "rename",
+                    "rename_links_unknown_proposal",
+                    {
+                        "operation_id": operation.operation_id,
+                        "proposal_id": proposal_id,
+                    },
+                )
+            )
+    for operation in merge_operations:
+        for proposal_id in operation.entry.get("proposal_ids") or []:
+            if proposal_id not in known:
+                blockers.append(
+                    ReplayBlocker(
+                        "merge",
+                        "merge_links_unknown_proposal",
+                        {
+                            "operation_id": operation.operation_id,
+                            "proposal_id": proposal_id,
+                        },
+                    )
+                )
+
+    diagnostics = list(malformed)
+    active_rename = {
+        operation.operation_id: operation
+        for operation in rename_stream.active_operations
+    }
+    for proposal in proposals:
+        rename_routes = [
+            operation
+            for operation in rename_stream.operations
+            if operation.op == "rename"
+            and operation.event.get("proposal_id") == proposal.operation_id
+        ]
+        reject_routes = [
+            operation
+            for operation in rename_stream.active_operations
+            if operation.op == "reject_proposal"
+            and operation.event["proposal_id"] == proposal.operation_id
+        ]
+        merge_routes = [
+            operation
+            for operation in merge_operations
+            if operation.reversal is None
+            and proposal.operation_id in (operation.entry.get("proposal_ids") or [])
+        ]
+        active_rename_routes = [
+            route for route in rename_routes if route.operation_id in active_rename
+        ]
+        compensated_routes = [
+            route
+            for route in rename_routes
+            if route.operation_id in rename_stream.compensation_by_operation
+        ]
+        routes = (
+            active_rename_routes + reject_routes + merge_routes + compensated_routes
+        )
+        details: dict[str, Any] = {
+            "proposal": proposal,
+            "source_timestamp": proposal.at,
+            "resolution_phase": None,
+            "resolution_operation_id": None,
+            "compensation_operation_id": None,
+            "resolved_at": None,
+            "resolution_note": None,
+            "materialized_status": None,
+        }
+        source_ids = _proposal_source_ids(conn, proposal)
+        if len(routes) > 1:
+            diagnostic = ReplayDiagnostic(
+                "rename",
+                proposal.operation_id,
+                "invalid",
+                "proposal_has_multiple_active_resolution_routes",
+                {
+                    **details,
+                    "route_operation_ids": [route.operation_id for route in routes],
+                },
+            )
+        elif active_rename_routes:
+            route = active_rename_routes[0]
+            target_ids = _live_ids_for_name(conn, proposal.proposed_name)
+            exact = len(source_ids) == 1 and target_ids == source_ids
+            node_id = next(iter(source_ids)) if exact else None
+            current = _node(conn, node_id) if node_id else None
+            exact = bool(exact and current and current[0] == proposal.proposed_name)
+            diagnostic = ReplayDiagnostic(
+                "rename",
+                proposal.operation_id,
+                "applied_normally" if exact else "unresolved_drift",
+                "proposal_applied_by_explicit_rename"
+                if exact
+                else "linked_rename_postcondition_mismatch",
+                {
+                    **details,
+                    "materialized_status": "applied" if exact else "unresolved_drift",
+                    "resolution_phase": "rename",
+                    "resolution_operation_id": route.operation_id,
+                    "resolved_at": route.at,
+                },
+            )
+        elif reject_routes:
+            route = reject_routes[0]
+            diagnostic = ReplayDiagnostic(
+                "rename",
+                proposal.operation_id,
+                "rejected_normally",
+                "proposal_rejected_by_explicit_event",
+                {
+                    **details,
+                    "materialized_status": "rejected",
+                    "resolution_phase": "rename",
+                    "resolution_operation_id": route.operation_id,
+                    "resolved_at": route.at,
+                    "resolution_note": route.event["reason"],
+                },
+            )
+        elif merge_routes:
+            route = merge_routes[0]
+            exact = confirmed(route.entry) and len(source_ids) == 1
+            node_id = next(iter(source_ids)) if exact else None
+            names = (
+                {_node(conn, node_id)[0], *_aliases(conn, node_id)}
+                if node_id
+                else set()
+            )
+            exact = bool(exact and proposal.proposed_name in names)
+            diagnostic = ReplayDiagnostic(
+                "rename",
+                proposal.operation_id,
+                "applied_normally" if exact else "unresolved_drift",
+                "proposal_resolved_by_confirmed_merge"
+                if exact
+                else "linked_merge_postcondition_mismatch",
+                {
+                    **details,
+                    "materialized_status": "merged" if exact else "unresolved_drift",
+                    "resolution_phase": "merge",
+                    "resolution_operation_id": route.operation_id,
+                    "resolved_at": route.entry.get("at"),
+                },
+            )
+        elif compensated_routes:
+            route = compensated_routes[0]
+            compensation = rename_stream.compensation_by_operation[route.operation_id]
+            exact = len(source_ids) == 1
+            node_id = next(iter(source_ids)) if exact else None
+            current = _node(conn, node_id) if node_id else None
+            expected_type = route.event["node"]["node_type"]
+            exact = bool(exact and current == (proposal.source_name, expected_type))
+            diagnostic = ReplayDiagnostic(
+                "rename",
+                proposal.operation_id,
+                "compensated_normally" if exact else "unresolved_drift",
+                "proposal_resolution_compensated"
+                if exact
+                else "compensation_postcondition_mismatch",
+                {
+                    **details,
+                    "materialized_status": "compensated"
+                    if exact
+                    else "unresolved_drift",
+                    "resolution_phase": "rename",
+                    "resolution_operation_id": route.operation_id,
+                    "compensation_operation_id": compensation.get("id"),
+                    "resolved_at": compensation.get("at"),
+                },
+            )
+        elif len(source_ids) == 1:
+            diagnostic = ReplayDiagnostic(
+                "rename",
+                proposal.operation_id,
+                "pending_normally",
+                "proposal_has_no_explicit_resolution",
+                {**details, "materialized_status": "pending"},
+            )
+        else:
+            diagnostic = ReplayDiagnostic(
+                "rename",
+                proposal.operation_id,
+                "unresolved_drift" if not source_ids else "invalid",
+                "proposal_source_absent"
+                if not source_ids
+                else "proposal_source_ambiguous",
+                {**details, "materialized_status": "unresolved_drift"},
+            )
+        diagnostics.append(diagnostic)
+    diagnostics.sort(
+        key=lambda diagnostic: (
+            str(diagnostic.details.get("source_timestamp") or ""),
+            diagnostic.operation_id,
+        )
+    )
+    return diagnostics, blockers
+
+
 def replay_renames(conn: sqlite3.Connection, on_progress=None) -> dict:
     """Re-apply durable renames over the freshly-rebuilt graph, after merges and
     rejections (a renamed node may be a merge survivor). Resolves each node by its
     pre-rename natural identity, sets the new name, keeps the old name as an alias.
     A node that no longer resolves is skipped (its source left the corpus)."""
     log = on_progress or (lambda _: None)
-    entries = read_renames()
-    undone = {e["rename_id"] for e in entries if e.get("op") == "unrename"}
-    applied = skipped = 0
-    for e in entries:
-        if e.get("op") != "rename" or e["rename_id"] in undone:
-            continue
-        nid = _resolve_natural(conn, e["node"])
-        if nid is None:
-            skipped += 1
-            continue
-        old_name = _node(conn, nid)[0]
-        conn.execute("UPDATE nodes SET name = ? WHERE id = ?", (e["new_name"], nid))
-        forget_embeddings(conn, "node", nid)
-        conn.execute(
-            "INSERT OR IGNORE INTO aliases (alias, node_id) VALUES (?, ?)",
-            (old_name, nid),
+    try:
+        stream = read_stream(renames_ledger_path())
+    except RenameLedgerError as exc:
+        raise CandidateReplaySourceError(str(exc)) from exc
+    operations = [
+        _SourceOperation(
+            "rename",
+            operation.operation_id,
+            operation.event,
+            stream.compensation_by_operation.get(operation.operation_id),
         )
-        applied += 1
-    conn.commit()
+        for operation in stream.operations
+    ]
+    diagnostics = _replay_rename_operations(conn, operations)
+    applied = sum(d.cause == "rename_materialised" for d in diagnostics)
+    skipped = sum(d.outcome in {"unresolved_drift", "invalid"} for d in diagnostics)
     log(f"Replayed {applied} renames ({skipped} skipped)")
     return {"applied": applied, "skipped": skipped}
+
+
+def candidate_curation_source_inventory() -> tuple[
+    tuple[tuple[ReplayPhase, str], ...], tuple[ReplayBlocker, ...]
+]:
+    """Read the canonical source inventory without consulting a replay report."""
+    specifications: tuple[tuple[ReplayPhase, list[Any], str, str, str], ...] = (
+        ("merge", read_ledger(), "merge", "undo", "merge_id"),
+        ("rejection", read_rejections(), "reject", "unreject", "rejection_id"),
+    )
+    inventory: list[tuple[ReplayPhase, str]] = []
+    blockers: list[ReplayBlocker] = []
+    for phase, entries, apply_op, reverse_op, id_field in specifications:
+        operations, phase_blockers = _source_operations(
+            phase,
+            entries,
+            apply_op=apply_op,
+            reverse_op=reverse_op,
+            id_field=id_field,
+        )
+        inventory.extend((phase, operation.operation_id) for operation in operations)
+        blockers.extend(phase_blockers)
+    try:
+        rename_stream = read_stream(renames_ledger_path())
+    except RenameLedgerError as exc:
+        raise CandidateReplaySourceError(str(exc)) from exc
+    proposals, malformed, proposal_blockers = _parse_proposals(read_rename_proposals())
+    blockers.extend(proposal_blockers)
+    rename_items = [
+        ((operation.at, operation.operation_id), operation.operation_id)
+        for operation in rename_stream.operations
+    ]
+    rename_items.extend(
+        ((proposal.at, proposal.operation_id), proposal.operation_id)
+        for proposal in proposals
+    )
+    rename_items.extend(
+        (
+            (
+                str(diagnostic.details.get("source_timestamp") or ""),
+                diagnostic.operation_id,
+            ),
+            diagnostic.operation_id,
+        )
+        for diagnostic in malformed
+    )
+    rename_items.sort(key=lambda item: item[0])
+    inventory.extend(("rename", operation_id) for _order, operation_id in rename_items)
+    if len(set(inventory)) != len(inventory):
+        raise CandidateReplaySourceError(
+            "curation source inventory contains duplicate ids"
+        )
+    return tuple(inventory), tuple(blockers)
+
+
+def replay_candidate_curation(
+    conn: sqlite3.Connection, on_progress=None
+) -> CandidateReplayResult:
+    """Strictly replay merge, rejection and rename onto a writable candidate.
+
+    The caller owns candidate isolation. Rename proposal files join the rename
+    phase as non-mutating base requests after ledger renames are materialised.
+    Unknown or duplicate stable IDs fail immediately. Entries without a stable ID
+    become explicit blockers because they cannot be included in the inventory.
+    """
+    log = on_progress or (lambda _: None)
+    try:
+        conn.execute("UPDATE nodes SET id = id WHERE 0")
+    except sqlite3.OperationalError as exc:
+        raise CandidateReplaySourceError(
+            "candidate replay requires a writable SQLite connection"
+        ) from exc
+
+    specifications: tuple[tuple[ReplayPhase, list[Any], str, str, str], ...] = (
+        ("merge", read_ledger(), "merge", "undo", "merge_id"),
+        (
+            "rejection",
+            read_rejections(),
+            "reject",
+            "unreject",
+            "rejection_id",
+        ),
+    )
+    by_phase: dict[ReplayPhase, list[_SourceOperation]] = {}
+    blockers: list[ReplayBlocker] = []
+    for phase, entries, apply_op, reverse_op, id_field in specifications:
+        operations, phase_blockers = _source_operations(
+            phase,
+            entries,
+            apply_op=apply_op,
+            reverse_op=reverse_op,
+            id_field=id_field,
+        )
+        by_phase[phase] = operations
+        blockers.extend(phase_blockers)
+    try:
+        rename_stream = read_stream(renames_ledger_path())
+    except RenameLedgerError as exc:
+        raise CandidateReplaySourceError(str(exc)) from exc
+    rename_operations = [
+        _SourceOperation(
+            "rename",
+            operation.operation_id,
+            operation.event,
+            rename_stream.compensation_by_operation.get(operation.operation_id),
+        )
+        for operation in rename_stream.operations
+    ]
+    by_phase["rename"] = rename_operations
+    proposals = read_rename_proposals()
+
+    diagnostics: list[ReplayDiagnostic] = []
+    diagnostics.extend(_replay_merge_operations(conn, by_phase["merge"], log))
+    diagnostics.extend(_replay_rejection_operations(conn, by_phase["rejection"], log))
+    rename_diagnostics = _replay_rename_operations(conn, rename_operations)
+    proposal_diagnostics, proposal_blockers = _linked_proposal_diagnostics(
+        conn, proposals, rename_stream, by_phase["merge"]
+    )
+    blockers.extend(proposal_blockers)
+    ordered_rename_diagnostics = [
+        (
+            (str(operation.entry.get("at") or ""), operation.operation_id),
+            diagnostic,
+        )
+        for operation, diagnostic in zip(
+            rename_operations, rename_diagnostics, strict=True
+        )
+    ]
+    ordered_rename_diagnostics.extend(
+        (
+            (
+                str(diagnostic.details.get("source_timestamp") or ""),
+                diagnostic.operation_id,
+            ),
+            diagnostic,
+        )
+        for diagnostic in proposal_diagnostics
+    )
+    ordered_rename_diagnostics.sort(key=lambda item: item[0])
+    diagnostics.extend(diagnostic for _key, diagnostic in ordered_rename_diagnostics)
+
+    non_rename_inventory = tuple(
+        (phase, operation.operation_id)
+        for phase in _REPLAY_PHASES[:2]
+        for operation in by_phase[phase]
+    )
+    rename_inventory = tuple(
+        ("rename", diagnostic.operation_id)
+        for _key, diagnostic in ordered_rename_diagnostics
+    )
+    inventory = non_rename_inventory + rename_inventory
+    actual = tuple(
+        (diagnostic.source_phase, diagnostic.operation_id) for diagnostic in diagnostics
+    )
+    if actual != inventory or len(set(actual)) != len(actual):
+        raise RuntimeError(
+            "candidate replay diagnostics do not exactly cover the source inventory"
+        )
+    return CandidateReplayResult(tuple(diagnostics), tuple(blockers), inventory)
 
 
 def _live_ids_for_name(conn: sqlite3.Connection, name: str) -> set[str]:
@@ -899,122 +2058,169 @@ def _live_ids_for_name(conn: sqlite3.Connection, name: str) -> set[str]:
     }
 
 
-def replay_rename_proposals(conn: sqlite3.Connection, on_progress=None) -> dict:
-    """Reconstruct rename proposal outcome rows without applying a rename.
-
-    A matching active rename-ledger entry is the durable evidence that a proposal
-    was applied. A proposal absent from that ledger is rejected only when its old
-    identity and requested name still resolve to disjoint live nodes, proving the
-    name collision. Otherwise it remains pending when still actionable, or is
-    loudly lost when the outcome can no longer be reconstructed.
-    """
-    log = on_progress or (lambda _: None)
-    rename_entries: dict[str, dict] = {}
-    for entry in read_renames():
-        rename_id = entry.get("rename_id")
-        if not rename_id:
+def _apply_proposal_dispositions(
+    diagnostics: list[ReplayDiagnostic], disposition_report: dict[str, Any] | None
+) -> list[ReplayDiagnostic]:
+    if disposition_report is None:
+        return diagnostics
+    dispositions = {
+        outcome["operation_id"]: outcome
+        for outcome in disposition_report.get("outcomes", [])
+        if outcome.get("source_phase") == "rename"
+        and str(outcome.get("operation_id", "")).startswith(PROPOSAL_ID_PREFIX)
+    }
+    updated: list[ReplayDiagnostic] = []
+    for diagnostic in diagnostics:
+        disposition = dispositions.get(diagnostic.operation_id)
+        if disposition is None:
+            updated.append(diagnostic)
             continue
-        if entry.get("op") == "rename":
-            rename_entries[rename_id] = entry
-        elif entry.get("op") == "unrename":
-            rename_entries.pop(rename_id, None)
+        details = {**diagnostic.details, "replay_disposition_id": disposition["id"]}
+        outcome = disposition["outcome"]
+        evidence = disposition["evidence"]
+        if diagnostic.outcome in {
+            "applied_normally",
+            "compensated_normally",
+            "pending_normally",
+            "rejected_normally",
+        }:
+            updated.append(
+                ReplayDiagnostic(
+                    diagnostic.source_phase,
+                    diagnostic.operation_id,
+                    diagnostic.outcome,
+                    diagnostic.cause,
+                    details,
+                )
+            )
+            continue
+        if outcome == "superseded":
+            reference = evidence["superseded_by"]
+            status = "merged" if reference["source_phase"] == "merge" else "applied"
+            details.update(
+                {
+                    "resolution_phase": reference["source_phase"],
+                    "resolution_operation_id": reference["operation_id"],
+                }
+            )
+        elif outcome in {"applied", "absorbed"}:
+            status = "applied"
+        elif outcome == "compensated":
+            status = "compensated"
+            applied = evidence.get("applied_by")
+            compensated = evidence.get("compensated_by")
+            if applied:
+                details["resolution_phase"] = applied["source_phase"]
+                details["resolution_operation_id"] = applied["operation_id"]
+            if compensated:
+                details["compensation_operation_id"] = compensated["operation_id"]
+        elif outcome == "contraction_drop":
+            status = "contraction_drop"
+        elif outcome == "unresolved_drift":
+            status = "unresolved_drift"
+        else:
+            status = "invalid"
+        details.update(
+            {
+                "materialized_status": status,
+                "resolved_at": disposition["classified_at"],
+                "resolution_note": f"validated replay disposition: {outcome}",
+            }
+        )
+        updated.append(
+            ReplayDiagnostic(
+                diagnostic.source_phase,
+                diagnostic.operation_id,
+                outcome,
+                "proposal_outcome_from_validated_disposition",
+                details,
+            )
+        )
+    return updated
 
+
+def replay_rename_proposals(
+    conn: sqlite3.Connection,
+    on_progress=None,
+    disposition_report: dict[str, Any] | None = None,
+) -> dict:
+    """Reconstruct proposal rows from canonical explicit operation links."""
+    log = on_progress or (lambda _: None)
+    try:
+        rename_stream = read_stream(renames_ledger_path())
+    except RenameLedgerError as exc:
+        raise CandidateReplaySourceError(str(exc)) from exc
+    merge_entries = read_ledger()
+    undone = {
+        entry.get("merge_id")
+        for entry in merge_entries
+        if isinstance(entry, dict) and entry.get("op") == "undo"
+    }
+    merge_operations = [
+        _SourceOperation(
+            "merge",
+            entry["merge_id"],
+            entry,
+            {"op": "undo"} if entry["merge_id"] in undone else None,
+        )
+        for entry in merge_entries
+        if isinstance(entry, dict)
+        and entry.get("op") == "merge"
+        and isinstance(entry.get("merge_id"), str)
+    ]
+    diagnostics, blockers = _linked_proposal_diagnostics(
+        conn, read_rename_proposals(), rename_stream, merge_operations
+    )
+    diagnostics = _apply_proposal_dispositions(diagnostics, disposition_report)
     conn.execute("DELETE FROM rename_proposals")
     counts = {"applied": 0, "rejected": 0, "pending": 0, "lost": 0, "malformed": 0}
-    seen: set[str] = set()
-    required = (
-        "id",
-        "node_id",
-        "node_name_at_proposal",
-        "proposed_name",
-        "proposed_at",
-    )
-    for proposal in read_rename_proposals():
-        path = proposal.get("_path", "<rename proposal>")
-        invalid = [
-            key
-            for key in required
-            if not isinstance(proposal.get(key), str) or not proposal[key].strip()
-        ]
-        invalid_optional = [
-            key
-            for key in ("reason", "proposed_by")
-            if proposal.get(key) is not None and not isinstance(proposal.get(key), str)
-        ]
-        if proposal.get("_error") or invalid or invalid_optional:
-            detail = proposal.get("_error")
-            if not detail:
-                fields = invalid + invalid_optional
-                detail = f"missing or invalid {', '.join(fields)}"
-            log(f"  ERROR rename proposal MALFORMED {path}: {detail}")
+    for diagnostic in diagnostics:
+        proposal = diagnostic.details.get("proposal")
+        if not isinstance(proposal, RenameProposal):
             counts["malformed"] += 1
+            log(
+                f"  ERROR rename proposal MALFORMED {diagnostic.operation_id}: "
+                f"{diagnostic.details.get('detail')}"
+            )
             continue
-        proposal_id = proposal["id"]
-        if proposal_id in seen:
-            log(f"  ERROR rename proposal MALFORMED {path}: duplicate id {proposal_id}")
+        status = diagnostic.details["materialized_status"]
+        if status in {"applied", "merged", "compensated", "contraction_drop"}:
+            counts["applied"] += 1
+        elif status == "rejected":
+            counts["rejected"] += 1
+        elif status == "pending":
+            counts["pending"] += 1
+        elif status == "invalid":
             counts["malformed"] += 1
-            continue
-        seen.add(proposal_id)
-
-        old_name = proposal["node_name_at_proposal"]
-        proposed_name = proposal["proposed_name"]
-        matching_entries = []
-        for entry in rename_entries.values():
-            natural = entry.get("node") if isinstance(entry.get("node"), dict) else {}
-            prior_names = natural.get("prior_names")
-            if not isinstance(prior_names, list):
-                prior_names = []
-            old_names = {natural.get("name"), *prior_names}
-            if entry.get("new_name") == proposed_name and old_name in old_names:
-                matching_entries.append(entry)
-
-        old_ids = _live_ids_for_name(conn, old_name)
-        proposed_ids = _live_ids_for_name(conn, proposed_name)
-        status = "pending"
-        resolved_at = None
-        note = None
-        if matching_entries:
-            candidates = old_ids | proposed_ids
-            if len(candidates) == 1:
-                status = "applied"
-                resolved_at = max(
-                    (e.get("at") for e in matching_entries if e.get("at")),
-                    default=proposal["proposed_at"],
-                )
-            else:
-                status = "lost"
-                note = "applied rename no longer resolves to one current node"
-        elif old_ids and proposed_ids and old_ids.isdisjoint(proposed_ids):
-            status = "rejected"
-            note = "name already taken (reconstructed)"
-        elif old_ids and not proposed_ids:
-            status = "pending"
-        elif old_name == proposed_name and old_ids:
-            status = "pending"
         else:
-            status = "lost"
-            note = "proposal outcome no longer resolves deterministically"
-
-        if status == "lost":
-            log(f"  ERROR rename proposal LOST {proposal_id}: {note}")
-        counts[status] += 1
+            counts["lost"] += 1
         conn.execute(
-            "INSERT INTO rename_proposals (id, node_id, node_name_at_proposal, "
-            "proposed_name, reason, proposed_by, proposed_at, status, resolved_at, "
-            "resolution_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO rename_proposals (id, proposal_operation_id, node_id, "
+            "node_name_at_proposal, proposed_name, reason, proposed_by, proposed_at, "
+            "status, resolved_at, resolution_note, resolution_phase, "
+            "resolution_operation_id, compensation_operation_id, replay_disposition_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                proposal_id,
-                proposal["node_id"],
-                old_name,
-                proposed_name,
-                proposal.get("reason"),
-                proposal.get("proposed_by"),
-                proposal["proposed_at"],
+                proposal.id,
+                proposal.operation_id,
+                proposal.source_node_id,
+                proposal.source_name,
+                proposal.proposed_name,
+                proposal.reason,
+                proposal.proposed_by,
+                proposal.at,
                 status,
-                resolved_at,
-                note,
+                diagnostic.details.get("resolved_at"),
+                diagnostic.details.get("resolution_note"),
+                diagnostic.details.get("resolution_phase"),
+                diagnostic.details.get("resolution_operation_id"),
+                diagnostic.details.get("compensation_operation_id"),
+                diagnostic.details.get("replay_disposition_id"),
             ),
         )
+    for blocker in blockers:
+        counts["malformed"] += 1
+        log(f"  ERROR rename proposal MALFORMED: {blocker.cause}: {blocker.details}")
     conn.commit()
     log(
         "Materialised rename proposals: "
@@ -1051,6 +2257,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--confirmed-at", default=None, help="ISO UTC of the confirmation")
     p.add_argument(
+        "--proposal-id",
+        action="append",
+        default=[],
+        help="exact rename-proposal:<id> resolved by this merge; repeat as needed",
+    )
+    p.add_argument(
         "--confirmed-via",
         default="workbench-queue",
         choices=CONFIRMATION_VIAS,
@@ -1075,6 +2287,8 @@ def main(argv: list[str] | None = None) -> int:
         if missing:
             p.error(f"node id(s) not found: {', '.join(missing)}")
         if not args.confirmed_by:
+            if args.proposal_id:
+                p.error("--proposal-id requires an independent --confirmed-by")
             entry = propose_merge(conn, args.survivor, victim_ids, args.name, args.by)
             print(
                 "PROPOSED, not applied: no --confirmed-by. The cluster is in the "
@@ -1098,6 +2312,7 @@ def main(argv: list[str] | None = None) -> int:
             created_at,
             args.by,
             confirmation=confirmation,
+            proposal_ids=args.proposal_id,
         )
         merged = merge_nodes(
             conn, args.survivor, victim_ids, args.name, merge_id, created_at, args.by

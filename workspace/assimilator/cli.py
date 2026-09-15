@@ -4,8 +4,10 @@ import os
 import sqlite3
 from pathlib import Path
 import hashlib
+import json
 
 import click
+import yaml
 
 from anomalica_common.digest.yaml_format import parse_digest_yaml
 from assimilator.database import (
@@ -25,6 +27,23 @@ from assimilator.import_markdown import import_extraction
 from assimilator.scoring import score_claim, tier_label
 from assimilator.digest_files import canonical_digests
 from assimilator.data_dir import data_dir
+from assimilator.rebuild_candidate import (
+    CURATION_REPLAY_REPORT_FILENAME,
+    build_curation_replay_report,
+    validate_rebuild_candidate,
+)
+from assimilator.corroboration_prompt import CORROBORATION_VERIFY_PROMPT
+from assimilator.derived_reverification import (
+    FILENAME as DERIVED_REVERIFICATION_FILENAME,
+    DerivedReverificationError,
+    FileOperationRecordSource,
+    build_inventory as build_derived_reverification_inventory,
+    complete_item as complete_derived_reverification_item,
+    inventory_report as derived_reverification_inventory_report,
+    materialise_receipts as materialise_derived_reverification_receipts,
+    validate_receipts as validate_derived_reverification_receipts,
+    write_inventory as write_derived_reverification_inventory,
+)
 
 DEFAULT_DB = data_dir() / "knowledge.db"
 
@@ -66,6 +85,283 @@ def main(ctx: click.Context, db: str) -> None:
     ctx.ensure_object(dict)
     ctx.obj["db_path"] = Path(db)
     ctx.obj["infra_db_path"] = Path(db).parent / "infrastructure.db"
+
+
+@main.command(name="validate-rebuild-candidate")
+@click.argument("candidate_knowledge_db", type=click.Path(path_type=Path))
+@click.argument("infrastructure_db", type=click.Path(path_type=Path))
+@click.argument(
+    "canonical_digests_dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+)
+@click.argument(
+    "candidate_curation_dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+)
+@click.argument(
+    "curation_replay_report",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.argument(
+    "source_knowledge_db",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.argument(
+    "derived_reverification_document",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.argument(
+    "operation_records",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--policy",
+    "policy_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=Path(__file__).resolve().parents[3]
+    / "anomalica"
+    / "architecture"
+    / "model-policy.yaml",
+    show_default=True,
+)
+@click.option("--checked-at", required=True)
+def validate_rebuild_candidate_cmd(
+    candidate_knowledge_db: Path,
+    infrastructure_db: Path,
+    canonical_digests_dir: Path,
+    candidate_curation_dir: Path,
+    curation_replay_report: Path,
+    source_knowledge_db: Path,
+    derived_reverification_document: Path,
+    operation_records: Path,
+    policy_path: Path,
+    checked_at: str,
+) -> None:
+    """Validate isolated DOMAIN_DB INFRA_DB DIGESTS_DIR without writing them."""
+    try:
+        replay_report = json.loads(curation_replay_report.read_bytes())
+    except (json.JSONDecodeError, OSError) as exc:
+        raise click.ClickException(
+            f"cannot read curation replay report: {exc}"
+        ) from exc
+    report = validate_rebuild_candidate(
+        candidate_knowledge_db,
+        infrastructure_db,
+        canonical_digests_dir,
+        candidate_curation_dir,
+        replay_report,
+        source_knowledge_db,
+        derived_reverification_document,
+        policy_path,
+        checked_at,
+        FileOperationRecordSource(operation_records),
+    )
+    click.echo(json.dumps(report, indent=2, sort_keys=True))
+    if not report["valid"]:
+        raise click.exceptions.Exit(1)
+
+
+@main.command(name="inventory-derived-reverification")
+@click.argument(
+    "source_knowledge_db", type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
+@click.argument(
+    "candidate_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
+)
+@click.argument(
+    "canonical_digests_dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+)
+@click.argument(
+    "candidate_curation_dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+)
+@click.option(
+    "--policy",
+    "policy_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=Path(__file__).resolve().parents[3]
+    / "anomalica"
+    / "architecture"
+    / "model-policy.yaml",
+    show_default=True,
+)
+@click.option(
+    "--checked-at",
+    required=True,
+    help="Deterministic ISO 8601 timestamp recorded for exact candidate absences.",
+)
+@click.option(
+    "--write",
+    is_flag=True,
+    help=f"Atomically write {DERIVED_REVERIFICATION_FILENAME} in CANDIDATE_DIR.",
+)
+def inventory_derived_reverification_cmd(
+    source_knowledge_db: Path,
+    candidate_dir: Path,
+    canonical_digests_dir: Path,
+    candidate_curation_dir: Path,
+    policy_path: Path,
+    checked_at: str,
+    write: bool,
+) -> None:
+    """Inventory source derived evidence against a read-only rebuild candidate."""
+    candidate_db = candidate_dir / "knowledge.db"
+    try:
+        inventory = build_derived_reverification_inventory(
+            source_knowledge_db,
+            candidate_db,
+            canonical_digests_dir,
+            candidate_curation_dir,
+            policy_path,
+            checked_at,
+        )
+        report = derived_reverification_inventory_report(inventory)
+        if write:
+            report.update(
+                write_derived_reverification_inventory(candidate_dir, inventory)
+            )
+        else:
+            report["write"] = "dry-run; no file or database was written"
+    except (DerivedReverificationError, OSError, sqlite3.Error) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(report, indent=2, sort_keys=True))
+
+
+@main.command(name="validate-derived-reverification")
+@click.argument(
+    "source_knowledge_db", type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
+@click.argument(
+    "candidate_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
+)
+@click.argument(
+    "canonical_digests_dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+)
+@click.argument(
+    "candidate_curation_dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+)
+@click.argument(
+    "operation_records", type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
+@click.option(
+    "--policy",
+    "policy_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=Path(__file__).resolve().parents[3]
+    / "anomalica"
+    / "architecture"
+    / "model-policy.yaml",
+    show_default=True,
+)
+@click.option(
+    "--checked-at",
+    required=True,
+    help="The exact absence-check timestamp used to build the inventory.",
+)
+@click.option(
+    "--materialise",
+    is_flag=True,
+    help="Transactionally replace candidate corroboration rows.",
+)
+def validate_derived_reverification_cmd(
+    source_knowledge_db: Path,
+    candidate_dir: Path,
+    canonical_digests_dir: Path,
+    candidate_curation_dir: Path,
+    operation_records: Path,
+    policy_path: Path,
+    checked_at: str,
+    materialise: bool,
+) -> None:
+    """Validate completed outcomes; write only with --materialise."""
+    candidate_db = candidate_dir / "knowledge.db"
+    document_path = candidate_dir / DERIVED_REVERIFICATION_FILENAME
+    try:
+        records = FileOperationRecordSource(operation_records)
+        if materialise:
+            report = materialise_derived_reverification_receipts(
+                document_path,
+                source_knowledge_db,
+                candidate_db,
+                canonical_digests_dir,
+                candidate_curation_dir,
+                policy_path,
+                checked_at,
+                records,
+            )
+        else:
+            report = validate_derived_reverification_receipts(
+                document_path,
+                source_knowledge_db,
+                candidate_db,
+                canonical_digests_dir,
+                candidate_curation_dir,
+                policy_path,
+                checked_at,
+                records,
+            )
+            report = {
+                key: value
+                for key, value in report.items()
+                if key not in {"items", "completed"}
+            }
+            report["write"] = "validation only; candidate database was not written"
+    except (DerivedReverificationError, OSError, sqlite3.Error) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(report, indent=2, sort_keys=True))
+
+
+@main.command(name="complete-derived-reverification")
+@click.argument(
+    "candidate_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
+)
+@click.argument("item_id")
+@click.argument(
+    "outcome_file", type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
+@click.argument(
+    "source_knowledge_db", type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
+@click.argument(
+    "operation_records", type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
+@click.option(
+    "--policy",
+    "policy_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=Path(__file__).resolve().parents[3]
+    / "anomalica"
+    / "architecture"
+    / "model-policy.yaml",
+    show_default=True,
+)
+def complete_derived_reverification_cmd(
+    candidate_dir: Path,
+    item_id: str,
+    outcome_file: Path,
+    source_knowledge_db: Path,
+    operation_records: Path,
+    policy_path: Path,
+) -> None:
+    """Prove and atomically embed one corroboration OUTCOME_FILE."""
+    try:
+        outcome = yaml.safe_load(outcome_file.read_bytes())
+        if not isinstance(outcome, dict):
+            raise DerivedReverificationError("completion outcome must be a mapping")
+        report = complete_derived_reverification_item(
+            candidate_dir / DERIVED_REVERIFICATION_FILENAME,
+            item_id,
+            outcome,
+            source_knowledge_db,
+            policy_path,
+            FileOperationRecordSource(operation_records),
+        )
+    except (DerivedReverificationError, OSError, sqlite3.Error, yaml.YAMLError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(report, indent=2, sort_keys=True))
 
 
 # --- Import: deterministic digest YAML to database ---
@@ -163,16 +459,49 @@ def assimilate(ctx: click.Context, directory: str) -> None:
     help="Skip replaying the curation ledger - for a clean reset (e.g. a "
     "re-digest that rewrites the names the ledger keys on).",
 )
+@click.option(
+    "--source-db",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=DEFAULT_DB,
+    show_default=True,
+    help="Existing graph whose input fingerprint is the disposition source basis.",
+)
 @click.pass_context
-def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
-    """Rebuild the graph from a directory of digest YAML files.
+def rebuild(
+    ctx: click.Context, directory: str, no_replay: bool, source_db: Path
+) -> None:
+    """Build an isolated candidate from a directory of digest YAML files.
 
-    Deletes and recreates both domain and infrastructure databases,
-    then imports all .yaml digests from the given directory, and replays the
-    curation ledger (use --no-replay to skip, for a clean taxonomy reset).
+    Refuses the production graph, recreates the configured candidate databases,
+    imports all canonical digests, and applies strict fail-closed curation replay.
     """
     db_path = ctx.obj["db_path"]
     infra_path = ctx.obj["infra_db_path"]
+    production_databases = {
+        (Path.home() / ".local/share/assimilator/knowledge.db").resolve(),
+        (Path.home() / ".local/share/assimilator/infrastructure.db").resolve(),
+        DEFAULT_DB.resolve(),
+        (DEFAULT_DB.parent / "infrastructure.db").resolve(),
+        (data_dir() / "knowledge.db").resolve(),
+        (data_dir() / "infrastructure.db").resolve(),
+    }
+    if (
+        db_path.resolve() in production_databases
+        or infra_path.resolve() in production_databases
+    ):
+        raise click.ClickException(
+            "rebuild requires an isolated candidate --db; production databases "
+            "cannot be rebuilt in place"
+        )
+    if source_db.resolve() in {db_path.resolve(), infra_path.resolve()}:
+        raise click.ClickException(
+            "--source-db must be distinct from candidate databases"
+        )
+    if no_replay:
+        raise click.ClickException(
+            "--no-replay cannot produce a replacement candidate; complete curation "
+            "replay is mandatory"
+        )
 
     for p in [db_path, infra_path]:
         if p.exists():
@@ -191,44 +520,63 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
         click.echo(f"\n[{i}/{len(files)}] {f.name}")
         ctx.invoke(import_cmd, file_path=str(f), digest_root=str(directory_path))
 
-    # Replay the durable curation ledger over the freshly-rebuilt graph - merges
-    # are graph-level corrections not held in the digests, so a rebuild loses
-    # them unless re-applied (keyed on natural identity; ADR 0038). --no-replay
-    # skips this for a clean reset (a re-digest rewrites the names the ledger
-    # keys on, so curation restarts fresh after the rebuild).
     domain_conn = _connect(db_path)
-    if not no_replay:
-        from assimilator.merge import (
-            replay_ledger,
-            replay_rename_proposals,
-            replay_rejections,
-            replay_renames,
+    from assimilator.merge import replay_candidate_curation, replay_rename_proposals
+    from assimilator.replay_dispositions import (
+        ReplayDispositionError,
+        validate_replay_dispositions,
+    )
+    from assimilator.scheduler import _digest_index, graph_input_diagnostics
+
+    digest_index = _digest_index(directory_path.resolve())
+    curation_root = Path(
+        os.environ.get(
+            "ANOMALICA_CURATION_DIR",
+            str(Path(__file__).resolve().parents[3] / "curation"),
         )
-        from assimilator.propose_pages import replay_vetoes
+    )
+    source_conn = sqlite3.connect(f"{source_db.resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        source_fingerprint = graph_input_diagnostics(
+            source_conn, digest_index, directory_path.resolve(), curation_root
+        )["fingerprint"]
+    finally:
+        source_conn.close()
+    candidate_fingerprint = graph_input_diagnostics(
+        domain_conn, digest_index, directory_path.resolve(), curation_root
+    )["fingerprint"]
+    replay_result = replay_candidate_curation(domain_conn, on_progress=click.echo)
+    try:
+        disposition_report = validate_replay_dispositions(
+            curation_root,
+            db_path,
+            source_fingerprint,
+            candidate_fingerprint,
+            replay_result=replay_result,
+        )
+    except ReplayDispositionError as exc:
+        domain_conn.close()
+        raise click.ClickException(str(exc)) from exc
+    curation_replay_path = db_path.parent / CURATION_REPLAY_REPORT_FILENAME
+    click.echo(json.dumps({"curation_replay": disposition_report}, sort_keys=True))
+    if not disposition_report["replacement_safe"]:
+        domain_conn.close()
+        raise click.ClickException("candidate curation replay is not replacement-safe")
+    replay_rename_proposals(
+        domain_conn,
+        on_progress=click.echo,
+        disposition_report=disposition_report,
+    )
+    # Claim-reference decisions and dependent curation resolve post-merge names.
+    from assimilator.claim_ref_status_ledger import replay_claim_ref_status
+    from assimilator.pages import replay_pages
+    from assimilator.propose_pages import replay_vetoes
+    from assimilator.tags import replay_tags
 
-        replay_ledger(domain_conn, on_progress=click.echo)
-        replay_rejections(domain_conn, on_progress=click.echo)
-        # Renames run AFTER merges - a renamed node may be a merge survivor whose
-        # name the merge replay set first (ADR 0038).
-        replay_renames(domain_conn, on_progress=click.echo)
-        # Proposal rows are derived diagnostics. Reconstruct their outcomes only
-        # after durable renames have established the graph's current names.
-        replay_rename_proposals(domain_conn, on_progress=click.echo)
-        # Claim-ref decisions key nodes by their post-curation natural identity,
-        # so resolve them only after both merges and renames have settled.
-        from assimilator.claim_ref_status_ledger import replay_claim_ref_status
-
-        replay_claim_ref_status(domain_conn, on_progress=click.echo)
-        # Tags resolve a node by its name, so they run after renames too.
-        from assimilator.tags import replay_tags
-
-        replay_tags(domain_conn, on_progress=click.echo)
-        # Page composition resolves members by name too, so it follows renames;
-        # propose-pages then suppresses a covered node's own proposal.
-        from assimilator.pages import replay_pages
-
-        replay_pages(domain_conn, on_progress=click.echo)
-        replay_vetoes(domain_conn, on_progress=click.echo)
+    replay_claim_ref_status(domain_conn, on_progress=click.echo)
+    replay_tags(domain_conn, on_progress=click.echo)
+    replay_pages(domain_conn, on_progress=click.echo)
+    replay_vetoes(domain_conn, on_progress=click.echo)
     # Work identity is DERIVED from the ingests store, so a rebuild has to
     # recompute it or every rebuild silently drops the duplicate links and
     # restores the inflated source counts they exist to prevent.
@@ -248,6 +596,12 @@ def rebuild(ctx: click.Context, directory: str, no_replay: bool) -> None:
         )
     else:
         click.echo(f"No ingests store at {ingests_root} - work identity not linked")
+    curation_replay_report = build_curation_replay_report(
+        replay_result, disposition_report, domain_conn
+    )
+    curation_replay_path.write_text(
+        json.dumps(curation_replay_report, indent=2, ensure_ascii=False) + "\n"
+    )
     s = get_stats(domain_conn)
     click.echo(
         f"\nRebuild complete. Domain: {s['active_nodes']} nodes, "
@@ -533,26 +887,6 @@ def similarity_profile(
             _json.dumps({**profile, "top_pairs": banked}, indent=2, ensure_ascii=False)
         )
         click.echo(f"\nWrote {out}")
-
-
-CORROBORATION_VERIFY_PROMPT = """Below are pairs of claims from different records. For each pair, decide whether they assert the SAME underlying fact or are genuinely DIFFERENT assertions.
-
-RULES:
-- "same": the claims make the same factual assertion, possibly with different wording or detail level.
-- "different": the claims are about different things, even if they are thematically related.
-- Two claims about the same TOPIC but making different ASSERTIONS are "different".
-  Example: "The object was 12 metres long" and "The object had no wings" are both about the object, but different assertions.
-- Two claims making the same ASSERTION in different words are "same".
-  Example: "The object traversed 100km in seconds" and "The UAP covered approximately 100 kilometres almost instantly" are the same.
-
-{pairs_text}
-
-OUTPUT FORMAT (respond with ONLY valid JSON, no markdown fencing):
-
-{{"decisions": [
-    {{"pair_id": 1, "verdict": "same"}},
-    {{"pair_id": 2, "verdict": "different"}}
-]}}"""
 
 
 @main.command()
@@ -1894,63 +2228,67 @@ def apply_renames_cmd(ctx: click.Context, dry_run: bool) -> None:
     """
     import uuid as _uuid
 
-    from assimilator.database import resolve_rename
-    from assimilator.merge import read_rename_proposals, rename_node
+    from assimilator.merge import (
+        _resolve_natural,
+        read_rename_proposals,
+        rename_node,
+        replay_rename_proposals,
+    )
+    from assimilator.rename_ledger import RenameLedgerError, parse_proposal_document
 
     conn = sqlite3.connect(ctx.obj["db_path"])
     init_db(conn)
     files = read_rename_proposals()
     if not files:
+        if not dry_run:
+            conn.execute("DELETE FROM rename_proposals")
+            conn.commit()
         click.echo("No rename proposals.")
+        conn.close()
         return
-    # Ingest the drop directory into the table, skipping ones already recorded,
-    # so re-running is safe and the table is the record of what was done.
-    seen = {r[0] for r in conn.execute("SELECT id FROM rename_proposals").fetchall()}
+    source_seen = set()
     unreadable = []
+    parsed_by_id = {}
     for doc in files:
         if doc.get("_error"):
             unreadable.append(f"{doc['_path']}: {doc['_error']}")
             continue
-        pid = doc.get("id")
-        if not pid or pid in seen:
+        path = str(doc.get("_path") or "<rename proposal>")
+        source = {key: value for key, value in doc.items() if not key.startswith("_")}
+        try:
+            proposal = parse_proposal_document(source, path)
+        except RenameLedgerError as exc:
+            unreadable.append(f"{path}: {exc}")
             continue
-        missing = [
-            k
-            for k in ("node_id", "node_name_at_proposal", "proposed_name")
-            if not doc.get(k)
-        ]
-        if missing:
-            unreadable.append(f"{doc['_path']}: missing {', '.join(missing)}")
+        pid = proposal.id
+        if pid in source_seen:
+            unreadable.append(f"{path}: duplicate proposal id {pid}")
             continue
-        conn.execute(
-            "INSERT INTO rename_proposals (id, node_id, node_name_at_proposal,"
-            " proposed_name, reason, proposed_by, proposed_at, status)"
-            " VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), 'pending')",
-            (
-                pid,
-                doc["node_id"],
-                doc["node_name_at_proposal"],
-                doc["proposed_name"],
-                doc.get("reason"),
-                doc.get("proposed_by"),
-                doc.get("proposed_at"),
-            ),
-        )
+        source_seen.add(pid)
+        parsed_by_id[pid] = proposal
     if unreadable:
         # Loud, never skipped: a proposal that vanishes silently is
         # indistinguishable from one nobody made.
         click.echo(f"{len(unreadable)} proposal file(s) COULD NOT BE READ:", err=True)
         for line in unreadable:
             click.echo(f"   {line}", err=True)
+        conn.close()
+        raise click.ClickException("rename proposal source is invalid")
     from assimilator.database import pending_renames
 
-    proposals = pending_renames(conn)
+    proposal_conn = conn
+    if dry_run:
+        proposal_conn = sqlite3.connect(":memory:")
+        conn.backup(proposal_conn)
+    replay_rename_proposals(proposal_conn)
+    proposals = pending_renames(proposal_conn)
+    if dry_run:
+        proposal_conn.close()
     if not proposals:
         if not dry_run:
             conn.commit()
         click.echo("No pending rename proposals.")
-        if unreadable:
-            raise SystemExit(1)
+        conn.close()
         return
     applied = lost = clashed = 0
     renamed: set[str] = set()
@@ -1962,16 +2300,27 @@ def apply_renames_cmd(ctx: click.Context, dry_run: bool) -> None:
         if row is None:
             # Ids are regenerated by a rebuild, so fall back to the name the
             # reviewer saw before declaring the proposal lost.
-            row = conn.execute(
-                "SELECT id, name FROM nodes WHERE name = ? AND retired_at IS NULL",
-                (p["node_name_at_proposal"],),
-            ).fetchone()
+            parsed = parsed_by_id.get(p["id"])
+            natural_id = (
+                _resolve_natural(conn, parsed.node)
+                if parsed is not None and parsed.node is not None
+                else None
+            )
+            row = (
+                conn.execute(
+                    "SELECT id, name FROM nodes WHERE id = ? AND retired_at IS NULL",
+                    (natural_id,),
+                ).fetchone()
+                if natural_id is not None
+                else conn.execute(
+                    "SELECT id, name FROM nodes WHERE name = ? AND retired_at IS NULL",
+                    (p["node_name_at_proposal"],),
+                ).fetchone()
+            )
         if row is None:
             click.echo(
                 f"  LOST    {p['node_name_at_proposal']!r} - node no longer resolves"
             )
-            if not dry_run:
-                resolve_rename(conn, p["id"], "lost", "node no longer resolves")
             lost += 1
             continue
         clash = conn.execute(
@@ -1983,8 +2332,6 @@ def apply_renames_cmd(ctx: click.Context, dry_run: bool) -> None:
                 f"  CLASH   {row[1]!r} -> {p['proposed_name']!r} - that name is taken;"
                 " a merge is a different decision and is not made here"
             )
-            if not dry_run:
-                resolve_rename(conn, p["id"], "rejected", "name already taken")
             clashed += 1
             continue
         click.echo(f"  RENAME  {row[1]!r} -> {p['proposed_name']!r}")
@@ -1995,11 +2342,12 @@ def apply_renames_cmd(ctx: click.Context, dry_run: bool) -> None:
                 p["proposed_name"],
                 str(_uuid.uuid4()),
                 created_by=p.get("proposed_by") or "operator/anomalica-curation",
+                proposal_id=f"rename-proposal:{p['id']}",
             )
-            resolve_rename(conn, p["id"], "applied")
             renamed.add(row[0])
         applied += 1
     if not dry_run:
+        replay_rename_proposals(conn)
         conn.commit()
     click.echo(
         f"\n{'would apply' if dry_run else 'applied'} {applied}, lost {lost}, clashed {clashed}"
@@ -2014,6 +2362,7 @@ def apply_renames_cmd(ctx: click.Context, dry_run: bool) -> None:
             click.echo(f"  BRIEF   {rel}")
         for rel in moved["pruned"]:
             click.echo(f"  PRUNED  {rel}")
+    conn.close()
 
 
 @main.command("belonging")

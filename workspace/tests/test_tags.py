@@ -172,7 +172,7 @@ def test_a_tag_written_before_a_rename_replays_after_it(tmp_path, monkeypatch):
 
     conn = _graph()
     tags.append_tag_entry("Summoning", "topic", "sha256:aa", tag_id="tg1")
-    rename_node(conn, "t1", "Contact by invitation", "rn1")
+    rename_node(conn, "t1", "Contact by invitation", "rn1", created_by="test")
 
     fresh = _graph()  # rebuild: the digests still say "Summoning"
     replay_renames(fresh)

@@ -1057,6 +1057,18 @@ def test_graph_input_fingerprint_names_duplicate_live_bindings(tmp_path, monkeyp
     }
 
 
+def test_curation_fingerprint_excludes_replay_dispositions(tmp_path, monkeypatch):
+    curation = tmp_path / "curation"
+    curation.mkdir()
+    (curation / "merges.yaml").write_text("merge evidence")
+    monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(curation))
+    before = scheduler._curation_sha256()
+    (curation / "replay-dispositions.yaml").write_text("disposition evidence")
+    assert scheduler._curation_sha256() == before
+    (curation / "merges.yaml").write_text("changed merge evidence")
+    assert scheduler._curation_sha256() != before
+
+
 def test_the_digest_index_reads_only_the_record_header(tmp_path):
     """A digest runs to 14,000 lines and 1,800 claims; the index wants four
     header fields. Parsing every file in full cost 54 seconds of every queue

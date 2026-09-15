@@ -9,16 +9,16 @@ from assimilator.database import init_db, insert_node
 from assimilator.merge import replay_rejections
 
 
-def _graph(*nodes):
+def _graph(*nodes, node_type="place"):
     conn = sqlite3.connect(":memory:")
     init_db(conn)
     for node_id, name in nodes:
-        insert_node(conn, Node(id=node_id, node_type="place", name=name))
+        insert_node(conn, Node(id=node_id, node_type=node_type, name=name))
     conn.commit()
     return conn
 
 
-def _ledger(tmp_path, monkeypatch, nodes):
+def _ledger(tmp_path, monkeypatch, nodes, node_type="place"):
     monkeypatch.setenv("ANOMALICA_CURATION_DIR", str(tmp_path))
     entry = {
         "op": "reject",
@@ -27,7 +27,7 @@ def _ledger(tmp_path, monkeypatch, nodes):
         "by": "test",
         "reason": "distinct places",
         "nodes": [
-            {"name": name, "node_type": "place", "prior_names": []} for name in nodes
+            {"name": name, "node_type": node_type, "prior_names": []} for name in nodes
         ],
     }
     (tmp_path / "rejections.yaml").write_text(yaml.safe_dump(entry))
@@ -36,6 +36,18 @@ def _ledger(tmp_path, monkeypatch, nodes):
 def test_replay_materialises_similarly_named_distinct_nodes(tmp_path, monkeypatch):
     _ledger(tmp_path, monkeypatch, ["Atlant", "Atlantis"])
     conn = _graph(("atlant", "Atlant"), ("atlantis", "Atlantis"))
+
+    result = replay_rejections(conn)
+
+    assert result == {"applied": 1, "absorbed": 0, "lost": 0}
+    assert conn.execute(
+        "SELECT node_id FROM node_rejections ORDER BY node_id"
+    ).fetchall() == [("atlant",), ("atlantis",)]
+
+
+def test_replay_materialises_exact_single_token_person_names(tmp_path, monkeypatch):
+    _ledger(tmp_path, monkeypatch, ["Atlant", "Atlantis"], node_type="person")
+    conn = _graph(("atlant", "Atlant"), ("atlantis", "Atlantis"), node_type="person")
 
     result = replay_rejections(conn)
 
