@@ -161,6 +161,38 @@ def test_latest_active_set_wins(tmp_path):
     ).fetchone() == ("suspect", "later review", "1947-06-25T13:00:00Z")
 
 
+def test_replay_fails_closed_when_natural_identity_resolves_to_multiple_nodes(
+    tmp_path,
+):
+    source = _graph()
+    _set_status(source)
+    path = tmp_path / "ledger.yaml"
+    ledger.export_claim_ref_status(source, path)
+    document = _document(path)
+    document["entries"][0]["node"]["prior_names"].append("Stale Kenneth Arnold")
+    document["entries"][0]["node"]["prior_names"].sort()
+    event = document["entries"][0]
+    event["id"] = ledger._event_id(
+        {key: value for key, value in event.items() if key != "id"}
+    )
+    path.write_text(yaml.safe_dump(document, sort_keys=False))
+
+    rebuilt = _graph(record_id="new-record", claim_id="new-claim", node_id="canonical")
+    insert_node(
+        rebuilt,
+        Node(id="stale", name="Stale Kenneth Arnold", node_type="person"),
+    )
+    rebuilt.commit()
+
+    with pytest.raises(
+        ledger.ClaimRefStatusReplayError,
+        match="resolved ambiguously to nodes: canonical, stale",
+    ):
+        ledger.replay_claim_ref_status(rebuilt, path)
+
+    assert rebuilt.execute("SELECT COUNT(*) FROM claim_ref_status").fetchone()[0] == 0
+
+
 def test_unset_disables_exact_set_and_removes_its_materialisation(tmp_path):
     source = _graph()
     _set_status(source)

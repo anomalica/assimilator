@@ -13,6 +13,7 @@ from typing import Callable
 import yaml
 
 from anomalica_common.digest.hashing import claim_fingerprint
+from assimilator.matching import match_node
 
 
 SCHEMA = "anomalica/claim-ref-status-ledger/1"
@@ -389,19 +390,31 @@ def _resolve_node(conn: sqlite3.Connection, natural: dict) -> str:
     natural = _natural(natural)
     names = sorted({natural["name"], *natural["prior_names"]})
     placeholders = ",".join("?" for _ in names)
-    rows = conn.execute(
-        "SELECT DISTINCT n.id FROM nodes n LEFT JOIN aliases a ON a.node_id = n.id "
-        f"WHERE n.retired_at IS NULL AND n.node_type = ? "
-        f"AND (n.name IN ({placeholders}) OR a.alias IN ({placeholders})) "
-        "ORDER BY n.id",
-        (natural["node_type"], *names, *names),
-    ).fetchall()
-    if len(rows) != 1:
-        raise ClaimRefStatusReplayError(
-            f"node {natural['node_type']}:{natural['name']} resolved to "
-            f"{len(rows)} live nodes"
+    candidate_ids = {
+        row[0]
+        for row in conn.execute(
+            "SELECT DISTINCT n.id FROM nodes n LEFT JOIN aliases a ON a.node_id = n.id "
+            f"WHERE n.retired_at IS NULL AND n.node_type = ? "
+            f"AND (n.name IN ({placeholders}) OR a.alias IN ({placeholders}))",
+            (natural["node_type"], *names, *names),
         )
-    return rows[0][0]
+    }
+    for name in names:
+        matched = match_node(conn, name, natural["node_type"])
+        if matched and matched[1] != "fuzzy":
+            candidate_ids.add(matched[0])
+    candidates = sorted(candidate_ids)
+    if len(candidates) == 1:
+        return candidates[0]
+    if candidates:
+        resolved = ", ".join(candidates)
+        raise ClaimRefStatusReplayError(
+            f"node {natural['node_type']}:{natural['name']} resolved ambiguously "
+            f"to nodes: {resolved}"
+        )
+    raise ClaimRefStatusReplayError(
+        f"node {natural['node_type']}:{natural['name']} did not resolve"
+    )
 
 
 def _identity_key(event: dict) -> str:
