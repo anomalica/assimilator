@@ -1,0 +1,319 @@
+[
+ {
+  "verdict": "possibly_related",
+  "shared_subject": "DoD UAP interception operations in southwestern United States, late 2025",
+  "reason": "Both records describe government UAP operations in the southwestern United States during late 2025, involving DoD and ODNI personnel observing anomalous objects near sensitive military facilities. Record A documents a specific December 2025 helicopter encounter with detailed observations; Record B alleges concurrent and ongoing DoD operations using summoning techniques at White Sands, with an overlapping timeframe (November 2025 onwards) that could encompass the same incident. However, Record A never confirms its location beyond \"southwestern US,\" and Record B never directly references the December 2025 helicopter encounter, making the connection plausible but not explicitly established.",
+  "links": [
+   {
+    "a": "LT-d0ed6361",
+    "b": "RC-ef602764",
+    "relation": "same_subject"
+   },
+   {
+    "a": "LT-b2cb18c1",
+    "b": "RC-ed061429",
+    "relation": "same_subject"
+   },
+   {
+    "a": "LT-71f5aad9",
+    "b": "RC-f3343186",
+    "relation": "same_subject"
+   },
+   {
+    "a": "LT-39e48ebb",
+    "b": "RC-6a5ff70b",
+    "relation": "same_subject"
+   },
+   {
+    "a": "LT-5c4bbb62",
+    "b": "RC-0116f8c0",
+    "relation": "same_subject"
+   },
+   {
+    "a": "LT-a948e39b",
+    "b": "RC-ef602764",
+    "relation": "same_subject"
+   }
+  ],
+  "pair": "LT-RC",
+  "seconds": 47,
+  "usage": {
+   "input_tokens": 9,
+   "cache_creation_input_tokens": 48201,
+   "cache_read_input_tokens": 0,
+   "output_tokens": 3548,
+   "output_tokens_details": {
+    "thinking_tokens": 3006
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 48201,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 9,
+     "output_tokens": 3548,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 48201,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 48201
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  }
+ },
+ {
+  "verdict": "same_subject",
+  "shared_subject": "December 2025 southwestern weapons test range UAP encounter",
+  "reason": "Both records document the identical late-2025 incident involving a helicopter mission at a military weapons testing facility in the southwestern United States. A senior intelligence official, two pilots, and a colleague investigated UAP sightings and loud thuds coordinated by a Joint Operations Center, with fighter jets transiting the airspace. Specific details\u2014location, timeline, personnel composition, the distinctive \"T\" formation of orbs, and the sequence of events\u2014are identical across sources.",
+  "links": [
+   {
+    "a": "LT-3e2f0082",
+    "b": "USPER-84f4ffd5",
+    "relation": "same_fact"
+   },
+   {
+    "a": "LT-3e2f0082",
+    "b": "USPER-3cd7f990",
+    "relation": "same_fact"
+   },
+   {
+    "a": "LT-71f5aad9",
+    "b": "USPER-7915becf",
+    "relation": "same_subject"
+   },
+   {
+    "a": "LT-498b2bc5",
+    "b": "USPER-6851fe22",
+    "relation": "same_fact"
+   },
+   {
+    "a": "LT-5a6ffd79",
+    "b": "USPER-e90196b0",
+    "relation": "same_fact"
+   },
+   {
+    "a": "LT-85aaa71e",
+    "b": "USPER-be40771e",
+    "relation": "same_fact"
+   },
+   {
+    "a": "LT-b676fbbc",
+    "b": "USPER-98532723",
+    "relation": "same_fact"
+   },
+   {
+    "a": "LT-34ab5cd4",
+    "b": "USPER-935391d1",
+    "relation": "same_fact"
+   }
+  ],
+  "pair": "LT-USPER",
+  "seconds": 35,
+  "usage": {
+   "input_tokens": 9,
+   "cache_creation_input_tokens": 15556,
+   "cache_read_input_tokens": 29504,
+   "output_tokens": 2805,
+   "output_tokens_details": {
+    "thinking_tokens": 2301
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 15556,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 9,
+     "output_tokens": 2805,
+     "cache_read_input_tokens": 29504,
+     "cache_creation_input_tokens": 15556,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 15556
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  }
+ },
+ {
+  "verdict": "unrelated",
+  "shared_subject": "",
+  "reason": "Record A documents a specific December 2025 UAP encounter at a southwestern US military facility, including detailed observations, alleged luring operation, and released government documents. Record B discusses advocacy pressure on Trump for general UAP disclosure before the 2026 midterms, naming whistleblowers and gatekeepers but making no mention of the December 2025 incident. While both concern UAP disclosure under Trump's administration, they address different subjects \u2014 one a concrete incident, the other a campaign \u2014 and Record B does not establish connection to the specific operation.",
+  "links": [],
+  "pair": "LT-PRESSURE",
+  "seconds": 28,
+  "usage": {
+   "input_tokens": 19,
+   "cache_creation_input_tokens": 17374,
+   "cache_read_input_tokens": 74667,
+   "output_tokens": 1939,
+   "output_tokens_details": {
+    "thinking_tokens": 1551
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 17374,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 10,
+     "output_tokens": 260,
+     "cache_read_input_tokens": 45163,
+     "cache_creation_input_tokens": 1715,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1715
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  }
+ },
+ {
+  "verdict": "possibly_related",
+  "shared_subject": "Skywatcher organization's UAP operations and alleged government takeover of similar operations",
+  "reason": "Both records discuss Skywatcher and its connection to government UAP interception efforts, but from different angles and timeframes. Record A focuses on alleged covert government operations (November 2025\u2013August 2026) using Skywatcher's techniques after the organization ceased public activities. Record B discusses Skywatcher's actual operations, psionic demonstrations, and Jake Barber's allegations, without mentioning the specific 2025\u20132026 government operations or El Paso/White Sands incidents that dominate Record A. They plausibly describe the same general phenomenon (government assumption of Skywatcher-like operations) but establish it differently and incompletely.",
+  "links": [
+   {
+    "a": "RC-faf63cbd",
+    "b": "DEBRIEFED-23235e0d",
+    "relation": "same_fact"
+   },
+   {
+    "a": "RC-c7a80184",
+    "b": "DEBRIEFED-6647627d",
+    "relation": "same_subject"
+   },
+   {
+    "a": "RC-dfec585f",
+    "b": "DEBRIEFED-1512533d",
+    "relation": "same_subject"
+   },
+   {
+    "a": "RC-340e53f4",
+    "b": "DEBRIEFED-38cd4dbc",
+    "relation": "same_subject"
+   },
+   {
+    "a": "RC-ed061429",
+    "b": "RC-c7a80184",
+    "relation": "same_subject"
+   },
+   {
+    "a": "RC-6a5ff70b",
+    "b": "RC-1efe52e5",
+    "relation": "same_fact"
+   },
+   {
+    "a": "RC-9310c13a",
+    "b": "DEBRIEFED-4a3bf2d2",
+    "relation": "same_subject"
+   },
+   {
+    "a": "RC-57823a1f",
+    "b": "RC-dfec585f",
+    "relation": "same_subject"
+   }
+  ],
+  "pair": "RC-DEBRIEFED",
+  "seconds": 58,
+  "usage": {
+   "input_tokens": 9,
+   "cache_creation_input_tokens": 45336,
+   "cache_read_input_tokens": 29504,
+   "output_tokens": 4823,
+   "output_tokens_details": {
+    "thinking_tokens": 4262
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 45336,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 9,
+     "output_tokens": 4823,
+     "cache_read_input_tokens": 29504,
+     "cache_creation_input_tokens": 45336,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 45336
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  }
+ },
+ {
+  "error": "Extra data: line 2 column 1 (char 3105)",
+  "stdout": "{\"duration_api_ms\":42182,\"stop_reason\":\"tool_use\",\"session_id\":\"69f7347f-517e-4bdd-bd25-d830ae409728\",\"total_cost_usd\":0.0655608,\"usage\":{\"input_tokens\":19,\"cache_creation_input_tokens\":19719,\"cache_read_input_tokens\":75238,\"output_tokens\":3716,\"output_tokens_details\":{\"thinking_tokens\":3335},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":19719,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"not_available",
+  "stderr": "",
+  "pair": "LT-WATCHDOG",
+  "seconds": 47,
+  "usage": {
+   "input_tokens": 9,
+   "cache_creation_input_tokens": 45336,
+   "cache_read_input_tokens": 29504,
+   "output_tokens": 4823,
+   "output_tokens_details": {
+    "thinking_tokens": 4262
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 45336,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 9,
+     "output_tokens": 4823,
+     "cache_read_input_tokens": 29504,
+     "cache_creation_input_tokens": 45336,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 45336
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  }
+ }
+]

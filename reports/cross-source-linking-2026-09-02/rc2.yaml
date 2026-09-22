@@ -1,0 +1,2109 @@
+run_kind: comparison
+schema: anomalica/digest/1
+extracted_at: '2026-09-02T11:50:27.016908+00:00'
+model: haiku
+ai_usage:
+  - stage: digest
+    model: claude-haiku-4-5
+    model_version: claude-haiku-4-5
+    tokens:
+      input: 893821
+      output: 131320
+      real_input: 134
+      cache_read: 659013
+      cache_write: 234674
+      calls: 4
+    route: cli
+    effort: low
+prompts:
+  - pass: nodes
+    id: nodes
+    version: v4
+    sha256: 35338e5c2eb8479a2cd16468347718b8db1faf84d24ac5cc76dbdef4810009d2
+    file: nodes.txt
+  - pass: claims
+    id: claims
+    version: v4
+    sha256: 89ec59286169096f610265f3c5cf0fb34ff5e58e9726e6682e8693e8c703fe89
+    file: claims.txt
+pre_digest:
+  sha256: f743976cf062e39c456e7196295edf3bc11ce732f9a6c897b2e25fb3db42c839
+  prep_version: 7
+record:
+  id: 19b33e16-be7a-458c-a33b-4dffa8d8992e
+  title: |-
+    Ross Coulthart Q&A: Skywatcher didn't disappear — it went government | Reality Check
+  producer: Meagan Medick
+  publisher: NewsNation
+  date: '2026-08-09'
+  medium: video
+  duration: 2065.25
+  content_hash: sha256:76d7e7613c0a44bdb8d7e5ce87b2a23defe4a987cf1865be3ae1080cd1893d21
+  processing_version: d4f18fe
+  reference: https://www.youtube.com/watch?v=IOZdVCoZ51Q
+  review:
+    state: human
+    sidecar: present
+    observed_coverage: 1.0
+  speakers:
+    - Ross Coulthart
+    - Meagan Medick
+  copyright_status: publicly_accessible
+terminology:
+  main_subject: Skywatcher
+  codenames:
+    - codename: Tic Tac
+      refers_to: Unidentified Aerial Phenomena classification type
+    - codename: Trinity
+      refers_to: Operation Trinity Atomic Bomb Test (1945)
+  acronyms:
+    - acronym: FAA
+      expansion: Federal Aviation Administration
+    - acronym: TFR
+      expansion: Temporary Flight Restriction
+    - acronym: NOTAM
+      expansion: Notice to Airmen
+    - acronym: CIA
+      expansion: Central Intelligence Agency
+    - acronym: NASA
+      expansion: National Aeronautics and Space Administration
+    - acronym: DoD
+      expansion: Department of Defense
+    - acronym: JSOC
+      expansion: Joint Special Operations Command
+    - acronym: CBP
+      expansion: United States Customs and Border Protection
+    - acronym: DHS
+      expansion: United States Department of Homeland Security
+    - acronym: ODNI
+      expansion: Office of the Director of National Intelligence
+    - acronym: PURSUE
+      expansion: UAP Disclosure Initiative
+    - acronym: UAP
+      expansion: Unidentified Aerial Phenomena
+    - acronym: AAV
+      expansion: Anomalous Aerial Vehicle
+    - acronym: NHI
+      expansion: Non-human Intelligence
+    - acronym: HPM
+      expansion: High Pulse Microwave
+nodes:
+  - id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+    type: person
+    name: Ross Coulthart
+  - id: cadbf258-ca02-4624-abbc-eebad46def2a
+    type: person
+    name: Meagan Medick
+  - id: c48d64f1-7a24-45cd-93ac-8f050beb45e5
+    type: person
+    name: Jake Barber
+  - id: d78b3022-0ac0-42e7-bfc2-d4001ab87ca9
+    type: person
+    name: James Fowler
+  - id: 69ee7e87-8c8b-4099-8027-5a1db42ddbe3
+    type: person
+    name: Alex Klokus
+  - id: 6e3fda51-276c-47e9-b14f-b1477775a9f5
+    type: person
+    name: Ali Bradley
+  - id: 27874fae-2a1b-40db-b2d4-9936a84382d5
+    type: person
+    name: Ted Cruz
+  - id: bf887ae3-ae94-4061-8258-770a477c7b8c
+    type: person
+    name: Jack Reed
+  - id: cbfa0cc6-1522-48b7-a8e2-0fc5f84028ed
+    type: person
+    name: Sean Duffy
+  - id: f9888de0-ae96-4674-9013-e81688fa5b1b
+    type: person
+    name: Pete Hegseth
+  - id: 98ab39e0-8d22-407e-b9e5-a1006d324ef3
+    type: person
+    name: Donald Trump
+  - id: c6ec6354-bd0c-428e-bc61-d0774fd41089
+    type: organisation
+    name: Reality Check
+  - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+    type: organisation
+    name: Skywatcher
+  - id: 609d5169-5146-445c-81d3-c253f83bc0f0
+    type: organisation
+    name: Federal Aviation Administration (FAA)
+  - id: 2296fe44-4191-49fd-947d-1e53b8350785
+    type: organisation
+    name: United States Department of Defense (DoD)
+  - id: 03b84423-ea24-4542-bdf0-1b89c112d0d1
+    type: organisation
+    name: Central Intelligence Agency (CIA)
+  - id: f28fc43b-aaaf-41d8-b762-fb703effa9e0
+    type: organisation
+    name: National Aeronautics and Space Administration (NASA)
+  - id: dc7fbda9-5e0d-4ad9-b91f-3c5327f8a009
+    type: organisation
+    name: NewsNation
+  - id: 641aa636-ee6d-4af7-9a8e-d64d47ac762e
+    type: organisation
+    name: New York Times
+  - id: 20c02d5f-93cd-4305-be76-4ad7594c52d3
+    type: organisation
+    name: Joint Special Operations Command (JSOC)
+  - id: 3a551036-e798-46bf-a3a9-5b5b3381af9e
+    type: organisation
+    name: United States Customs and Border Protection (CBP)
+  - id: 30acbb1b-4e37-4454-beeb-a187f149c7b8
+    type: organisation
+    name: United States Department of Homeland Security (DHS)
+  - id: e8722cdd-6167-4931-a5ec-33285a74eb2b
+    type: organisation
+    name: Office of the Director of National Intelligence (ODNI)
+  - id: 2847cdb8-07a7-476a-89ba-7e408d8c807b
+    type: organisation
+    name: White House
+  - id: 924601c3-5eb8-466d-a1f5-573e6e27f46b
+    type: organisation
+    name: United States Congress
+  - id: 6e3f2c5c-b3f8-438f-80ad-7bb0acadf1fc
+    type: project
+    name: PURSUE (UAP Disclosure Initiative)
+  - id: accaa8d5-a2b5-4c8f-83f9-13f2e4cbd646
+    type: project
+    name: |-
+      Department of Defense UAP Intercept Operation at White Sands (November 2025-August 2026)
+  - id: f8727a94-ba74-4bb4-9e7d-50c55ce9ee0b
+    type: project
+    name: |-
+      United States Government Legacy Non-Human Intelligence Retrieval and Reverse-Engineering Program
+  - id: 1c23fe82-14ef-43c3-941b-1fe5e6d1ece1
+    type: place
+    name: USA, Texas, El Paso
+  - id: 119f7b26-cf84-45f3-88e1-e0bdfa043f1e
+    type: place
+    name: USA, Texas, Sierra Blanca
+  - id: 0036d700-69ed-449a-af63-9859a43b4094
+    type: place
+    name: USA, New Mexico, White Sands Missile Range
+  - id: 0c45da25-9a49-44ac-ae4c-0bf487530749
+    type: place
+    name: USA, New Mexico, Holloman Air Force Base
+  - id: 7f82fab0-04a6-4eb8-920e-a662c82e7862
+    type: place
+    name: Mexico, Chihuahua, Juarez
+  - id: d60ec784-8ff5-4940-a907-3ca8b19292ef
+    type: event
+    name: El Paso Airspace Closure (February 2026)
+    metadata:
+      date_start: '2026-02-10'
+      date_end: '2026-02-11'
+  - id: 466b361e-4035-4fce-83f6-21e2dd38f488
+    type: event
+    name: Sierra Blanca Temporary Flight Restriction Closure (November 2025)
+    metadata:
+      date_start: '2025-11-08'
+      date_end: '2025-11-14'
+  - id: c17c9193-5129-4230-8925-839e7f9a73cb
+    type: event
+    name: Operation Trinity Atomic Bomb Test (1945)
+    metadata:
+      date_start: '1945-07-16'
+  - id: 740316b0-a358-46be-b0e4-32424d430fa8
+    type: event
+    name: King Air Aircraft Incident near White Sands (2026)
+    metadata:
+      date_start: '2026'
+  - id: 905767c1-7716-401b-9510-3abf0fca5ce5
+    type: event
+    name: Medevac Aircraft Crash at White Sands (2026)
+    metadata:
+      date_start: '2026'
+  - id: 3c9d65da-fadd-461d-900f-fbf3603bc92f
+    type: object
+    name: King Air
+  - id: 8dfac92d-ff7a-4df9-b8a6-de3da886f1a0
+    type: object
+    name: Medevac Aircraft
+  - id: 2b601d2b-a622-4979-89ae-48963c08261b
+    type: document
+    name: Reality Check Q&A - Skywatcher Investigation (August 2026)
+  - id: 32f29d06-63e7-4f71-8200-9feb01c7fbb0
+    type: document
+    name: Sierra Blanca Temporary Flight Restriction Notice to Airmen (November 2025)
+  - id: d22cb17a-379a-4a82-ace7-14615254d8b2
+    type: document
+    name: El Paso Temporary Flight Restriction Notice to Airmen (February 2026)
+  - id: 30d862d7-4c86-451e-abbe-daaf636e2776
+    type: document
+    name: PURSUE Declassified UAP Video Releases (2026)
+  - id: cc279ce1-f678-45f4-aa06-5823b852e458
+    type: document
+    name: Congressional Classified Briefing on El Paso Airspace Closure (February 2026)
+  - id: e51e0129-04fc-4dcd-9a0d-e6a587cf717f
+    type: topic
+    name: Unidentified Aerial Phenomena (UAP)
+  - id: 353ffc6f-0ceb-44aa-8e21-380e680a5f4a
+    type: topic
+    name: Non-human Intelligence (NHI)
+  - id: 7f2eed78-1af6-47c6-a836-de3c6002835b
+    type: topic
+    name: Anomalous Aerial Vehicle (AAV)
+domain_claims:
+  - id: 5afcdc92-194b-4070-b40f-0f9f38d4461d
+    type: administrative
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Public record
+    attribution_in_text: false
+    location: 00:00:45.2-00:00:56.8
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: c48d64f1-7a24-45cd-93ac-8f050beb45e5
+        name: Jake Barber
+      - id: d78b3022-0ac0-42e7-bfc2-d4001ab87ca9
+        name: James Fowler
+      - id: 69ee7e87-8c8b-4099-8027-5a1db42ddbe3
+        name: Alex Klokus
+    quote: |-
+      Skywatcher, the UAP investigation group founded, co-founded by Jake Barber, James Fowler and financier Alex Clocus
+    text: |-
+      Skywatcher is a Unidentified Aerial Phenomena investigation group co-founded by Jake Barber, James Fowler and Alex Klokus.
+  - id: ec0e3b93-89f5-42b2-9f67-9482abed86a6
+    type: observation
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart observed social media
+    attribution_in_text: false
+    location: 00:00:58.5-00:01:14.8
+    date: '2025-12-25'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: e51e0129-04fc-4dcd-9a0d-e6a587cf717f
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      The last time Skywatcher posted on Twitter X was Christmas Day last year, where it reaffirmed its commitment to applying disciplined science, advanced sensing and rigorous analysis to the UAP subject.
+    text: |-
+      Skywatcher posted on X on 25 December 2025 reaffirming commitment to disciplined science and rigorous analysis of Unidentified Aerial Phenomena.
+  - id: ae5252d9-e9ca-46e8-ad10-9096b0270444
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: d78b3022-0ac0-42e7-bfc2-d4001ab87ca9
+      name: James Fowler
+    provenance_chain:
+      origin_kind: named
+      origin: James Fowler
+    attribution_in_text: false
+    location: 00:01:21.6-00:01:30.8
+    date: '2025-08-15'
+    refs:
+      - id: d78b3022-0ac0-42e7-bfc2-d4001ab87ca9
+        name: James Fowler
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+    quote: |-
+      James Fowler left in mid-August last year to follow what he described as a new opportunity in aerial intelligence
+    text: |-
+      James Fowler left Skywatcher in mid-August 2025 to pursue a new opportunity in aerial intelligence.
+  - id: 22bde9fc-a5eb-4147-98de-84e000be2636
+    type: observation
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Coulthart checked website
+    attribution_in_text: false
+    location: 00:01:16.6-00:01:24.5
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+    quote: |-
+      nothing posted on the skywatcher.ai website since James Fowler left in mid-August last year
+    text: No posts appeared on skywatcher.ai website from mid-August 2025 onwards.
+  - id: 3b952fa7-d7d0-4115-929c-151250c269ea
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Coulthart assessed videos
+    attribution_in_text: false
+    location: 00:01:33.1-00:01:41.7
+    refs:
+      - id: 69ee7e87-8c8b-4099-8027-5a1db42ddbe3
+        name: Alex Klokus
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: e51e0129-04fc-4dcd-9a0d-e6a587cf717f
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      What Alex Klokus described in the two videos they posted on their website suggested huge promise for their UAP research.
+    text: |-
+      Alex Klokus's videos posted on Skywatcher's website demonstrated significant promise for Unidentified Aerial Phenomena research.
+  - id: 24ecfaf3-0949-4fe3-93f8-6f24b5772fbc
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: named
+      origin: Skywatcher
+    attribution_in_text: true
+    location: 00:01:43.1-00:02:03.0
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: e51e0129-04fc-4dcd-9a0d-e6a587cf717f
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      Skywatcher promised that it would seek to validate the existence of UAPs by using what it calls electromechanical signaling, aka the dog whistle. and neuro-meditative interaction, better known as psionic summoning or inviting of UAPs.
+    text: |-
+      Skywatcher pledged to seek validation of Unidentified Aerial Phenomena by using electromechanical signalling, known as dog whistle, and neuro-meditative interaction, known as psionic summoning or inviting of Unidentified Aerial Phenomena.
+  - id: 4faecb76-6ddc-40c7-ba94-49fbe273cd20
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: named
+      origin: Skywatcher
+    attribution_in_text: true
+    location: 00:02:05.1-00:02:40.7
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: 119f7b26-cf84-45f3-88e1-e0bdfa043f1e
+        name: USA, Texas, Sierra Blanca
+      - id: e51e0129-04fc-4dcd-9a0d-e6a587cf717f
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      Most dramatically, based on observations from a base here in Sierra Blanca, southeast of El Paso, Texas, the Skywatcher team reported they'd identified nine separate classes of UAP with their sensors and video cameras. the Tetra, the Tic Tac, the Blob, the Beam, the Manta Ray, the Bright Star, the Jellyfish, the Hornet, and the Egg.
+    text: |-
+      Based on observations from a base at Sierra Blanca southeast of El Paso, Texas, Skywatcher reported identifying nine separate classes of Unidentified Aerial Phenomena with sensors and video cameras: the Tetra, the Tic Tac (a classification type of Unidentified Aerial Phenomena), the Blob, the Beam, the Manta Ray, the Bright Star, the Jellyfish, the Hornet, and the Egg.
+  - id: d18ef5b7-dd9d-425a-9b0e-441e026f9fc5
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming insider knowledge of Skywatcher operations
+      origin_ref: skywatcher-insider
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:03:00.2-00:03:05.9
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+    quote: I understand there's been no Skywatcher field operations since July last year
+    text: There has been no Skywatcher field operations since July 2025.
+  - id: e0c181e0-56b2-4693-9e36-cd12ba2ea3f7
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming insider knowledge of Skywatcher and government liaisons
+      origin_ref: skywatcher-insider
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:03:12.7-00:03:37.7
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: f28fc43b-aaaf-41d8-b762-fb703effa9e0
+        name: National Aeronautics and Space Administration (NASA)
+      - id: 2296fe44-4191-49fd-947d-1e53b8350785
+        name: United States Department of Defense (DoD)
+      - id: 03b84423-ea24-4542-bdf0-1b89c112d0d1
+        name: Central Intelligence Agency (CIA)
+    quote: |-
+      Multiple insiders have told me by the time of that last July field operation, Skywatcher was actually working with and reporting to a number of government agencies, including NASA, the Department of Defence and several intelligence agencies, including the CIA, the Central Intelligence Agency.
+    text: |-
+      By the time of the July 2025 field operation, Skywatcher was working with and reporting to multiple government agencies including National Aeronautics and Space Administration (NASA), Department of Defense (DoD), and several intelligence agencies including the Central Intelligence Agency (CIA).
+  - id: b2cb3520-bc33-47d0-8536-8aa7a82d0be1
+    type: observation
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: established public record of El Paso airspace closure
+    attribution_in_text: true
+    location: 00:08:14.4-00:08:29.4
+    date: '2026-02-10'
+    refs:
+      - id: 609d5169-5146-445c-81d3-c253f83bc0f0
+        name: Federal Aviation Administration (FAA)
+      - id: 1c23fe82-14ef-43c3-941b-1fe5e6d1ece1
+        name: USA, Texas, El Paso
+    quote: |-
+      At 11.30pm or thereabouts on the 10th of February, the Federal Aviation Administration dramatically closed the airspace over El Paso without any or adequate warning to government agencies.
+    text: |-
+      The Federal Aviation Administration (FAA) closed the airspace over El Paso without adequate warning to government agencies at approximately 23:30 on 2026-02-10.
+  - id: 3ad30c6f-ce94-4cb4-a87a-c9d302c16bdd
+    type: observation
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: official Federal Aviation Administration (FAA) explanation
+    attribution_in_text: false
+    location: 00:08:35.4-00:08:56.1
+    date: '2026-02-10'
+    refs:
+      - id: 609d5169-5146-445c-81d3-c253f83bc0f0
+        name: Federal Aviation Administration (FAA)
+      - id: 1c23fe82-14ef-43c3-941b-1fe5e6d1ece1
+        name: USA, Texas, El Paso
+    quote: |-
+      The public was initially told Mexican organized crime cartel drones were breaching the airspace with their drones. And with next to no notice to local authorities, the FAA shut a massive area over El Paso for what they said would be a 10 day shutdown.
+    text: |-
+      The public was initially told Mexican organised crime cartel drones were breaching El Paso airspace, and the Federal Aviation Administration (FAA) shut a massive area over El Paso for what they said would be a ten-day shutdown.
+  - id: 44252e31-5192-4057-b69d-0ff99d8d569a
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: 6e3fda51-276c-47e9-b14f-b1477775a9f5
+      name: Ali Bradley
+    provenance_chain:
+      origin_kind: named
+      origin: Ali Bradley
+      relay:
+        - Ross Coulthart citing Ali Bradley's reporting
+    attribution_in_text: false
+    location: 00:09:51.3-00:10:01.8
+    date: '2026-08-09'
+    refs:
+      - id: 6e3fda51-276c-47e9-b14f-b1477775a9f5
+        name: Ali Bradley
+    quote: |-
+      the Mexican cartels frequently fly their drones over the US border and airspace is rarely, if ever, shut down because of these frequent incursions.
+    text: |-
+      Mexican organised crime cartels frequently fly drones over the United States border, and United States airspace is rarely, if ever, shut down because of these frequent incursions.
+  - id: e336cbec-a0c5-4149-aae9-9130c0584d4f
+    type: testimony
+    attestation: third_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a source claiming to be familiar with the Customs and Border Protection incident
+      origin_ref: cbp-incident-source
+      relay:
+        - New York Times
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:10:29.1-00:10:39.7
+    date: '2026-02-10'
+    refs:
+      - id: 3a551036-e798-46bf-a3a9-5b5b3381af9e
+        name: United States Customs and Border Protection (CBP)
+    quote: |-
+      The Times quoted sources saying Customs Border Protection officials thought they were firing on a cartel drone, but it turned out to be a party balloon.
+    text: |-
+      According to New York Times sources, United States Customs and Border Protection (CBP) officials thought they were firing the anti-drone weapon on a Mexican cartel drone, but it turned out to be a party balloon.
+  - id: 29ad422c-5dc6-4fbc-a476-2dbb37555e3f
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: document
+      origin: New York Times reporting
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:10:41.2-00:10:45.8
+    date: '2026-02-10'
+    refs:
+      - id: 2296fe44-4191-49fd-947d-1e53b8350785
+        name: United States Department of Defense (DoD)
+    quote: It acknowledged Defence Department officials were present during the incident.
+    text: |-
+      Department of Defense (DoD) officials were present during the El Paso airspace incident.
+  - id: 3c610e75-dfd9-49f5-9074-131748d479bf
+    type: observation
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: established public record of El Paso airspace closure
+    attribution_in_text: false
+    location: 00:11:07.1-00:11:18.1
+    date: '2026-02-11'
+    refs:
+      - id: 609d5169-5146-445c-81d3-c253f83bc0f0
+        name: Federal Aviation Administration (FAA)
+      - id: d60ec784-8ff5-4940-a907-3ca8b19292ef
+        name: El Paso Airspace Closure (February 2026)
+    quote: |-
+      Then just seven hours after the FAA imposed its El Paso shutdown, the restriction was lifted early the next morning around 7am.
+    text: |-
+      Seven hours after the Federal Aviation Administration (FAA) imposed the El Paso airspace closure at approximately 23:30 on 2026-02-10, the restriction was lifted early on the morning of 2026-02-11 around 07:00.
+  - id: 00bc4b3f-e17f-4b34-8a93-812233b93c15
+    type: administrative
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: document
+      origin: Sierra Blanca Temporary Flight Restriction Notice to Airmen
+      relay:
+        - Ross Coulthart
+    attribution_in_text: true
+    location: 00:12:22.9-00:12:42.8
+    date: '2025-11-08'
+    refs:
+      - id: 609d5169-5146-445c-81d3-c253f83bc0f0
+        name: Federal Aviation Administration (FAA)
+      - id: 1c23fe82-14ef-43c3-941b-1fe5e6d1ece1
+        name: USA, Texas, El Paso
+      - id: 32f29d06-63e7-4f71-8200-9feb01c7fbb0
+        name: Sierra Blanca Temporary Flight Restriction Notice to Airmen (November 2025)
+    quote: |-
+      This is a NOTAM, a safety advisory to aviators, posted by the Federal Aviation Administration on 8th November last year. closing a massive area of airspace southeast of El Paso right through to the 7th November this year.
+    text: |-
+      The Federal Aviation Administration (FAA) posted a Notice to Airmen (NOTAM) Temporary Flight Restriction (TFR) on 2025-11-08 closing a massive area of airspace southeast of El Paso.
+  - id: 09cbeae7-369e-4e6c-81a7-c627a59e93d2
+    type: administrative
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: document
+      origin: Sierra Blanca Temporary Flight Restriction Notice to Airmen
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:12:44.3-00:12:56.4
+    date: '2025-11-08'
+    refs:
+      - id: 119f7b26-cf84-45f3-88e1-e0bdfa043f1e
+        name: USA, Texas, Sierra Blanca
+      - id: 32f29d06-63e7-4f71-8200-9feb01c7fbb0
+        name: Sierra Blanca Temporary Flight Restriction Notice to Airmen (November 2025)
+    quote: |-
+      It deemed this area as national defence airspace, warning pilots that any breach of the airspace would allow them to be intercepted, detained and interviewed.
+    text: |-
+      The Temporary Flight Restriction (TFR) over Sierra Blanca designated the area as national defence airspace.
+  - id: 75f8ccf4-0f4a-453c-86aa-7f1045c93ee2
+    type: administrative
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: document
+      origin: Sierra Blanca Temporary Flight Restriction Notice to Airmen
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:12:49.0-00:12:56.4
+    date: '2025-11-08'
+    refs:
+      - id: 119f7b26-cf84-45f3-88e1-e0bdfa043f1e
+        name: USA, Texas, Sierra Blanca
+      - id: 32f29d06-63e7-4f71-8200-9feb01c7fbb0
+        name: Sierra Blanca Temporary Flight Restriction Notice to Airmen (November 2025)
+    quote: |-
+      warning pilots that any breach of the airspace would allow them to be intercepted, detained and interviewed.
+    text: |-
+      The Temporary Flight Restriction (TFR) over Sierra Blanca warned that any aircraft breaching the airspace would be subject to interception, detention, and interview.
+  - id: 9dbd2732-8d07-4999-94c3-a6c02e25455a
+    type: administrative
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: document
+      origin: Sierra Blanca Temporary Flight Restriction Notice to Airmen
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:12:58.2-00:13:06.2
+    date: '2025-11-08'
+    refs:
+      - id: 119f7b26-cf84-45f3-88e1-e0bdfa043f1e
+        name: USA, Texas, Sierra Blanca
+      - id: 32f29d06-63e7-4f71-8200-9feb01c7fbb0
+        name: Sierra Blanca Temporary Flight Restriction Notice to Airmen (November 2025)
+    quote: |-
+      It authorized the US government to use deadly force if the aircraft posed an imminent threat to security.
+    text: |-
+      The Temporary Flight Restriction (TFR) over Sierra Blanca authorised the United States government to use deadly force if an aircraft posed an imminent threat to security.
+  - id: 804838c7-5a57-4946-b9bc-ee1b34f9bbae
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: |-
+        a person claiming knowledge of the Joint Special Operations Command (JSOC) decision
+      origin_ref: tfr-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:14:03.8-00:14:20.4
+    date: '2026-08-09'
+    refs:
+      - id: 2296fe44-4191-49fd-947d-1e53b8350785
+        name: United States Department of Defense (DoD)
+      - id: 20c02d5f-93cd-4305-be76-4ad7594c52d3
+        name: Joint Special Operations Command (JSOC)
+      - id: 609d5169-5146-445c-81d3-c253f83bc0f0
+        name: Federal Aviation Administration (FAA)
+    quote: |-
+      I've also learned that the TFR, the shutdown, was initiated by the Defence Department's Joint Special Operations Command, liaison to the FAA, and that it was imposed to, quote, shoot down drones.
+    text: |-
+      The Temporary Flight Restriction (TFR) over Sierra Blanca was initiated by the Department of Defense (DoD)'s Joint Special Operations Command (JSOC) liaison to the Federal Aviation Administration (FAA) to shoot down drones.
+  - id: 694a7315-eb8a-4093-9330-8c471fbceb42
+    type: observation
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: |-
+        Ross Coulthart analysed the geographic scope of the Temporary Flight Restriction (TFR)
+    attribution_in_text: false
+    location: 00:14:22.0-00:14:31.8
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: 1c23fe82-14ef-43c3-941b-1fe5e6d1ece1
+        name: USA, Texas, El Paso
+    quote: |-
+      El Paso this time was excluded from the airspace shutdown. Only the exact airspace over Skywatch's zone of operations was affected.
+    text: |-
+      The airspace closure only affected Skywatcher's exact zone of operations, excluding the El Paso city and airport area.
+  - id: 502ba788-da40-4781-bb0d-776f4d04a8cb
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to represent Defence sources
+      origin_ref: defence-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:15:25.3-00:15:48.5
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: 119f7b26-cf84-45f3-88e1-e0bdfa043f1e
+        name: USA, Texas, Sierra Blanca
+    quote: |-
+      Defence sources tell me that their observers were watching on during Skywatch's Sierra Blanca operation, and they made a major discovery during Skywatch's psionic summoning and dog whistle operations during 2025, including in that last July 2025 test.
+    text: |-
+      Defence sources told Ross Coulthart that observers were monitoring Skywatcher's Sierra Blanca operations during 2025.
+  - id: 5b6c8010-4b65-4239-997d-a3a9539ba0e1
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to represent Defence sources observing Skywatcher operations
+      origin_ref: defence-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:15:51.7-00:16:13.3
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: 119f7b26-cf84-45f3-88e1-e0bdfa043f1e
+        name: USA, Texas, Sierra Blanca
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+      - id: e51e0129-04fc-4dcd-9a0d-e6a587cf717f
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      At exactly the same time that Skywatcher was doing its operations at Sierra Blanca, 200 miles to the northwest, UAP swarms suddenly began appearing in great numbers over the White Sands missile range to the northwest of El Paso.
+    text: |-
+      At the same time Skywatcher was conducting psionic summoning and dog whistle operations at Sierra Blanca, including the July 2025 test, Unidentified Aerial Phenomena swarms began appearing in large numbers over White Sands Missile Range approximately 320 kilometres northwest of El Paso.
+  - id: 960e7b72-30e5-43f7-8e24-a7ba0f2cdd5c
+    type: observation
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: established historical record
+    attribution_in_text: false
+    location: 00:16:30.4-00:16:36.4
+    date: '1945-07-16'
+    refs:
+      - id: c17c9193-5129-4230-8925-839e7f9a73cb
+        name: Operation Trinity Atomic Bomb Test (1945)
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      81 years ago, the first atomic bomb north of El Code named Trinity was test detonated at Wisma.
+    text: |-
+      The Operation Trinity Atomic Bomb Test, code-named Trinity, was detonated at White Sands Missile Range in 1945.
+  - id: eda39c07-9383-4931-a248-5930d3152890
+    type: observation
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: established historical record
+    attribution_in_text: false
+    location: 00:16:37.9-00:16:46.0
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      At the end of World War II is where the US tested 100 captured German V2 rockets.
+    text: |-
+      The United States tested one hundred captured German V2 rockets at White Sands Missile Range after World War II.
+  - id: f339ce45-df8e-4a43-92f1-a34629556844
+    type: observation
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: public speculation and reports
+    attribution_in_text: false
+    location: 00:16:47.6-00:16:55.1
+    date: '2026-08-09'
+    refs:
+      - id: 0c45da25-9a49-44ac-ae4c-0bf487530749
+        name: USA, New Mexico, Holloman Air Force Base
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      Holloman Air Force Base, also long speculated to be the scene of anomalous craft sightings, borders Wismar to the east.
+    text: |-
+      Holloman Air Force Base borders White Sands Missile Range to the east and has long been speculated to be the scene of anomalous craft sightings.
+  - id: 2c3bdb15-e199-4084-a896-f52adacd1018
+    type: observation
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: established institutional fact
+    attribution_in_text: false
+    location: 00:16:56.7-00:17:05.2
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      White Sands is the premier military test range in America, the birthplace of the US missile and space technology.
+    text: |-
+      White Sands Missile Range is the premier military test range in the United States and is the birthplace of United States missile and space technology.
+  - id: 197f7c50-8c12-4f50-ace3-e91cec780871
+    type: observation
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's observation based on public information
+    attribution_in_text: false
+    location: 00:17:19.7-00:17:26.0
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+    quote: |-
+      While it appears that Skywatcher is indeed defunct, it's been dissolved as a business entity
+    text: Skywatcher appears to be defunct and has been dissolved as a business entity.
+  - id: 97c32636-6004-4b2a-bc33-54dbbc7a9d53
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's informed speculation
+    attribution_in_text: false
+    location: 00:17:27.3-00:17:38.0
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: 2296fe44-4191-49fd-947d-1e53b8350785
+        name: United States Department of Defense (DoD)
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      I suspect key individuals from the Skywatcher team are now working with the Defence War Department at the White Sands range.
+    text: |-
+      Key individuals from the Skywatcher team may now be working with the Department of Defense (DoD) at White Sands Missile Range.
+  - id: c4e6a03b-6302-4574-b95e-2672c9b820f2
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of United States government operations
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:17:43.8-00:18:08.4
+    date: '2026-08-09'
+    refs:
+      - id: e51e0129-04fc-4dcd-9a0d-e6a587cf717f
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      I'm told that from November last year until now The United States government in a joint operation with multiple intelligence and defense agencies has been using these airspace shutdowns, these TFRs to do its own UAP intercept operations.
+    text: |-
+      From November 2025 until August 2026, the United States government, in a joint operation with multiple intelligence and defence agencies, has been using airspace shutdowns and Temporary Flight Restrictions (TFRs) to conduct its own Unidentified Aerial Phenomena intercept operations.
+  - id: 167fe360-60a6-474c-9785-6f7082067416
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming direct knowledge of government operations
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:18:10.0-00:18:41.4
+    date: '2026-08-09'
+    refs:
+      - id: e51e0129-04fc-4dcd-9a0d-e6a587cf717f
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      Yes, they have been summoning, detecting and yes, shooting down what we some call drones, others UAPs. The airspace was closed to stop any other non-government activity so that the government had a secure location from where it could summon, detect and shoot down UAPs, craft.
+    text: |-
+      During government Unidentified Aerial Phenomena intercept operations, the United States government has been using Temporary Flight Restrictions (TFRs) to summon, detect, and shoot down unidentified objects.
+  - id: 4979a2f5-510b-430c-8005-d7d917f13a3d
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of Defence Department methods
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:18:45.4-00:19:03.2
+    date: '2026-08-09'
+    refs:
+      - id: 2296fe44-4191-49fd-947d-1e53b8350785
+        name: United States Department of Defense (DoD)
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: 119f7b26-cf84-45f3-88e1-e0bdfa043f1e
+        name: USA, Texas, Sierra Blanca
+    quote: |-
+      To be clear, I'm told the Defense Department is using the same so-called dog whistle (electromechanical signalling) and psionic summoners (neuromedative interraction) as Skywatch's team was doing at Sierra Blanca.
+    text: |-
+      The Department of Defense (DoD) is using the same dog whistle (electromechanical signalling) and psionic summoners (neuro-meditative interaction) as the Skywatcher team was using at Sierra Blanca.
+  - id: 50509657-fc7a-499f-8b2e-c1c203a47383
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of Defence Department covert operations
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:19:16.5-00:19:41.7
+    date: '2026-08-09'
+    refs:
+      - id: 2296fe44-4191-49fd-947d-1e53b8350785
+        name: United States Department of Defense (DoD)
+      - id: 1c23fe82-14ef-43c3-941b-1fe5e6d1ece1
+        name: USA, Texas, El Paso
+      - id: 7f82fab0-04a6-4eb8-920e-a662c82e7862
+        name: Mexico, Chihuahua, Juarez
+    quote: |-
+      The Department of War has quite literally taken on the running of its own covert operation to intercept these mystery objects. And I'm told they have recently downed objects, craft, both in the US and across the border near Juarez in Mexico.
+    text: |-
+      The Department of Defense (DoD) is running a covert operation to intercept mystery objects, and has recently downed objects or craft both in the United States and across the border near Juarez, Mexico.
+  - id: 3c417804-3e47-45fb-9b95-48e5d9d27eed
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to represent White House sources
+      origin_ref: wh-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:19:43.9-00:19:51.3
+    date: '2026-08-09'
+    refs:
+      - id: 98ab39e0-8d22-407e-b9e5-a1006d324ef3
+        name: Donald Trump
+      - id: 2847cdb8-07a7-476a-89ba-7e408d8c807b
+        name: White House
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      I am also told by White House sources that President Trump has personally authorized this operation.
+    text: |-
+      President Donald Trump has personally authorised the White Sands Unidentified Aerial Phenomena intercept operation.
+  - id: 4abf49f6-8fa2-4fb5-9168-0dc92d0cd0d2
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of government programmes
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:20:05.4-00:20:21.5
+    date: '2026-08-09'
+    refs:
+      - id: 353ffc6f-0ceb-44aa-8e21-380e680a5f4a
+        name: Non-human Intelligence (NHI)
+      - id: f8727a94-ba74-4bb4-9e7d-50c55ce9ee0b
+        name: |-
+          United States Government Legacy Non-Human Intelligence Retrieval and Reverse-Engineering Program
+      - id: 2847cdb8-07a7-476a-89ba-7e408d8c807b
+        name: White House
+    quote: |-
+      There is a full-on effort underway by the administration to recover suspected non-human intelligence exotic technology in a program totally separate from the so-called legacy program.
+    text: |-
+      A full-scale effort is underway by the Trump administration to recover suspected Non-human Intelligence (NHI) exotic technology in a programme totally separate from the legacy Non-human Intelligence retrieval and reverse-engineering programme.
+  - id: dc1f9856-8cf5-4697-83f3-c5df5f995410
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of government programmes
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:20:28.9-00:20:34.2
+    date: '2026-08-09'
+    refs:
+      - id: 2847cdb8-07a7-476a-89ba-7e408d8c807b
+        name: White House
+      - id: 353ffc6f-0ceb-44aa-8e21-380e680a5f4a
+        name: Non-human Intelligence (NHI)
+    quote: |-
+      It's been run out of the White House by the President's most senior intelligence advisors.
+    text: |-
+      The Non-human Intelligence (NHI) recovery programme is being run from the White House by the President's most senior intelligence advisors.
+  - id: 573ea294-1ada-4a0b-9412-c73f9a98b980
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of Trump's directives
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:20:36.2-00:20:45.5
+    date: '2026-08-09'
+    refs:
+      - id: 98ab39e0-8d22-407e-b9e5-a1006d324ef3
+        name: Donald Trump
+      - id: f9888de0-ae96-4674-9013-e81688fa5b1b
+        name: Pete Hegseth
+    quote: |-
+      President Trump has tasked the Secretary of War, Pete Hegseth, to find out what these objects are and to capture them.
+    text: |-
+      President Donald Trump has tasked Secretary of Defense Pete Hegseth to find out what the mystery objects are and to capture them.
+  - id: 5aec1380-ca90-4948-8ecf-8a903dae9aca
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of agencies involved in operations
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:20:46.7-00:20:52.3
+    date: '2026-08-09'
+    refs:
+      - id: e8722cdd-6167-4931-a5ec-33285a74eb2b
+        name: Office of the Director of National Intelligence (ODNI)
+    quote: The Office of the Director of National Intelligence, ODNI, is also involved.
+    text: |-
+      The Office of the Director of National Intelligence (ODNI) is involved in the Unidentified Aerial Phenomena intercept operation.
+  - id: 54ad566b-4854-455a-bf89-f879a7355d4e
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of weapons systems used at White Sands
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:20:54.5-00:21:06.8
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      Sources have told me that one of the directed energy weapons systems used at White Sands in an attempt to shoot down these mystery craft is what's called high pulse microwave.
+    text: |-
+      One of the directed energy weapons systems used at White Sands Missile Range in attempts to shoot down mystery craft is High Pulse Microwave (HPM).
+  - id: 855e20e9-ab0f-4b89-a5f4-0bf4e45927d0
+    type: measurement
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: established technical understanding of High Pulse Microwave weapons
+    attribution_in_text: false
+    location: 00:21:08.6-00:21:20.4
+    date: '2026-08-09'
+    quote: |-
+      It shuts down an aircraft by emitting an intense burst of electromagnetic energy that travels at the speed of light, penetrates the aircraft and fries its electronic systems.
+    text: |-
+      High Pulse Microwave (HPM) weapons shut down an aircraft by emitting an intense burst of electromagnetic energy that travels at the speed of light, penetrates the aircraft, and disrupts its electronic systems.
+  - id: da7a4669-fe5b-4e79-ab69-676b0e937631
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to represent Defence sources observing targeted craft
+      origin_ref: defence-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:21:21.5-00:21:38.6
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+      - id: e51e0129-04fc-4dcd-9a0d-e6a587cf717f
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      My sources tell me that the craft, objects, UAPs, whatever you want to call them, are being targeted over white sands and they definitely show anomalous properties conforming to the five observables that define UAPs.
+    text: |-
+      The craft targeted over White Sands Missile Range show anomalous properties conforming to the five observables that define Unidentified Aerial Phenomena (UAP).
+  - id: c67c1a87-1309-4fc0-9f80-9ae94b972c8e
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to represent Defence sources
+      origin_ref: defence-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:21:40.1-00:21:45.6
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      There's no visible means of propulsion, no jets, no turbines, no propellers, no rocket motors.
+    text: |-
+      The craft targeted over White Sands Missile Range have no visible means of propulsion—no jets, turbines, propellers, or rocket motors.
+  - id: 50e77f19-f8a8-4192-bdf9-1b3eb642bbd1
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to represent Defence sources
+      origin_ref: defence-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:21:46.5-00:21:51.2
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: They have instantaneous maneuvers, hypersonic velocities, stealth mode.
+    text: |-
+      The craft targeted over White Sands Missile Range exhibit instantaneous maneuvers.
+  - id: 47babb7b-82b2-4f68-89a2-65ea7e39e82c
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to represent Defence sources
+      origin_ref: defence-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:21:46.5-00:21:51.2
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: They have instantaneous maneuvers, hypersonic velocities, stealth mode.
+    text: |-
+      The craft targeted over White Sands Missile Range travel at hypersonic velocities.
+  - id: 7047b9cc-9919-475e-83ab-df2b32cd8e28
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to represent Defence sources
+      origin_ref: defence-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:21:46.5-00:21:51.2
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: They have instantaneous maneuvers, hypersonic velocities, stealth mode.
+    text: The craft targeted over White Sands Missile Range operate in stealth mode.
+  - id: ee56e409-20f7-4f4f-9afa-4bb4d84c7046
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of information provided to the President
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:21:52.6-00:22:00.3
+    date: '2026-08-09'
+    refs:
+      - id: 98ab39e0-8d22-407e-b9e5-a1006d324ef3
+        name: Donald Trump
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      What's concerning is that I'm being told the president is not getting the full story about what's being recovered.
+    text: |-
+      Ross Coulthart has been told that President Trump is not receiving the full story about what is being recovered in the White Sands operations.
+  - id: aae04c3e-6150-439b-b9bf-44a257ad9619
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of briefings provided to the President
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:22:01.7-00:22:08.9
+    date: '2026-08-09'
+    refs:
+      - id: 98ab39e0-8d22-407e-b9e5-a1006d324ef3
+        name: Donald Trump
+    quote: |-
+      there's a concern he's being snowed with an explanation that these are just foreign adversary drones.
+    text: |-
+      Sources have told Ross Coulthart there is concern the President is being provided an explanation that the objects are Chinese or other foreign adversary drones.
+  - id: bca34e2f-39f4-442c-a348-e15ac47be259
+    type: hearsay
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to know what is being considered as a possibility
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:22:10.8-00:22:27.5
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      It's being considered as a possibility, I'm told, that some of these objects may be Chinese or other foreign adversary drones doing intelligence or surveillance on what is one of America's most sensitive military test ranges.
+    text: |-
+      Some of the objects being detected may be Chinese or other foreign adversary drones conducting intelligence or surveillance on White Sands Missile Range, one of the United States' most sensitive military test ranges.
+  - id: 7dbbbfb6-9af9-4f79-a88c-af4b9342759d
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of what is being detected
+      origin_ref: defence-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:22:28.6-00:22:35.1
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      But what is being detected is without doubt far beyond any known conventional human technology.
+    text: |-
+      What is being detected at White Sands Missile Range is without doubt far beyond any known conventional human technology.
+  - id: b90a0cff-720e-4022-8d2c-a122c77ae73f
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's logical analysis
+    attribution_in_text: false
+    location: 00:22:36.7-00:22:47.4
+    date: '2026-08-09'
+    quote: |-
+      If these are Chinese spy drones, then the Chinese have cracked super advanced stealth propulsion systems with no visible means of propulsion.
+    text: |-
+      If the objects are Chinese drones, they would possess advanced stealth propulsion systems with no visible means of propulsion.
+  - id: ca54bd4e-3485-4bf1-9c96-6e1447c02c34
+    type: opinion
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of security concerns regarding the operation
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:22:49.2-00:23:15.4
+    date: '2026-08-09'
+    refs:
+      - id: 2847cdb8-07a7-476a-89ba-7e408d8c807b
+        name: White House
+      - id: 98ab39e0-8d22-407e-b9e5-a1006d324ef3
+        name: Donald Trump
+      - id: 353ffc6f-0ceb-44aa-8e21-380e680a5f4a
+        name: Non-human Intelligence (NHI)
+      - id: f8727a94-ba74-4bb4-9e7d-50c55ce9ee0b
+        name: |-
+          United States Government Legacy Non-Human Intelligence Retrieval and Reverse-Engineering Program
+    quote: |-
+      The fear also is that this secret operation authorized and being run by the White House on the orders of the president is compromised. That some of the people in the multiple agencies brought into this now massive operation are part of the covert legacy program that has been retrieving and attempting to reverse engineer NHI craft for decades.
+    text: |-
+      There is concern that the secret White Sands operation authorised by President Trump and run by the White House may be compromised by individuals from the legacy Non-human Intelligence retrieval and reverse-engineering programme.
+  - id: 39fd06c2-17f1-4928-a3ad-44d85cec6798
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of the legacy programme's activities
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:22:59.3-00:23:15.4
+    date: '2026-08-09'
+    refs:
+      - id: 353ffc6f-0ceb-44aa-8e21-380e680a5f4a
+        name: Non-human Intelligence (NHI)
+      - id: f8727a94-ba74-4bb4-9e7d-50c55ce9ee0b
+        name: |-
+          United States Government Legacy Non-Human Intelligence Retrieval and Reverse-Engineering Program
+    quote: |-
+      That some of the people in the multiple agencies brought into this now massive operation are part of the covert legacy program that has been retrieving and attempting to reverse engineer NHI craft for decades.
+    text: |-
+      The legacy Non-human Intelligence retrieval and reverse-engineering programme has been retrieving and attempting to reverse-engineer Non-human Intelligence (NHI) craft for decades.
+  - id: 9956155e-bd2f-4085-8bf7-37af411740c7
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of the object detected over El Paso
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:24:02.1-00:24:22.7
+    date: '2026-02-10'
+    refs:
+      - id: 1c23fe82-14ef-43c3-941b-1fe5e6d1ece1
+        name: USA, Texas, El Paso
+    quote: |-
+      And by the way, I'm told the object that was detected and fired at over El Paso, Texas that started all the public hullabaloo was most definitely not a party balloon or a cartel drone. It was most definitely anomalous.
+    text: |-
+      The object detected and fired upon over El Paso, Texas, that started the public response was definitely not a party balloon or a Mexican organised crime cartel drone, but was definitely anomalous.
+  - id: e333bd3c-d1df-45f9-aff8-a051e822a526
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's analysis and informed speculation
+    attribution_in_text: false
+    location: 00:24:37.8-00:24:57.4
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: 119f7b26-cf84-45f3-88e1-e0bdfa043f1e
+        name: USA, Texas, Sierra Blanca
+    quote: |-
+      That's a good question. I can't speak for Skywatcher, but I suspect they had no choice. I think the simple fact is that Their operation was effectively shut down when the TFR was put over the Sierra Blanca range. They were planning more operations. I'm very sure of that. Multiple people have told me that.
+    text: |-
+      Ross Coulthart suspects Skywatcher had no choice but to work with government entities because their Sierra Blanca operations were effectively shut down by the Temporary Flight Restriction (TFR), and they had planned to continue their research.
+  - id: 19b976b1-441b-4002-a4a4-6ec084206695
+    type: observation
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's knowledge of Skywatcher's funding structure
+    attribution_in_text: false
+    location: 00:25:01.7-00:25:08.3
+    date: '2026-08-09'
+    refs:
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+    quote: |-
+      And frankly, they have private equity funders who wanted a bang for their buck and the government was offering them their opportunity.
+    text: Skywatcher had private equity funders who wanted return on their investment.
+  - id: 584762dd-6158-49ce-902e-45cf15ed8c45
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of briefings provided to the President
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:25:29.9-00:25:38.4
+    date: '2026-08-09'
+    refs:
+      - id: 98ab39e0-8d22-407e-b9e5-a1006d324ef3
+        name: Donald Trump
+    quote: |-
+      My understanding is he's being told or being led to believe that what's being detected are highly advanced Chinese drones.
+    text: |-
+      Ross Coulthart's sources indicate the President is being told or led to believe that the objects being detected are highly advanced Chinese drones.
+  - id: 24342702-10d0-4dd3-9bb3-26443127b07d
+    type: opinion
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of the objects being detected
+      origin_ref: defence-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:25:39.5-00:25:47.8
+    date: '2026-08-09'
+    quote: |-
+      which I'm told is possibly the case for one or two of the objects, particularly the jellyfish, but not for all of the objects.
+    text: |-
+      The possibility that some objects are Chinese drones may apply to one or two of the objects, particularly the Jellyfish, but not for all of the objects.
+  - id: ff8585f0-753a-4137-8c1a-b1138fbf7bcc
+    type: opinion
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: named
+      origin: Jake Barber's views as understood by Ross Coulthart
+      relay:
+        - Ross Coulthart
+    attribution_in_text: true
+    location: 00:26:09.1-00:26:17.0
+    date: '2026-08-09'
+    refs:
+      - id: c48d64f1-7a24-45cd-93ac-8f050beb45e5
+        name: Jake Barber
+      - id: 924601c3-5eb8-466d-a1f5-573e6e27f46b
+        name: United States Congress
+    quote: |-
+      Look, I share Jake's cynicism about the genuine attempt, intent of Congress to actually be straight with the public.
+    text: |-
+      Ross Coulthart shares Jake Barber's cynicism about the genuine intent of Congress to be straightforward with the public regarding the White Sands operations.
+  - id: fda7163e-3898-4c2f-b94a-0e922ece673e
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's assessment based on available information
+    attribution_in_text: false
+    location: 00:26:18.0-00:26:26.8
+    date: '2026-08-09'
+    refs:
+      - id: 924601c3-5eb8-466d-a1f5-573e6e27f46b
+        name: United States Congress
+    quote: |-
+      I'm pretty sure there are people in Congress that know about this covert operation and they've been lying to you and to me and to the general public about what they know.
+    text: |-
+      Ross Coulthart suspects there are people in Congress who know about the covert White Sands operation and have been lying to the public about what they know.
+  - id: 8e0a7587-86b0-43e2-b925-3ff9501920b7
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's analysis
+    attribution_in_text: false
+    location: 00:26:28.2-00:26:40.2
+    date: '2026-08-09'
+    quote: |-
+      I think that what's happened is that this has been concealed behind the excuse and the explanation that it was a covert operation to down mystery drones, foreign adversary drones.
+    text: |-
+      The concealment of the covert operation has been hidden behind the excuse and explanation that it was a covert operation to shoot down foreign adversary drones.
+  - id: 876cb6dd-7773-4867-a59e-cf20adb39ed4
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's assessment
+    attribution_in_text: false
+    location: 00:26:41.4-00:26:46.6
+    date: '2026-08-09'
+    quote: They're not foreign adversary drones at all in the main, and they know that.
+    text: The objects are not foreign adversary drones in the main.
+  - id: 40323930-3355-4a65-abc0-4753a473991a
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's assessment
+    attribution_in_text: false
+    location: 00:26:47.5-00:26:53.7
+    date: '2026-08-09'
+    refs:
+      - id: 924601c3-5eb8-466d-a1f5-573e6e27f46b
+        name: United States Congress
+    quote: |-
+      And I suspect that there are key members of Congress, particularly on the key oversight committees, who know this very, very well.
+    text: |-
+      Ross Coulthart suspects that key members of Congress on oversight committees know the objects are not foreign drones and have concealed this information.
+  - id: 35777647-bf27-4bf0-bd1e-a317c42b9484
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of aircraft incidents at White Sands
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:27:12.6-00:27:17.2
+    date: '2026-08-09'
+    refs:
+      - id: 3c9d65da-fadd-461d-900f-fbf3603bc92f
+        name: King Air
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: for example, the King Air aircraft that was downed over or near White Sands
+    text: A King Air aircraft was downed over or near White Sands Missile Range.
+  - id: 4fa46fad-33cd-4bb5-a931-3ff58b37b7ed
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's speculation
+    attribution_in_text: false
+    location: 00:27:18.0-00:27:25.0
+    date: '2026-08-09'
+    refs:
+      - id: 3c9d65da-fadd-461d-900f-fbf3603bc92f
+        name: King Air
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      whether that aircraft was hit by HPM weapons or any kind of weaponry that was being used in one of these operations.
+    text: |-
+      The King Air aircraft downed at White Sands may have been hit by High Pulse Microwave (HPM) weapons or other weaponry being used in the operations.
+  - id: 9fe8855d-fe6a-463f-8005-a9fbe736ff43
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: |-
+        a person claiming knowledge of civilian aircraft incidents involving High Pulse Microwave weapons
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:27:28.2-00:27:49.9
+    date: '2026-08-09'
+    refs:
+      - id: e51e0129-04fc-4dcd-9a0d-e6a587cf717f
+        name: Unidentified Aerial Phenomena (UAP)
+      - id: f8727a94-ba74-4bb4-9e7d-50c55ce9ee0b
+        name: |-
+          United States Government Legacy Non-Human Intelligence Retrieval and Reverse-Engineering Program
+    quote: |-
+      from my own sources that there have been craft incidentally brought down, civilian aircraft brought down as an accident by high pulse microwaves during legacy operations that have taken place in other parts of the United States targeting UAP craft.
+    text: |-
+      Civilian aircraft have been brought down accidentally by High Pulse Microwave (HPM) weapons during legacy Non-human Intelligence retrieval operations that have taken place in other parts of the United States targeting Unidentified Aerial Phenomena craft.
+  - id: 1f65be14-283b-47cb-aade-b5f31e78d9de
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming knowledge of the medevac aircraft incident
+      origin_ref: gov-ops-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:28:19.3-00:28:29.6
+    date: '2026-08-09'
+    refs:
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+      - id: 905767c1-7716-401b-9510-3abf0fca5ce5
+        name: Medevac Aircraft Crash at White Sands (2026)
+    quote: |-
+      We now know that a weapon used by the White Sands Mistral Range accidentally caused the deaths of four people in a medevac aircraft.
+    text: |-
+      A weapon used by the White Sands Missile Range operation accidentally caused the deaths of four people in a medevac aircraft.
+  - id: 6330451b-3242-40a8-bee4-904fc7c6a15d
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's analysis
+    attribution_in_text: false
+    location: 00:28:30.9-00:28:42.7
+    date: '2026-08-09'
+    refs:
+      - id: 905767c1-7716-401b-9510-3abf0fca5ce5
+        name: Medevac Aircraft Crash at White Sands (2026)
+      - id: 1c23fe82-14ef-43c3-941b-1fe5e6d1ece1
+        name: USA, Texas, El Paso
+    quote: |-
+      Now, we don't know for sure that that was connected to the covert operation that I'm describing. But we do know that very dangerous weapons are being used, which is why they shut down the El Paso airspace.
+    text: |-
+      The connection between the medevac aircraft crash and the covert White Sands operation is not certain, though very dangerous weapons are being used, which is why El Paso airspace was shut down.
+  - id: b5609c7f-256e-4e08-a36d-a66313269ae4
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's analysis and interpretation
+    attribution_in_text: false
+    location: 00:28:43.8-00:28:49.8
+    date: '2026-08-09'
+    refs:
+      - id: 353ffc6f-0ceb-44aa-8e21-380e680a5f4a
+        name: Non-human Intelligence (NHI)
+    quote: |-
+      The real story is that they have been using these weapons to try to shoot down NHI technology.
+    text: |-
+      The real story behind El Paso airspace shutdown is that the government has been using weapons to try to shoot down Non-human Intelligence (NHI) technology.
+  - id: a14e9c27-c971-47bd-a503-33e1e2976400
+    type: observation
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart observed the number of sources coming forward
+    attribution_in_text: false
+    location: 00:28:51.2-00:29:01.3
+    date: '2026-08-09'
+    quote: |-
+      I think we're getting to the point now, so many people are leaking to me about this. I think we're getting to the point now where it's unsustainable for the government to maintain this fictional cover story
+    text: |-
+      Many people are leaking to Ross Coulthart about the White Sands operation, suggesting the government's cover story is becoming unsustainable.
+  - id: 4116d038-c900-44b8-a54e-9134aaed445c
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's logical analysis
+    attribution_in_text: false
+    location: 00:29:07.0-00:29:15.2
+    date: '2026-08-09'
+    refs:
+      - id: 1c23fe82-14ef-43c3-941b-1fe5e6d1ece1
+        name: USA, Texas, El Paso
+    quote: |-
+      You do not shut down a very busy city in America just because a cartel drone or a balloon floats into the airspace doesn't make sense.
+    text: |-
+      Shutting down a busy United States city's airspace for a Mexican cartel drone or a party balloon does not make logical sense.
+  - id: db78ea1f-7d4b-4f83-b0ff-5ab61bea95f8
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: named
+      origin: Jake Barber, as observed by Ross Coulthart
+    attribution_in_text: false
+    location: 00:29:24.1-00:29:27.3
+    date: '2026-08-09'
+    refs:
+      - id: c48d64f1-7a24-45cd-93ac-8f050beb45e5
+        name: Jake Barber
+    quote: I know he's deeply sceptical from the times I was encouraging him.
+    text: |-
+      Jake Barber is deeply sceptical of government explanations regarding the airspace closure.
+  - id: c94ae83d-9a1d-4d5a-9c17-806fa843f6b0
+    type: observation
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart was present when Jake Barber testified to Congress
+    attribution_in_text: true
+    location: 00:29:27.5-00:29:36.3
+    date: '2026-08-09'
+    refs:
+      - id: c48d64f1-7a24-45cd-93ac-8f050beb45e5
+        name: Jake Barber
+      - id: 924601c3-5eb8-466d-a1f5-573e6e27f46b
+        name: United States Congress
+    quote: |-
+      He has given evidence, by the way, to the Congress. I took him there. We actually took him to the Congress and he sat down with a committee and gave his evidence.
+    text: |-
+      Ross Coulthart took Jake Barber to Congress, where he sat with a committee and gave evidence about the Skywatcher operations and findings.
+  - id: 4648c7ef-9f66-4743-ad08-67fa674b1323
+    type: observation
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart was present during Jake Barber's Congressional testimony
+    attribution_in_text: false
+    location: 00:29:37.3-00:29:40.2
+    date: '2026-08-09'
+    refs:
+      - id: c48d64f1-7a24-45cd-93ac-8f050beb45e5
+        name: Jake Barber
+      - id: 924601c3-5eb8-466d-a1f5-573e6e27f46b
+        name: United States Congress
+    quote: So the Congress has Jake's evidence. They know what he knows.
+    text: |-
+      Congress possesses Jake Barber's evidence about the Skywatcher investigation and findings.
+  - id: ff904b07-ed3c-4877-b303-2cbcef92e742
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's assessment of Jake Barber's character and intentions
+    attribution_in_text: false
+    location: 00:29:41.4-00:29:48.3
+    date: '2026-08-09'
+    refs:
+      - id: c48d64f1-7a24-45cd-93ac-8f050beb45e5
+        name: Jake Barber
+    quote: |-
+      And I'm sure if he was asked, he's a patriot, he would probably want to give his evidence. But it has to be in a way that can be trusted.
+    text: |-
+      Ross Coulthart believes Jake Barber is a patriot who would likely give his evidence to Congress if asked in a way that can be trusted.
+  - id: 680bd7fa-b5d8-4a77-a586-1f237019f59b
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's assessment based on his interactions with Congress
+    attribution_in_text: false
+    location: 00:29:49.3-00:29:59.9
+    date: '2026-08-09'
+    refs:
+      - id: 924601c3-5eb8-466d-a1f5-573e6e27f46b
+        name: United States Congress
+    quote: |-
+      The simple fact is there are a lot of people playing double games right now, claiming to be pro disclosure, especially in Congress. And frankly, they're bullshitting you.
+    text: |-
+      There are many people in Congress claiming to be pro-disclosure while actually being disingenuous about their true position.
+  - id: 68fe02fb-1711-462c-a11f-59cd56f3cdd3
+    type: hearsay
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: personnel stationed at White Sands Missile Range
+      origin_ref: concerned-personnel
+      relay:
+        - Ross Coulthart
+    attribution_in_text: true
+    location: 00:32:27.9-00:32:37.0
+    refs:
+      - id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+        name: Ross Coulthart
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      And there is squeamishness and concern amongst even the personnel on these rangers about what's being done on the United States behalf.
+    text: |-
+      Personnel stationed at White Sands express concern about the nature and scope of military operations being conducted there, according to sources Ross Coulthart interviewed.
+  - id: bf53ce98-ab0f-4199-b78a-e76c1c52304e
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: military sources briefing Ross Coulthart on the White Sands aircraft incident
+      origin_ref: wsmr-crash-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: true
+    location: 00:31:03.6-00:31:09.3
+    date: '2026'
+    refs:
+      - id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+        name: Ross Coulthart
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+      - id: 905767c1-7716-401b-9510-3abf0fca5ce5
+        name: Medevac Aircraft Crash at White Sands (2026)
+    quote: |-
+      the mere fact that a civilian aircraft has been caused to crash by operations at White Sands Missile Range
+    text: |-
+      A civilian aircraft crashed at White Sands Missile Range as a result of military operations conducted there, according to briefings or sources Ross Coulthart obtained during his investigation.
+  - id: 000673bf-bdd7-45cf-9319-9bbbe38855ad
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's briefings and investigation
+    attribution_in_text: false
+    location: 00:31:10.3-00:31:13.9
+    date: '2026'
+    refs:
+      - id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+        name: Ross Coulthart
+      - id: 905767c1-7716-401b-9510-3abf0fca5ce5
+        name: Medevac Aircraft Crash at White Sands (2026)
+      - id: accaa8d5-a2b5-4c8f-83f9-13f2e4cbd646
+        name: |-
+          Department of Defense UAP Intercept Operation at White Sands (November 2025-August 2026)
+    quote: which are not necessarily part of this operation, but part of an exercise
+    text: |-
+      The civilian aircraft crash at White Sands Missile Range resulted from military exercises rather than from the Department of Defense Unidentified Aerial Phenomena Intercept Operation.
+  - id: 3135517d-f48a-4ac7-a403-63791b14b8d2
+    type: hearsay
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to provide justification for White Sands operations
+      origin_ref: unnamed-justification-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: true
+    location: 00:31:50.6-00:32:10.7
+    refs:
+      - id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+        name: Ross Coulthart
+    quote: |-
+      One of the excuses that was put to me by one person I spoke to about this was that if you ran through the security area of a secure airport with something in your hands, the first thing that security guards would be obliged to do is to shoot at you.
+    text: |-
+      An unnamed source described to Ross Coulthart an analogy justifying operations at White Sands Missile Range, comparing defensive actions to airport security procedures where security personnel are obliged to stop unidentified threats entering restricted areas, such as by shooting if someone ran through a secure airport security zone with an unidentified object.
+  - id: 2e5bffce-1a5b-43de-bbb2-edbdd26253d8
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: military or government sources aware of the reason for the Skywatcher TFR
+      origin_ref: tfr-reason-source
+      relay:
+        - Ross Coulthart
+    attribution_in_text: false
+    location: 00:32:51.6-00:33:01.7
+    date: '2025-11-08'
+    refs:
+      - id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+        name: Ross Coulthart
+      - id: 466b361e-4035-4fce-83f6-21e2dd38f488
+        name: Sierra Blanca Temporary Flight Restriction Closure (November 2025)
+      - id: ca907b57-9a86-4c45-9fe9-3873e8ab0ed4
+        name: Skywatcher
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      The TFR was imposed over the Skywatcher operation for a very specific national security reason. They wanted it shut down because it was disrupting operations at White Sands.
+    text: |-
+      The Temporary Flight Restriction (TFR) imposed over the Skywatcher civilian observation operation in November 2025 was implemented specifically because Skywatcher activities were disrupting military operations at White Sands Missile Range.
+  - id: 3be2b821-e046-4467-a0d9-5f950b465151
+    type: hearsay
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: anonymous
+      origin: |-
+        multiple individuals expressing concerns about White Sands operations and presidential briefings
+      origin_ref: concerned-officials
+      relay:
+        - Ross Coulthart
+    attribution_in_text: true
+    location: 00:30:51.0-00:31:00.6
+    refs:
+      - id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+        name: Ross Coulthart
+      - id: 0036d700-69ed-449a-af63-9859a43b4094
+        name: USA, New Mexico, White Sands Missile Range
+    quote: |-
+      there are people who are genuinely concerned that the President is not being told the full story about what's going on on his behalf at the White Sands Missile Range.
+    text: |-
+      Multiple individuals express genuine concerns that the President is not being informed fully about military operations being conducted at White Sands Missile Range, according to sources Ross Coulthart interviewed.
+infrastructure_claims:
+  - id: 7faf4c36-6910-4d5b-a599-8bcc6af8abf3
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: cbfa0cc6-1522-48b7-a8e2-0fc5f84028ed
+      name: Sean Duffy
+    provenance_chain:
+      origin_kind: named
+      origin: Sean Duffy
+    attribution_in_text: true
+    location: 00:09:31.8-00:09:37.6
+    date: '2026-02-10'
+    refs:
+      - id: cbfa0cc6-1522-48b7-a8e2-0fc5f84028ed
+        name: Sean Duffy
+    quote: |-
+      Transportation Secretary Sean Duffy tweeted, quote, the threat has been neutralized.
+    text: |-
+      Transportation Secretary Sean Duffy tweeted on the day of the El Paso airspace closure that the threat had been neutralised.
+  - id: 38534cee-edc3-461d-8481-2f5d13205c22
+    type: observation
+    attestation: second_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: named
+      origin: New York Times
+      relay:
+        - Ross Coulthart
+    attribution_in_text: true
+    location: 00:10:08.3-00:10:27.3
+    date: '2026-02-10'
+    refs:
+      - id: 641aa636-ee6d-4af7-9a8e-d64d47ac762e
+        name: New York Times
+      - id: 609d5169-5146-445c-81d3-c253f83bc0f0
+        name: Federal Aviation Administration (FAA)
+      - id: 2296fe44-4191-49fd-947d-1e53b8350785
+        name: United States Department of Defense (DoD)
+    quote: |-
+      The New York Times claimed the real reason why the FAA shut down the El Paso airspace was because immigration officials had used an anti-drone weapon shared by the Pentagon without coordinating with the FAA.
+    text: |-
+      According to the New York Times, immigration officials used an anti-drone weapon shared by the Department of Defense (DoD) without coordinating with the Federal Aviation Administration (FAA).
+  - id: 94f78ee9-c87d-4a41-bbd3-4c0eca364d44
+    type: observation
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: established public record
+    attribution_in_text: false
+    location: 00:11:28.0-00:11:40.2
+    date: '2026-02-10'
+    refs:
+      - id: 27874fae-2a1b-40db-b2d4-9936a84382d5
+        name: Ted Cruz
+    quote: |-
+      Republican Texas Senator Ted Cruz, the chairman of the Senate Commerce Committee that oversees the FAA, demanded a classified briefing on what really happened.
+    text: |-
+      Republican Texas Senator Ted Cruz, chairman of the Senate Commerce Committee overseeing the Federal Aviation Administration (FAA), demanded a classified briefing on the El Paso airspace closure.
+  - id: 3cc01faa-768e-40d8-9f31-fda8ed56a24d
+    type: observation
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: unattributed
+      origin: established public record
+    attribution_in_text: false
+    location: 00:11:44.8-00:11:52.8
+    date: '2026-02-10'
+    refs:
+      - id: bf887ae3-ae94-4061-8258-770a477c7b8c
+        name: Jack Reed
+    quote: |-
+      Senator Jack Reid of Rhode Island, the top Democrat on the Armed Services Committee, rejected the administration's explanation.
+    text: |-
+      Senator Jack Reed, top Democrat on the Armed Services Committee, rejected the Trump administration's explanation for the El Paso airspace closure.
+  - id: 76085bf9-16c3-49f6-a39c-0de91b35bdaf
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+      name: Ross Coulthart
+    provenance_chain:
+      origin_kind: speaker
+      origin: Ross Coulthart's personal knowledge
+    attribution_in_text: false
+    location: 00:30:18.8-00:30:39.3
+    refs:
+      - id: aa3168bb-992c-4236-b9e3-1c3c5070c818
+        name: Ross Coulthart
+      - id: accaa8d5-a2b5-4c8f-83f9-13f2e4cbd646
+        name: |-
+          Department of Defense UAP Intercept Operation at White Sands (November 2025-August 2026)
+    quote: |-
+      What I can say, Meagan, is I'm privy to a lot of material that I haven't put here. And I've been very careful because I want to respect national security constraints. I'm aware of units, individuals and specific orders.
+    text: |-
+      Ross Coulthart possesses unpublished material regarding the Department of Defense Unidentified Aerial Phenomena (UAP) Intercept Operation at White Sands (November 2025-August 2026), including knowledge of military units, individuals, and specific orders, which he has declined to disclose fully to respect national security constraints.

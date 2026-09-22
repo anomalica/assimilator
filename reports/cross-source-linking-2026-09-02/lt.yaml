@@ -1,0 +1,1913 @@
+run_kind: comparison
+schema: anomalica/digest/1
+extracted_at: '2026-09-02T11:02:15.769238+00:00'
+model: haiku
+ai_usage:
+  - stage: digest
+    model: claude-haiku-4-5
+    model_version: claude-haiku-4-5
+    tokens:
+      input: 221008
+      output: 41959
+      real_input: 36
+      cache_read: 50189
+      cache_write: 170783
+      calls: 2
+    route: cli
+    effort: low
+prompts:
+  - pass: nodes
+    id: nodes
+    version: v4
+    sha256: 1ca968e2b28b26a9acea5fb8df00083fa61e690577899237bf6ea47a492dd7bb
+    file: nodes.txt
+  - pass: claims
+    id: claims
+    version: v4
+    sha256: 89ec59286169096f610265f3c5cf0fb34ff5e58e9726e6682e8693e8c703fe89
+    file: claims.txt
+pre_digest:
+  sha256: 8ae48f5f372f2c987ef1c4cff22fd237a5e954cf73bf979d0470a93b7ecead7a
+  prep_version: 7
+record:
+  id: 9e6a5228-6f47-4442-9d77-c677b9cdf1af
+  title: |-
+    FBI Photos Show Orbs Beneath Helicopter During Alleged ODNI UAP “Luring Operation” — Liberation Times | Reimagining Old News
+  producer: Christopher Sharp
+  publisher: Liberation Times
+  date: '2026-07-12'
+  medium: web
+  content_hash: sha256:7229c46a4e1ac9cd564bbbd3c00a0b2ff6bf9da95c432ba95bb2a68956e671fe
+  processing_version: f2c080b
+  reference: |-
+    https://www.liberationtimes.com/home/us-conducted-successful-ufo-luring-operation-advocate-claims-as-government-files-detail-orb-encounters
+  review:
+    state: none
+    sidecar: absent
+  description: |-
+    Government files and FBI-submitted images detail a late-2025 UAP encounter involving glowing orbs, a helicopter and an “eye-opening” briefing to Congress.
+  copyright_status: publicly_accessible
+terminology:
+  main_subject: December 2025 UAP encounter
+  acronyms:
+    - acronym: FLIR
+      expansion: Forward-Looking Infrared
+    - acronym: AARO
+      expansion: All-Domain Anomaly Resolution Office
+    - acronym: ODNI
+      expansion: Office of the Director of National Intelligence
+    - acronym: UAP
+      expansion: Unidentified Aerial Phenomena
+    - acronym: FBI
+      expansion: Federal Bureau of Investigation
+    - acronym: UFO
+      expansion: Unidentified Flying Object
+nodes:
+  - id: c89243d5-7de9-46bd-b2c4-d892fdb978b5
+    type: person
+    name: Christopher Sharp
+  - id: cb62c974-87de-483c-b8f0-922ecc39e937
+    type: person
+    name: Jordan Flowers
+  - id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+    type: person
+    name: Steve Scalise
+  - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+    type: person
+    name: Eric Burlison
+  - id: 725f9fbd-dd58-4559-abce-83b73e6383b2
+    type: person
+    name: Tim Burchett
+  - id: 5f84c9c3-9a55-4aca-9c00-41a847babc5a
+    type: person
+    name: Annie Frey
+  - id: 29203f48-285d-45c0-b68e-e4f9d0e89e33
+    type: person
+    name: Matt Laslo
+  - id: dccf908d-a9d1-447c-b268-1ad00e27a521
+    type: organisation
+    name: Office of the Director of National Intelligence (ODNI)
+  - id: f654b6c1-5679-470d-ad0a-15147bebc266
+    type: organisation
+    name: Disclosure Foundation
+  - id: a55741d9-db09-4824-94e1-6c9d5d71cc8f
+    type: organisation
+    name: CBS News
+  - id: 52835c0b-988a-476b-a505-f6df3de761ae
+    type: organisation
+    name: Federal Bureau of Investigation (FBI)
+  - id: 639846e9-2251-4ef1-ab03-0d449c9e5db5
+    type: organisation
+    name: All-Domain Anomaly Resolution Office (AARO)
+  - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+    type: organisation
+    name: Department of War
+  - id: ff3c4cf5-77e3-47f0-ad73-e8e943604c13
+    type: organisation
+    name: United States Congress
+  - id: 24a4b8dc-9f4f-4a56-9cfa-9fad26007d16
+    type: organisation
+    name: Liberation Times
+  - id: 5646cfc7-d316-46df-987e-ce595b2fb5bc
+    type: project
+    name: President Trump's UAP disclosure initiative
+  - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+    type: event
+    name: December 2025 UAP encounter
+    metadata:
+      date_start: 2025-12
+  - id: 075516b3-d877-4f86-9ab6-d3a7a7b3531d
+    type: document
+    name: USPER Statement about UAP Sighting
+  - id: 8e19cc83-7e7d-43ad-a695-bb6e088cf1fa
+    type: document
+    name: ODNI-UAP-D001, USPER Narrative, Senior USIC Official
+  - id: 5b3111bf-d9ef-4490-9e6b-e1ebe32b7e11
+    type: document
+    name: |-
+      U.S. Conducted Successful UFO "Luring Operation," Advocate Claims, as Government Files Detail Orb Encounters
+  - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+    type: topic
+    name: Unidentified Aerial Phenomena (UAP)
+domain_claims:
+  - id: ec6dba39-01c7-4e17-8abf-acfe824b4e8d
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:419-527
+    date: '2026-07-12'
+    refs:
+      - id: cb62c974-87de-483c-b8f0-922ecc39e937
+        name: Jordan Flowers
+      - id: f654b6c1-5679-470d-ad0a-15147bebc266
+        name: Disclosure Foundation
+    quote: |-
+      Jordan Flowers, executive director of the Disclosure Foundation, made the claim during an appearance on CBS News.
+    text: Jordan Flowers is executive director of the Disclosure Foundation.
+  - id: 6230075a-b2df-4dd3-8c51-2f3abaa6b836
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:534-629
+    date: '2026-07-12'
+    refs:
+      - id: f654b6c1-5679-470d-ad0a-15147bebc266
+        name: Disclosure Foundation
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      The Disclosure Foundation is an advocacy group focused on Unidentified Anomalous Phenomena, or UAP.
+    text: |-
+      The Disclosure Foundation is an advocacy group focused on Unidentified Aerial Phenomena (UAP).
+  - id: d0ed6361-bb43-4113-970c-71465b17b7a7
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: cb62c974-87de-483c-b8f0-922ecc39e937
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: speaker
+      origin: Jordan Flowers, during CBS News appearance
+    attribution_in_text: true
+    location: char:1070-1306
+    date: 2025-12
+    refs:
+      - id: cb62c974-87de-483c-b8f0-922ecc39e937
+        name: Jordan Flowers
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: dccf908d-a9d1-447c-b268-1ad00e27a521
+        name: Office of the Director of National Intelligence (ODNI)
+    quote: |-
+      For instance, during the December 2025 incursion in the southwestern United States over a sensitive military facility, the Office of the Director of National Intelligence was conducting a UAP-luring operation. That operation was wildly successful.
+    text: |-
+      Jordan Flowers infers, from synthesising publicly released documents and statements from members of Congress about classified briefings, that the Office of the Director of National Intelligence (ODNI) conducted a Unidentified Aerial Phenomena-luring operation during a December 2025 incident in the southwestern United States over a sensitive military facility.
+  - id: 7df4184e-d6b5-4be0-a095-b92adba49238
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: cb62c974-87de-483c-b8f0-922ecc39e937
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: speaker
+      origin: Jordan Flowers, during CBS News appearance
+    attribution_in_text: true
+    location: char:1280-1306
+    date: 2025-12
+    refs:
+      - id: cb62c974-87de-483c-b8f0-922ecc39e937
+        name: Jordan Flowers
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: That operation was wildly successful.
+    text: |-
+      Jordan Flowers asserts, based on public information, that the December 2025 incident UAP-luring operation was highly successful.
+  - id: a36ab04e-fc13-4e86-8c60-07915cefe2c4
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: cb62c974-87de-483c-b8f0-922ecc39e937
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: speaker
+      origin: Jordan Flowers, during CBS News appearance
+    attribution_in_text: true
+    location: char:1320-1425
+    date: 2025-12
+    refs:
+      - id: cb62c974-87de-483c-b8f0-922ecc39e937
+        name: Jordan Flowers
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      It produced FLIR [forward-looking infrared] video and photographs of the orbs encountered as part of the operation.
+    text: |-
+      The December 2025 incident UAP-luring operation produced forward-looking infrared (FLIR) video and photographs of the orbs encountered, according to Jordan Flowers' synthesis of public information.
+  - id: 91032273-d2ec-44d0-8cdf-205c09347319
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: cb62c974-87de-483c-b8f0-922ecc39e937
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: speaker
+      origin: Jordan Flowers, during CBS News appearance
+    attribution_in_text: true
+    location: char:1436-1544
+    date: 2025-12
+    refs:
+      - id: cb62c974-87de-483c-b8f0-922ecc39e937
+        name: Jordan Flowers
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 52835c0b-988a-476b-a505-f6df3de761ae
+        name: Federal Bureau of Investigation (FBI)
+    quote: |-
+      It resulted in an FBI 302 interview, as well as a personal statement from a senior intelligence official at ODNI
+    text: |-
+      The December 2025 UAP incident resulted in an Federal Bureau of Investigation (FBI) 302 interview, according to Jordan Flowers.
+  - id: b2abc487-75af-4002-bc96-7b623b644ea9
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: cb62c974-87de-483c-b8f0-922ecc39e937
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: speaker
+      origin: Jordan Flowers, during CBS News appearance
+    attribution_in_text: true
+    location: char:1484-1544
+    date: 2025-12
+    refs:
+      - id: cb62c974-87de-483c-b8f0-922ecc39e937
+        name: Jordan Flowers
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: dccf908d-a9d1-447c-b268-1ad00e27a521
+        name: Office of the Director of National Intelligence (ODNI)
+    quote: a personal statement from a senior intelligence official at ODNI
+    text: |-
+      The December 2025 UAP incident led to a personal statement from a senior intelligence official at the Office of the Director of National Intelligence (ODNI), according to Jordan Flowers' inference from public information.
+  - id: 5e68a9b1-947f-460a-8f48-61ba813ddec3
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: cb62c974-87de-483c-b8f0-922ecc39e937
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: speaker
+      origin: Jordan Flowers, during CBS News appearance
+    attribution_in_text: true
+    location: char:1554-1708
+    date: 2025-12
+    refs:
+      - id: cb62c974-87de-483c-b8f0-922ecc39e937
+        name: Jordan Flowers
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+        name: Steve Scalise
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+      - id: 725f9fbd-dd58-4559-abce-83b73e6383b2
+        name: Tim Burchett
+      - id: ff3c4cf5-77e3-47f0-ad73-e8e943604c13
+        name: United States Congress
+    quote: |-
+      precipitated a classified briefing for members of Congress, including [House Majority Leader Steve] Scalise and Representatives [Eric] Burlison and [Tim] Burchett.
+    text: |-
+      The December 2025 UAP incident precipitated a classified briefing for members of Congress, including House Majority Leader Steve Scalise and Representatives Eric Burlison and Tim Burchett, according to Jordan Flowers.
+  - id: 816df35f-57fb-4a6c-9aaf-50d86b4d2bc7
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: cb62c974-87de-483c-b8f0-922ecc39e937
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: speaker
+      origin: Jordan Flowers, during CBS News appearance
+    attribution_in_text: true
+    location: char:1720-1889
+    date: 2025-12
+    refs:
+      - id: cb62c974-87de-483c-b8f0-922ecc39e937
+        name: Jordan Flowers
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      This event was described as incontrovertible proof that there is a real phenomenon here and as a core reason why transparency efforts have accelerated over the past few months.
+    text: |-
+      Jordan Flowers asserts that the December 2025 UAP incident was described as incontrovertible proof that an unidentified aerial phenomena is a real phenomenon, and as a core reason why transparency efforts accelerated in recent months.
+  - id: f122dbfc-26da-4241-89e5-4943c9c73658
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: cb62c974-87de-483c-b8f0-922ecc39e937
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: speaker
+      origin: Jordan Flowers, during CBS News appearance
+    attribution_in_text: true
+    location: char:2034-2256
+    date: '2026-07-12'
+    refs:
+      - id: cb62c974-87de-483c-b8f0-922ecc39e937
+        name: Jordan Flowers
+      - id: 639846e9-2251-4ef1-ab03-0d449c9e5db5
+        name: All-Domain Anomaly Resolution Office (AARO)
+      - id: dccf908d-a9d1-447c-b268-1ad00e27a521
+        name: Office of the Director of National Intelligence (ODNI)
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      it suggests not only that AARO—the All-domain Anomaly Resolution Office—and ODNI know this is a real phenomenon, but that they already have the technology and methods, with a proven track record, to lure and attract these things.
+    text: |-
+      Jordan Flowers asserts, based on Congressional comments and data releases, that both the All-Domain Anomaly Resolution Office (AARO) and the Office of the Director of National Intelligence (ODNI) know Unidentified Aerial Phenomena is a real phenomenon and already possess technology and methods with a proven track record to lure and attract such objects.
+  - id: 5330a589-a12e-4ea7-935a-61f164da9d9e
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:2494-2642
+    date: '2026-07-12'
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 5646cfc7-d316-46df-987e-ce595b2fb5bc
+        name: President Trump's UAP disclosure initiative
+    quote: |-
+      The event described by Flowers appears to be the same incident recorded in two government documents released under President Trump's UAP disclosure initiative.
+    text: |-
+      The December 2025 UAP encounter appears to be recorded in two government documents released under President Trump's Unidentified Aerial Phenomena disclosure initiative.
+  - id: 6c292003-d71c-4101-896c-b2990bf09f37
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:2655-2723
+    date: '2026-07-12'
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 5646cfc7-d316-46df-987e-ce595b2fb5bc
+        name: President Trump's UAP disclosure initiative
+    quote: One was released in the first tranche of files and the other in the second.
+    text: |-
+      One document about the December 2025 UAP encounter was released in the first tranche of files under President Trump's UAP disclosure initiative.
+  - id: e4a29186-b05f-4b2b-90ff-bbe68ae1e079
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:2706-2723
+    date: '2026-07-12'
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 5646cfc7-d316-46df-987e-ce595b2fb5bc
+        name: President Trump's UAP disclosure initiative
+    quote: the other in the second.
+    text: |-
+      A second document about the December 2025 UAP encounter was released in the second tranche of files under President Trump's UAP disclosure initiative.
+  - id: 6c72949c-f40d-4d35-906e-6e70bfd0737d
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:2965-3034
+    date: '2026-07-12'
+    refs:
+      - id: 52835c0b-988a-476b-a505-f6df3de761ae
+        name: Federal Bureau of Investigation (FBI)
+    quote: An FBI 302 is the written record agents produce after interviewing a witness.
+    text: |-
+      An Federal Bureau of Investigation (FBI) 302 is the written record agents produce after interviewing a witness.
+  - id: 71f5aad9-0a00-4b64-89c2-b0565edd0d8a
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: ODNI-UAP-D001, USPER Narrative, Senior USIC Official
+      relay:
+        - Department of War description
+    attribution_in_text: false
+    location: char:3369-3595
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The official was a passenger in the helicopter and described seeing glowing orbs both at close range and in the distance while a government team investigated unusual noises and UAP sightings in and around a sensitive military facility.
+    text: |-
+      A senior United States intelligence official, a passenger in a helicopter during the December 2025 UAP encounter investigation, described seeing glowing orbs both at close range and in the distance while a government team investigated unusual noises and UAP sightings in and around a sensitive military facility.
+  - id: 8c03839b-daf6-4b7c-82b3-9c78dac88e87
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:3606-3738
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      Together, the documents describe a series of encounters at a sensitive government testing site in the western United States in late 2025.
+    text: |-
+      A series of United Aerial Phenomena encounters at a sensitive government testing site in the western United States occurred in late 2025.
+  - id: f342c6f3-8f90-464f-a96f-8797d300e746
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:3745-3898
+    date: '2026-07-12'
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      Although Flowers placed the event in the southwestern United States and said it occurred in December, the released records do not give the exact date or location.
+    text: |-
+      The released records of the December 2025 UAP encounter do not give the exact date or specific location of the event.
+  - id: 39e48ebb-0883-4a3b-9c1b-b6dbd845494d
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:3909-3987
+    date: '2026-07-12'
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The name of the facility, nearby towns, mountain range and coordinates remain hidden.
+    text: |-
+      The name of the December 2025 UAP encounter facility, nearby towns, mountain range and geographical coordinates remain redacted in the released documents.
+  - id: 6e91af59-6f5f-4378-ab2c-3fc07ad372b4
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: Department of War description of released documents
+    attribution_in_text: false
+    location: char:4018-4185
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+    quote: |-
+      According to the Department of War, the senior intelligence official was a passenger in a helicopter that left a Joint Operations Center with another official and two pilots.
+    text: |-
+      According to the Department of War, the senior intelligence official who witnessed the December 2025 UAP encounter was a passenger in a helicopter that left a Joint Operations Center with another official and two pilots.
+  - id: e77d04c8-26ec-47a2-a490-e598ec29914d
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:4194-4291
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The team was investigating unusual noises and reports of glowing orbs in and around the military facility.
+    text: |-
+      During the December 2025 UAP encounter investigation, a helicopter team was investigating unusual noises and reports of glowing orbs in and around a military facility.
+  - id: 3e2f0082-df6f-44c3-b3cb-d60006d4f240
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:4301-4429
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The objects had reportedly been seen over several previous nights, while personnel had also heard loud thuds in the surrounding mountains.
+    text: |-
+      Objects had been sighted over several nights prior to the December 2025 helicopter investigation, and personnel had heard loud thuds in surrounding mountains.
+  - id: 4f5b9e57-9cf6-43d8-8f57-95481e843a4a
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:4441-4520
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      This led the crew to search for debris or other objects that might explain the sightings.
+    text: |-
+      The helicopter crew searched for debris or other objects during the December 2025 UAP encounter investigation to explain the sightings.
+  - id: ef6bd4d6-09e8-46a0-87b9-af6e8942ab13
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:4532-4595
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: The helicopter flew low through the mountain range for several hours.
+    text: |-
+      During the December 2025 investigation, the helicopter flew low through a mountain range for several hours.
+  - id: b676fbbc-31ab-46de-bec6-82e1a3a25512
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:4603-4745
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The crew examined several pieces of debris, but each was found to be part of old rockets or other projectiles left behind by years of weapons testing.
+    text: |-
+      During the December 2025 UAP encounter investigation, crew members examined several pieces of debris, each found to be remnants from old rockets or other projectiles left behind by years of weapons testing at the facility.
+  - id: 19bb8a48-b35c-4306-9a4f-be8f2fd93151
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:4755-4833
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      During the search, they also discovered a large cave entrance with no visible end.
+    text: |-
+      During the December 2025 investigation, the helicopter crew discovered a large cave entrance with no visible end.
+  - id: bf1de9d3-40b4-47cb-b28e-1a44abae1f65
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:4839-4957
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      There was nowhere safe to land, so the pilot circled the area before the crew recorded its location and continued the mission.
+    text: |-
+      With no safe landing spot near the cave, the helicopter pilot circled the area, the crew recorded its location, and the mission continued.
+  - id: dea0ec9c-5198-4d61-93b9-8e63e929a184
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:4967-5123
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      After dropping off one member of the team and refuelling, the helicopter was directed towards another area where ground personnel believed they had spotted debris.
+    text: |-
+      After dropping off one team member and refuelling, the helicopter was directed towards an area where ground personnel believed they had spotted debris during the December 2025 investigation.
+  - id: 559bba31-82cd-4ff0-b7b7-6aea08f12ab8
+    type: observation
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:5132-5148
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: By then, it was dark.
+    text: |-
+      During the December 2025 UAP encounter investigation, it was dark when the helicopter resumed operations.
+  - id: 40d77712-10be-4223-b604-e776ce89fb04
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:5155-5285
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The pilots used night-vision goggles and the helicopter's infrared camera, while the intelligence official watched with the naked eye.
+    text: |-
+      During the December 2025 UAP encounter, helicopter pilots used night-vision goggles and the aircraft's infrared camera, while the intelligence official aboard observed the sky with the naked eye.
+  - id: 084291ac-92cc-49f2-98ee-1854ee0b5973
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:5291-5316
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: The initial search found nothing.
+    text: The initial search during the December 2025 investigation found nothing unusual.
+  - id: b57a9a3f-c179-4cd6-9e5c-51d62e54d77a
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:5326-5473
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      As the helicopter began returning to base, however, the Joint Operations Center reported fresh detections in an area where UAP had previously been seen.
+    text: |-
+      As the helicopter began returning to base during the December 2025 investigation, the Joint Operations Center reported fresh detections in an area where Unidentified Aerial Phenomena had previously been sighted.
+  - id: 51596826-d0af-4d6c-a17d-bc1d6eb4ca9b
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:5480-5582
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      The intelligence official wrote: 'What followed was a series of close UAP encounters lasting over an hour.'
+    text: |-
+      The senior intelligence official who witnessed the December 2025 UAP encounter wrote that a series of close Unidentified Aerial Phenomena encounters lasted over an hour.
+  - id: 0f70a397-fbd5-4f65-8e91-f997e191bcee
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:5610-5708
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      Ground observers using infrared equipment reported seeing a 'super-hot' orb hovering close to the ground.
+    text: |-
+      During the December 2025 UAP encounter, ground observers using infrared equipment reported seeing a 'super-hot' orb hovering close to the ground.
+  - id: 85aaa71e-1dc6-43a5-ab86-c4b0c734f970
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:5717-5825
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      It then moved away at high speed and appeared to split into two objects, which accelerated off in different directions.
+    text: |-
+      The orb then moved away at high speed and appeared to split into two objects, which accelerated away in different directions.
+  - id: b87b3784-73ce-44a9-baeb-ccebb7be4ebc
+    type: measurement
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:5838-5992
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+      - id: 52835c0b-988a-476b-a505-f6df3de761ae
+        name: Federal Bureau of Investigation (FBI)
+    quote: |-
+      According to the Department of War's summary of the FBI interview, the orb travelled for around 20 miles and moved too quickly for the helicopter to keep up.
+    text: |-
+      According to the Department of War's summary of the Federal Bureau of Investigation interview, the orb during the December 2025 encounter travelled approximately 32 kilometres and moved too quickly for the helicopter to keep pace.
+  - id: 7047cb06-5dc9-470d-af1c-2b2a30970701
+    type: measurement
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:5997-6115
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The ground team then reported that the object had risen from the ground and came within approximately ten feet of the helicopter.
+    text: |-
+      The ground team reported that during the December 2025 encounter, the object rose from the ground and came within approximately three metres of the helicopter.
+  - id: e7a59800-3f89-4ad4-8238-dfd7036aeea6
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:6128-6175
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: The pilots saw the object through night-vision goggles.
+    text: |-
+      The pilots saw the object through night-vision goggles during the December 2025 encounter.
+  - id: 026b30ee-a034-41dc-ac90-68d58a955501
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:6185-6313
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      They also reported seeing something smaller emerge from the two objects before travelling away in a different direction at high speed.
+    text: |-
+      The pilots reported seeing something smaller emerge from the two objects before it travelled away at high speed during the December 2025 encounter.
+  - id: 825f8d86-c10e-4ea5-9b23-4be61b397676
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:6321-6380
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: The helicopter attempted to follow but could not match its speed.
+    text: |-
+      The helicopter attempted to follow the smaller object but could not match its speed.
+  - id: 498b2bc5-3aa7-48af-93b6-4964de8b5e1c
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:6409-6530
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The Joint Operations Center then told the crew that five military aircraft were flying in the area as part of a training mission.
+    text: |-
+      During the December 2025 encounter, the Joint Operations Center told the helicopter crew that five military aircraft were flying in the area as part of a training mission.
+  - id: 74683918-7636-4a8f-b7e1-f452212854a3
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:6540-6592
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: The intelligence official described them as fighter jets.
+    text: |-
+      The intelligence official described the five military aircraft during the December 2025 encounter as fighter jets.
+  - id: 52e21f25-3f81-4b59-aba9-e930f19cf05d
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:6599-6741
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      A short time later, the helicopter crew saw what the official described as countless orange lights moving in different directions against the mountains.
+    text: |-
+      A short time after the Joint Operations Center reported five military aircraft, the helicopter crew observed what appeared to be countless orange lights moving in different directions against the mountains during the December 2025 encounter.
+  - id: aa42b465-8944-48a9-ba5e-0d2762a1dc69
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:6753-6795
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: The display lasted several minutes before fading.
+    text: |-
+      The display of orange lights lasted several minutes before fading during the December 2025 encounter.
+  - id: fc065ea4-32ee-4f41-b36e-2424a0eca741
+    type: measurement
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:6804-6902
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The helicopter was then directed towards further detections and hovered around 700 feet above the ground.
+    text: |-
+      During the December 2025 encounter, the helicopter was directed towards further detections and hovered approximately 210 metres above the ground.
+  - id: d2a96ebb-a34b-4d55-9129-42ffae36bca0
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:6911-6981
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: Two large orbs appeared close to the helicopter, just above the rotor blades.
+    text: |-
+      Two large orbs appeared close to the helicopter during the December 2025 encounter, positioned just above the rotor blades.
+  - id: e97daab2-49e3-462a-be59-a8286d86c2cc
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:6990-7079
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The intelligence official described them as oval-shaped and orange, with white or yellow centres.
+    text: |-
+      The intelligence official described the two large orbs as oval-shaped and orange, with white or yellow centres.
+  - id: 0702ea6e-44b9-4937-9b2d-bb2191c2a8a3
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:7089-7156
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: He said they appeared to remain still while shining light in every direction.
+    text: |-
+      The orbs appeared to remain still while shining light in every direction during the December 2025 encounter.
+  - id: 387d9fde-bf75-46c1-9e63-56438293ebb7
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:7168-7216
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: More orbs then appeared underneath the original pair.
+    text: |-
+      More orbs appeared underneath the original pair during the December 2025 encounter.
+  - id: 5a6ffd79-ca0b-47af-8321-f0eee23cc928
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:7245-7407
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      After a few seconds, a third orb flared up below the pair, followed by a fourth below that, forming a total of four or five in a 'T' formation under the original two.
+    text: |-
+      A third orb flared up below the original pair, followed by a fourth below that, forming a total of four or five orbs in a 'T' formation under the original two, during the December 2025 encounter.
+  - id: 42d379e1-3632-4c2b-b276-f51bb7c8f068
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:7414-7496
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The objects remained visible for around 10 to 15 seconds before fading in reverse order.
+    text: |-
+      The orb formation remained visible for approximately 10 to 15 seconds before fading in reverse order during the December 2025 encounter.
+  - id: 1acf6369-7ee0-43e0-be24-61c5eb00dc02
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:7504-7605
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The pilots briefly considered landing because the objects were so close, but instead remained in the air.
+    text: |-
+      The helicopter pilots briefly considered landing because the orbs were so close during the December 2025 encounter, but remained in the air instead.
+  - id: 17f628f3-2df1-48d9-8b27-51ff2795b77d
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:7611-7664
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: Similar formations were then seen above the military aircraft.
+    text: |-
+      Similar formations of orbs were then seen above the military aircraft during the December 2025 encounter.
+  - id: f29d4796-9222-4d3c-8f2b-0d9de1369aa7
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:7675-7797
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      According to the official, the orbs appeared one by one in a horizontal line and seemed to match the aircraft's speed and direction.
+    text: |-
+      The orbs appeared one by one in a horizontal line and seemed to match the military aircraft's speed and direction during the December 2025 encounter.
+  - id: 4a961cef-931e-4a43-8dff-ebcb43018bc5
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:7809-7829
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: They then faded and disappeared.
+    text: The orbs then faded and disappeared during the December 2025 encounter.
+  - id: 9bd4a943-ec29-4b16-a061-12c8f4268d03
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:7843-7942
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      This happened several times as the military aircraft moved through the area and later descended to land.
+    text: |-
+      The orb formations were seen repeatedly as military aircraft moved through the area and later descended to land during the December 2025 encounter.
+  - id: 34ab5cd4-a34c-4444-99f3-d76eb0d5e83c
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:7949-8030
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The intelligence official said it appeared as though the orbs were 'chasing' the aircraft.
+    text: |-
+      The intelligence official said the orbs appeared to be pursuing the military aircraft during the December 2025 encounter.
+  - id: 11ccf33f-5605-4c7a-80ad-fab236a23610
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:8089-8167
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 8e19cc83-7e7d-43ad-a695-bb6e088cf1fa
+        name: ODNI-UAP-D001, USPER Narrative, Senior USIC Official
+    quote: |-
+      'The orbs appeared to break off from [the helicopter] and pursue the [military aircraft].'
+    text: |-
+      The government document from the December 2025 encounter states: 'The orbs appeared to break off from the helicopter and pursue the military aircraft.'
+  - id: 64598049-bb81-4458-8302-69c42969abf0
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:8180-8322
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      The documents describe more sightings over the next half-hour, including swarms of lights, horizontal formations and three orbs arranged in a triangle.
+    text: |-
+      The documents describe additional Unidentified Aerial Phenomena sightings over the subsequent half-hour during the December 2025 encounter, including swarms of lights, horizontal formations and three orbs arranged in a triangle.
+  - id: 9764bcde-5875-4575-8a5b-ef18e252c632
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:8333-8457
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      After returning to the Joint Operations Center, the intelligence official wrote: 'We were virtually speechless after these observations.'
+    text: |-
+      After returning to the Joint Operations Center, the intelligence official from the December 2025 encounter wrote: 'We were virtually speechless after these observations.'
+  - id: 03119300-0860-4a0c-a912-7bd9374029fb
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents and images
+    attribution_in_text: false
+    location: char:9321-9469
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The black-and-white images show dark, circular objects that the Department of War says were photographed beneath the helicopter by personnel on the ground.
+    text: |-
+      Black-and-white images from the December 2025 encounter show dark, circular objects photographed beneath the helicopter by personnel on the ground.
+  - id: b11a6288-be83-4f3e-af8c-94ec6e82f434
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:9603-9694
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The government says the people operating the equipment could not identify what the objects were.
+    text: |-
+      The personnel operating the equipment during the December 2025 encounter could not identify what the circular objects in the photographs were.
+  - id: c164bcb1-4164-4dfc-80e4-2f6778f76bdf
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:9783-9923
+    date: '2026-07-12'
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      Some details were removed to protect the identities of witnesses, the location of the facility and other sensitive information unrelated to UAP.
+    text: |-
+      Some details were removed from the December 2025 encounter photographs to protect the identities of witnesses, the location of the facility and other sensitive information unrelated to Unidentified Aerial Phenomena.
+  - id: ea702de8-3ed0-4ed4-a6a6-77d71c52d088
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: Department of War description of released documents
+    attribution_in_text: false
+    location: char:9929-10032
+    date: '2026-07-12'
+    refs:
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The Department of War says nothing was removed that would alter what the images show about the objects themselves.
+    text: |-
+      The Department of War states nothing was removed from the December 2025 encounter photographs that would alter what the images show about the objects themselves.
+  - id: 83b6c943-8c2f-40e6-ba10-7794fad96b97
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:10170-10252
+    date: '2026-07-12'
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      The documents do not openly describe the mission as an attempt to lure or attract UAP.
+    text: |-
+      The released documents do not openly describe the December 2025 mission as an attempt to lure or attract Unidentified Aerial Phenomena.
+  - id: a948e39b-121a-46ba-a914-6c3170b96bcb
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:10258-10513
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      However, the previously classified operational record contains one potentially important detail. It says that, earlier that day, a government office had completed a 'successful test' at the same facility. The name of the office and the type of test are redacted.
+    text: |-
+      The previously classified operational record of the December 2025 encounter states that earlier that day, a government office had completed a 'successful test' at the same facility, with the name of the office and type of test redacted.
+  - id: b2cb18c1-b0b8-4594-b663-6ba447242d59
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: Department of War description of released documents
+    attribution_in_text: false
+    location: char:10524-10653
+    date: '2026-07-12'
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+    quote: |-
+      The Department of War also describes the encounters as taking place during an 'exercise,' but does not explain what the exercise involved.
+    text: |-
+      The Department of War describes the December 2025 encounters as taking place during an 'exercise' but does not explain what the exercise involved.
+  - id: 7d77558c-783a-4067-ba4a-88f6c207ae3e
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:10731-10810
+    date: '2026-07-12'
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 52835c0b-988a-476b-a505-f6df3de761ae
+        name: Federal Bureau of Investigation (FBI)
+    quote: |-
+      They confirm that the event led to an FBI interview with a senior intelligence official.
+    text: |-
+      The released government documents confirm that the December 2025 UAP incident led to an Federal Bureau of Investigation interview with a senior intelligence official.
+  - id: 5c4bbb62-c3ae-4341-a597-59a622d7d626
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:10821-10888
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: They confirm that photographs were taken during the same series of encounters.
+    text: |-
+      Photographs were taken during the December 2025 UAP encounter series, as confirmed by the released government documents.
+  - id: f99c63ee-47b4-4554-8868-3d467e3eefd9
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:10901-10978
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      They also confirm that several government witnesses and sensors observed the objects.
+    text: |-
+      Several government witnesses and sensors observed the objects during the December 2025 UAP encounter, as confirmed by released documents.
+  - id: 38f262ad-8084-4e6f-9cf2-588575a67d49
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:11195-11403
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      Burlison said: 'I was briefed on an event that occurred where they basically tried to set up a perfect-case scenario that would cause UAP to come in, and then to capture them—or to try to document or record them.'
+    text: |-
+      Eric Burlison said he was briefed on an event where officials attempted to set up a scenario that would cause Unidentified Aerial Phenomena to arrive, and then capture or document them.
+  - id: 1622d560-f10d-4237-9dc1-ea84b79b9b0f
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:11411-11427
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+    quote: '''And it was very successful.'''
+    text: Eric Burlison said the event he was briefed on was very successful.
+  - id: e145b360-0903-4e82-8ecc-57140e91d95a
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:11439-11471
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+    quote: '''This only happened a few months ago,'''
+    text: |-
+      Eric Burlison said the event he was briefed on occurred a few months before his interview with Annie Frey.
+  - id: e1eca75d-a66a-4166-a9fb-2623c048a76e
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:11476-11570
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      'and this is when the whole conversation changed, because that event was one that no one could deny.'
+    text: |-
+      Eric Burlison said the briefing about the event was when the conversation about Unidentified Aerial Phenomena changed, because it was an event no one could deny.
+  - id: 19fabe46-5da7-4678-8e5f-1751f7bb01d2
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:11600-11720
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+    quote: |-
+      'There were so many people who witnessed these things, and they were all credible people working in our top intelligence sector.'
+    text: |-
+      Eric Burlison said there were many witnesses to the events he was briefed on, and they were all credible people working in top United States intelligence sectors.
+  - id: 77997eb1-64d9-40a0-bd7e-95ad4a3ed49f
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:11730-11812
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+    quote: |-
+      'They brought me in to brief me on this within a few days or weeks after the event happened.'
+    text: |-
+      Eric Burlison said officials brought him in to brief him on the event within a few days or weeks after it happened.
+  - id: a8478ea2-1c89-49b2-962e-5661d2073be4
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:11822-11896
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      'I felt that was nice that they did that; they knew I was researching this topic.'
+    text: |-
+      Eric Burlison said he was pleased officials briefed him because they knew he was researching the Unidentified Aerial Phenomena topic.
+  - id: 52845f90-5881-41ab-9a76-2f9624bfe3ef
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:11917-11952
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+    quote: '''That briefing is the one everybody wants.'''
+    text: |-
+      Eric Burlison said the briefing about the event is the one everyone wants to know about.
+  - id: 376b7540-6825-4d3c-a3dc-06cf56737531
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:11961-12009
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+      - id: ff3c4cf5-77e3-47f0-ad73-e8e943604c13
+        name: United States Congress
+    quote: '''Yes, other members of Congress have heard about this.'''
+    text: Eric Burlison said other members of Congress have heard about the briefing.
+  - id: f214b015-e84e-4cd4-8239-be66e4984143
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:12015-12076
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+      - id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+        name: Steve Scalise
+      - id: ff3c4cf5-77e3-47f0-ad73-e8e943604c13
+        name: United States Congress
+    quote: '''Leader Scalise got the briefing along with a couple of other members.'''
+    text: |-
+      Eric Burlison said House Majority Leader Steve Scalise received the briefing along with a couple of other members of Congress.
+  - id: e3162ffb-d593-44e0-9702-8cdc72fecb87
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison, during interview with Annie Frey
+    attribution_in_text: false
+    location: char:12087-12159
+    date: 2025-12
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+      - id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+        name: Steve Scalise
+    quote: |-
+      'I had only told Leader Scalise about this, and now everybody wants this briefing.'
+    text: |-
+      Eric Burlison said he had only told House Majority Leader Steve Scalise about the briefing, and now everyone wants it.
+  - id: 98454b7d-5833-4112-a46a-bbdb6356793b
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:12411-12490
+    date: '2026-04-28'
+    refs:
+      - id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+        name: Steve Scalise
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      However, Scalise did not publicly confirm that the briefing concerned the same incident.
+    text: |-
+      Steve Scalise did not publicly confirm that his briefing concerned the December 2025 incident.
+  - id: 428ead45-627b-4053-a0d0-84fb6d0f94e1
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+      name: Steve Scalise
+    provenance_chain:
+      origin_kind: speaker
+      origin: Steve Scalise, during conversation with Matt Laslo
+    attribution_in_text: false
+    location: char:12743-12818
+    date: '2026-04-28'
+    refs:
+      - id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+        name: Steve Scalise
+    quote: 'Scalise replied: ''Well, we had a classified briefing that some of us went to.'''
+    text: Steve Scalise said that he and others attended a classified briefing.
+  - id: 0ebce665-6541-45d2-84ae-512e5ec2706a
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+      name: Steve Scalise
+    provenance_chain:
+      origin_kind: speaker
+      origin: Steve Scalise, during conversation with Matt Laslo
+    attribution_in_text: false
+    location: char:12869-13025
+    date: '2026-04-28'
+    refs:
+      - id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+        name: Steve Scalise
+    quote: |-
+      Scalise said: 'Well, you know, whenever you go to a briefing like that, there are some things you see that are eye-opening—and that's about as far as I'll go.'
+    text: |-
+      When asked if the briefing was eye-opening, Steve Scalise said there were some things in briefings like that which are eye-opening, but declined to provide further details.
+infrastructure_claims:
+  - id: 243d89a7-f38b-497d-8425-5bd0fe7d669c
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:419-527
+    date: '2026-07-12'
+    refs:
+      - id: cb62c974-87de-483c-b8f0-922ecc39e937
+        name: Jordan Flowers
+      - id: a55741d9-db09-4824-94e1-6c9d5d71cc8f
+        name: CBS News
+    quote: |-
+      Jordan Flowers, executive director of the Disclosure Foundation, made the claim during an appearance on CBS News.
+    text: Jordan Flowers appeared on CBS News to discuss UAP-related topics.
+  - id: 7738e1a7-831c-486f-b5c1-8421f54d5409
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: Department of War description of released documents
+    attribution_in_text: false
+    location: char:2734-3034
+    date: '2026-07-12'
+    refs:
+      - id: 075516b3-d877-4f86-9ab6-d3a7a7b3531d
+        name: USPER Statement about UAP Sighting
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+      - id: 52835c0b-988a-476b-a505-f6df3de761ae
+        name: Federal Bureau of Investigation (FBI)
+    quote: |-
+      The first document, titled [USPER Statement about UAP Sighting](/s/usper-statement-redacted.pdf) , is described by the Department of War as an FBI 302 interview with a senior U.S. intelligence official who witnessed the encounter. An FBI 302 is the written record agents produce after interviewing a witness.
+    text: |-
+      The first document about the December 2025 UAP encounter is titled 'USPER Statement about UAP Sighting' and is described by the Department of War as an Federal Bureau of Investigation (FBI) 302 interview with a senior United States intelligence official who witnessed the encounter.
+  - id: bfcc620d-3cd5-4f1d-8a56-538100e7efcf
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: Department of War description of released documents
+    attribution_in_text: false
+    location: char:3045-3207
+    date: '2026-07-12'
+    refs:
+      - id: 8e19cc83-7e7d-43ad-a695-bb6e088cf1fa
+        name: ODNI-UAP-D001, USPER Narrative, Senior USIC Official
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 5646cfc7-d316-46df-987e-ce595b2fb5bc
+        name: President Trump's UAP disclosure initiative
+    quote: |-
+      The second document, titled [ODNI-UAP-D001, USPER Narrative, Senior USIC Official](/s/ODNI-UAP-D001_USPER_Narrative_Senior_USIC.pdf) , was released in the second tranche.
+    text: |-
+      The second document about the December 2025 UAP encounter is titled 'ODNI-UAP-D001, USPER Narrative, Senior USIC Official' and was released in the second tranche of files under President Trump's UAP disclosure initiative.
+  - id: 2edcd0f7-1e2f-47ab-b9cb-2ea2be64e904
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: Department of War description of released documents
+    attribution_in_text: false
+    location: char:3216-3357
+    date: '2026-07-12'
+    refs:
+      - id: 8e19cc83-7e7d-43ad-a695-bb6e088cf1fa
+        name: ODNI-UAP-D001, USPER Narrative, Senior USIC Official
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+    quote: |-
+      The Department of War describes it as a firsthand account written by a currently serving senior U.S. intelligence official who witnessed the encounters.
+    text: |-
+      The Department of War describes the document 'ODNI-UAP-D001, USPER Narrative, Senior USIC Official' as a firsthand account written by a currently serving senior United States intelligence official who witnessed the December 2025 UAP encounters.
+  - id: f2a9140e-46c1-48da-b7aa-518510be1455
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:8514-8663
+    date: '2026-07-12'
+    refs:
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The Department of War lists 24 images under the 'Related Media' section alongside the government records. Six of those images are reproduced further below.
+    text: |-
+      The Department of War lists 24 images under the 'Related Media' section alongside the government records of the December 2025 UAP encounter, with six of those images reproduced in the article.
+  - id: 0442f2b7-3598-4389-be6c-3d60f2cda92c
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: Department of War description of released documents
+    attribution_in_text: false
+    location: char:8671-8780
+    date: '2026-07-12'
+    refs:
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The Department of War directly connects the images to the same exercise described by the senior intelligence official.
+    text: |-
+      The Department of War directly connects the released images to the December 2025 UAP encounter described by the senior intelligence official.
+  - id: 70579e61-6f0c-4ac4-a280-a408300a0731
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: Department of War description of released documents
+    attribution_in_text: false
+    location: char:8791-8949
+    date: '2026-07-12'
+    refs:
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      Its description states that the official's account is accompanied by infrared imagery taken during the exercise by other federal personnel observing from the ground.
+    text: |-
+      The Department of War states that the senior intelligence official's account of the December 2025 encounter is accompanied by forward-looking infrared (FLIR) imagery taken during the exercise by federal personnel observing from the ground.
+  - id: 869cac13-8e24-41e0-9aa7-a27b837c56f8
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:8958-9096
+    date: '2026-05-08'
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 5646cfc7-d316-46df-987e-ce595b2fb5bc
+        name: President Trump's UAP disclosure initiative
+    quote: |-
+      The images were originally released on 8 May 2026, as part of the first tranche of files published under President Trump's UAP disclosure initiative.
+    text: |-
+      Images of the December 2025 UAP encounter were originally released on 8 May 2026, as part of the first tranche of files published under President Trump's Unidentified Aerial Phenomena disclosure initiative.
+  - id: cfbc3fcb-3a09-48c8-b0e3-521f019d9adb
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: Department of War description of released documents
+    attribution_in_text: false
+    location: char:9109-9308
+    date: '2026-07-12'
+    refs:
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      A separate description on the Department of War website says: 'The photos of UAP underneath the helicopter are from this same set of observations, taken through night vision devices by ground-based personnel.'
+    text: |-
+      The Department of War states that the photographs of Unidentified Aerial Phenomena underneath the helicopter during the December 2025 encounter were taken through night vision devices by ground-based personnel.
+  - id: 3261d9db-8e80-4166-8e10-5da77407079e
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:9701-9777
+    date: '2026-07-12'
+    refs:
+      - id: 639846e9-2251-4ef1-ab03-0d449c9e5db5
+        name: All-Domain Anomaly Resolution Office (AARO)
+      - id: 52835c0b-988a-476b-a505-f6df3de761ae
+        name: Federal Bureau of Investigation (FBI)
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: The images were provided to the All-Domain Anomaly Resolution Office by the FBI.
+    text: |-
+      The December 2025 encounter images were provided to the All-Domain Anomaly Resolution Office (AARO) by the Federal Bureau of Investigation (FBI).
+  - id: 16122c6c-1a46-4459-a696-9099f089ee68
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Department of War descriptions
+    attribution_in_text: false
+    location: char:10045-10123
+    date: 2025-12
+    refs:
+      - id: 04c1ec90-323a-45d7-9dc8-581124dd021e
+        name: December 2025 UAP encounter
+    quote: |-
+      The documents also state that the helicopter pilots were recording during the encounter.
+    text: The helicopter pilots recorded video footage during the December 2025 encounter.
+  - id: 4f836cc3-8a54-416a-8d1d-2134064414ee
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:11048-11185
+    date: '2026-05-12'
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+      - id: 5f84c9c3-9a55-4aca-9c00-41a847babc5a
+        name: Annie Frey
+    quote: |-
+      Flowers' account closely matches comments made by Republican Representative Eric Burlison during an interview with Annie Frey two months earlier.
+    text: |-
+      Eric Burlison was interviewed by Annie Frey approximately two months before the Liberation Times article date.
+  - id: 81895a7b-23fa-487d-9c27-a9339db67bc5
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:12215-12325
+    date: '2026-04-28'
+    refs:
+      - id: dddb89a1-f14c-4bde-a4d7-7b8fe239bcca
+        name: Eric Burlison
+      - id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+        name: Steve Scalise
+      - id: 12c2e1b0-c341-4448-ba7b-be53a930a43d
+        name: Unidentified Aerial Phenomena (UAP)
+    quote: |-
+      Burlison's claim that House Majority Leader Steve Scalise received a briefing was later supported by Scalise himself
+    text: |-
+      Eric Burlison's claim that House Majority Leader Steve Scalise received a classified briefing about Unidentified Aerial Phenomena was supported by Scalise himself.
+  - id: 7c10d827-69ca-4a20-9c51-e12165fb5e53
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:12501-12716
+    date: '2026-04-28'
+    refs:
+      - id: 29203f48-285d-45c0-b68e-e4f9d0e89e33
+        name: Matt Laslo
+      - id: f69906c1-bbe1-4ee6-9c42-c869c42a03d3
+        name: Steve Scalise
+    quote: |-
+      On 28 April, journalist Matt Laslo asked him: 'Hey, what's this we hear from Congressman Burlison—that you were in a UFO or UAP briefing you had asked to attend?'
+    text: |-
+      On 28 April 2026, journalist Matt Laslo asked Steve Scalise if he was in a Unidentified Flying Object or Unidentified Aerial Phenomena briefing he had asked to attend.
+  - id: 997f2f55-c976-4074-bb7b-fd6b03f239f1
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: Christopher Sharp, Liberation Times article
+    attribution_in_text: false
+    location: char:13031-13149
+    date: '2026-07-12'
+    refs:
+      - id: 24a4b8dc-9f4f-4a56-9cfa-9fad26007d16
+        name: Liberation Times
+      - id: dccf908d-a9d1-447c-b268-1ad00e27a521
+        name: Office of the Director of National Intelligence (ODNI)
+      - id: e4d8d637-63c2-4dfb-adc2-6032ec2fbafb
+        name: Department of War
+    quote: |-
+      Liberation Times has requested comment from the Office of the Director of National Intelligence and the Department of War.
+    text: |-
+      Liberation Times requested comment from the Office of the Director of National Intelligence and the Department of War regarding the article.

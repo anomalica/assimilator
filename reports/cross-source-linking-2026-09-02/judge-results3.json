@@ -1,0 +1,65 @@
+[
+ {
+  "verdict": "possibly_related",
+  "shared_subject": "December 2025 ODNI southwestern US UAP operation",
+  "reason": "Record A describes \"the Office of the Director of National Intelligence (ODNI) conducted a Unidentified Aerial Phenomena-luring operation during a December 2025 incident in the southwestern United States\" with documented helicopter investigation and multiple witnesses. Record B describes ongoing government \"Unidentified Aerial Phenomena (UAP) intercept operations\" from \"November 2025 to August 2026\" involving ODNI in the southwestern region with \"airspace closures...to provide the government with a secure location from which it could summon, detect, and shoot down Unidentified Aerial Phenomena,\" placing the December 2025 incident squarely within the timeframe and region of the broader operation described in Record B, but neither record explicitly confirms the redacted facility location or states these are the same specific incident.",
+  "pair": "Luring Operation vs Skywatcher didn",
+  "seconds": 71
+ },
+ {
+  "verdict": "possibly_related",
+  "shared_subject": "December 2025 orb phenomenon (if Tranche 4 refers to the same incident)",
+  "reason": "Record A extensively documents a December 2025 incident involving luminous orbs at a sensitive southwestern US military facility, released in tranches 1\u20132 of Trump's UAP disclosure. Record B mentions \"the orb phenomenon that emerged in the Tranche 4 UAP document release\" at a sensitive test range without specifying the date, leaving ambiguous whether Tranche 4 discusses the same December 2025 incident, subsequent material about it, or a different incident entirely.",
+  "pair": "Luring Operation vs David Grusch: The Whistleblower",
+  "seconds": 36
+ },
+ {
+  "verdict": "same_subject",
+  "shared_subject": "December 2025 UAP encounter at southwestern weapons test range",
+  "reason": "Record A describes [e77d04c8] \"a helicopter team was investigating unusual noises and reports of glowing orbs\" at \"a military facility\" with [51596826] \"a series of close Unidentified Aerial Phenomena encounters lasted over an hour.\" Record B independently describes [84f4ffd5] \"investigate loud thuds heard in the mountains on the weapons test range\" and [5ef16d82] \"a series of close UAP encounters lasting over an hour\"\u2014same mission, same duration, same witnesses including the senior intelligence official in both accounts.",
+  "pair": "Luring Operation vs USPER Narrative",
+  "seconds": 33
+ },
+ {
+  "verdict": "possibly_related",
+  "shared_subject": "Eric Burlison's briefing on UAP phenomena at a Western US military facility",
+  "reason": "Record A explicitly connects Eric Burlison's congressional briefing to the December 2025 southwestern US helicopter UAP incident through Jordan Flowers' synthesis [5e68a9b1]. Record B mentions Eric Burlison being briefed about plasmoid-type phenomena at a Western US military facility [916ec08f] and ODNI officials not knowing what they were [a777d4f3]. Both records place Eric Burlison and ODNI at a Western/southwestern US military facility UAP incident, but Record B does not establish the December 2025 date, leaving it indeterminate whether both records address the same specific incident or different briefings Eric Burlison received.",
+  "pair": "Luring Operation vs Episode 73",
+  "seconds": 81
+ },
+ {
+  "verdict": "unrelated",
+  "shared_subject": "",
+  "reason": "Record A describes a specific covert government UAP interception operation at White Sands Missile Range (November 2025\u2013August 2026), the El Paso airspace closure (February 10, 2026), and the Skywatcher organization's alleged integration into classified work, allegedly sourced through Ross Coulthart's reporting. Record B is a compilation of Ross Coulthart's investigation into historical UAP incidents (1948 Roswell, 1966 Westall, 2004 USS Nimitz, etc.) and various sightings across Australia and the United States. Although both records reference Ross Coulthart as the investigator/journalist, they do not refer to the same specific incident or operation\u2014Record B contains no mention of the White Sands operation, the El Paso closure, or the Skywatcher-government nexus that forms Record A's core narrative. The user's instructions explicitly exclude \"same speaker or outlet\" and \"the government's UAP efforts in general\" as grounds for identifying a shared subject.",
+  "pair": "Skywatcher didn vs 7NEWS",
+  "seconds": 39
+ },
+ {
+  "verdict": "unrelated",
+  "shared_subject": "",
+  "reason": "Record A describes covert military UAP interception operations conducted at White Sands and El Paso (November 2025 \u2013 August 2026), using directed energy weapons and techniques from the Skywatcher team. Record B describes Trump's public disclosure statements about releasing extraterrestrial information (2026-08-11) and commentary on the legacy program, Spielberg films, and historical UFO accounts. While both involve Trump-era UAP matters, neither record explicitly pins a shared specific incident, operation, or document. Record A's operational narrative (airspace closures, aircraft downings, intercept programs) and Record B's disclosure narrative (public information releases, cabinet statements, historical retrospectives) describe different types of activity with no overlapping specific identifiable event, date, or location that both records carry.",
+  "pair": "Skywatcher didn vs Answers Your Biggest",
+  "seconds": 42
+ },
+ {
+  "verdict": "unrelated",
+  "shared_subject": "",
+  "reason": "Record A pins to specific operational details: Skywatcher's field work at Sierra Blanca (ceased July 2024), a Temporary Flight Restriction placed 2025-11-08, and alleged covert government UAP interception operations at White Sands Missile Range using HPM weapons. Record B addresses Phil McGraw's public commentary on historical government UAP cover-up and declassification efforts, discussing David Grusch's whistleblowing about legacy retrieval programmes and Trump's UFO file releases. While both records discuss Trump-era UAP policy and cite Ross Coulthart, they do not reference the same specific operation, incident, or investigation. Record B does not mention Skywatcher, Sierra Blanca, the El Paso closure, the specific TFR, White Sands operations, or any of the covert operational details that ground Record A.",
+  "pair": "Skywatcher didn vs Dr. Phil read",
+  "seconds": 27
+ },
+ {
+  "verdict": "unrelated",
+  "shared_subject": "",
+  "reason": "Record A describes a specific recent operation: Skywatcher's field work at Sierra Blanca (ceased July 2024), a government-imposed TFR there (Nov 2025), and claimed Trump-directed tactical intercept operations at El Paso and White Sands (2025\u20132026). Record B describes David Grusch's investigation of longstanding compartmentalized material recovery and reverse engineering programmes held at unnamed facilities across decades. Record B makes no mention of Skywatcher, Sierra Blanca, the El Paso incident, or the claimed 2025\u20132026 operations. Neither record establishes that they refer to the same specific incident, operation, or programme.",
+  "pair": "Skywatcher didn vs David Grusch: The Whistleblower",
+  "seconds": 64
+ },
+ {
+  "verdict": "unrelated",
+  "shared_subject": "",
+  "reason": "Record A describes a specific December 2025 UAP encounter over a southwestern US military facility, pinned by date, location, documented witnesses (intelligence official, helicopter crew, military pilots), observed phenomena (orbs, formations), and generated evidence (photographs, FLIR video, FBI 302 interview, congressional briefing). Record B discusses the Trump administration's general approach to UAP disclosure strategy and advocates' efforts to secure disclosure, with no reference to any specific December 2025 incident\u2014it focuses instead on political actors (Grusch, Bigelow, Miller), gatekeepers, and the push for a disclosure speech before the 2026 midterms.",
+  "pair": "Luring Operation vs Pressure Mounts",
+  "seconds": 18
+ }
+]

@@ -1,0 +1,11 @@
+Parsing record: 76d7e7613c0a44bdb8d7e5ce87b2a23defe4a987cf1865be3ae1080cd1893d21.v2.md
+Allowance ok (session 45%, weekly 0%)
+Extracting (two-pass) from: Ross Coulthart Q&A: Skywatcher didn't disappear — it went government | Reality Check
+Pass A: nodes (with iteration + chunking)
+    nodes iter 1: +48 nodes (total 48) [model: complete]
+  48 nodes, 15 acronyms, main_subject='Skywatcher'
+Pass B: claims (constrained to locked nodes, with iteration + chunking)
+  claims chunk 1/2 (20,000 chars)
+    claims iter 1: +5 claims (chunk total 5, doc total 5)
+    claims iter 2: +74 claims (chunk total 79, doc total 79) [model: complete]
+  claims chunk 2/2 (2,837 chars)

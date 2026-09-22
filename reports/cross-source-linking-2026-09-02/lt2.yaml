@@ -1,0 +1,2023 @@
+run_kind: comparison
+schema: anomalica/digest/1
+extracted_at: '2026-09-02T11:24:38.573502+00:00'
+model: haiku
+ai_usage:
+  - stage: digest
+    model: claude-haiku-4-5
+    model_version: claude-haiku-4-5
+    tokens:
+      input: 331291
+      output: 69278
+      real_input: 54
+      cache_read: 165918
+      cache_write: 165319
+      calls: 2
+    route: cli
+    effort: low
+prompts:
+  - pass: nodes
+    id: nodes
+    version: v4
+    sha256: 35338e5c2eb8479a2cd16468347718b8db1faf84d24ac5cc76dbdef4810009d2
+    file: nodes.txt
+  - pass: claims
+    id: claims
+    version: v4
+    sha256: 89ec59286169096f610265f3c5cf0fb34ff5e58e9726e6682e8693e8c703fe89
+    file: claims.txt
+pre_digest:
+  sha256: 8ae48f5f372f2c987ef1c4cff22fd237a5e954cf73bf979d0470a93b7ecead7a
+  prep_version: 7
+record:
+  id: 52bc1030-bea4-4a55-95a7-528d31eccc89
+  title: |-
+    FBI Photos Show Orbs Beneath Helicopter During Alleged ODNI UAP “Luring Operation” — Liberation Times | Reimagining Old News
+  producer: Christopher Sharp
+  publisher: Liberation Times
+  date: '2026-07-12'
+  medium: web
+  content_hash: sha256:7229c46a4e1ac9cd564bbbd3c00a0b2ff6bf9da95c432ba95bb2a68956e671fe
+  processing_version: f2c080b
+  reference: |-
+    https://www.liberationtimes.com/home/us-conducted-successful-ufo-luring-operation-advocate-claims-as-government-files-detail-orb-encounters
+  review:
+    state: none
+    sidecar: absent
+  description: |-
+    Government files and FBI-submitted images detail a late-2025 UAP encounter involving glowing orbs, a helicopter and an “eye-opening” briefing to Congress.
+  copyright_status: publicly_accessible
+terminology:
+  main_subject: December 2025 ODNI UAP luring operation incident
+  acronyms:
+    - acronym: ODNI
+      expansion: Office of the Director of National Intelligence
+    - acronym: AARO
+      expansion: All-Domain Anomaly Resolution Office
+    - acronym: FBI
+      expansion: Federal Bureau of Investigation
+    - acronym: UAP
+      expansion: Unidentified Anomalous Phenomena
+    - acronym: UFO
+      expansion: Unidentified Flying Objects
+    - acronym: FLIR
+      expansion: Forward-Looking Infrared
+    - acronym: USIC
+      expansion: United States Intelligence Community
+nodes:
+  - id: d57737e0-83ec-490c-87e1-9c4c52a2322f
+    type: person
+    name: Christopher Sharp
+  - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+    type: person
+    name: Jordan Flowers
+  - id: 7cc9430a-0a4a-4886-a040-52e6f7a371ef
+    type: person
+    name: Steve Scalise
+  - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+    type: person
+    name: Eric Burlison
+  - id: ab45e7cc-d258-402f-a2f0-2a52e6000f06
+    type: person
+    name: Tim Burchett
+  - id: 708bf72c-833d-4d76-b64e-7cb44717ef05
+    type: person
+    name: Annie Frey
+  - id: 9de5700e-2491-4d16-a9ac-c1f17c43f162
+    type: person
+    name: Matt Laslo
+  - id: b8f5f5ef-0365-4ea8-a0ee-c27f82882242
+    type: organisation
+    name: Office of the Director of National Intelligence (ODNI)
+  - id: a9cf6a04-b2ae-43c7-9f64-1ea631709fe6
+    type: organisation
+    name: Disclosure Foundation
+  - id: 00626f10-317d-475d-8329-c5889fe03b8d
+    type: organisation
+    name: Federal Bureau of Investigation (FBI)
+  - id: bc57fe60-c8eb-486c-ae6d-49f0dce827ed
+    type: organisation
+    name: All-Domain Anomaly Resolution Office (AARO)
+  - id: 3eb80268-579a-4bd1-a361-b00550f8ac2f
+    type: organisation
+    name: United States Department of War
+  - id: 5876e702-4124-48c9-8006-5af18cbcbc76
+    type: organisation
+    name: CBS News
+  - id: 433079d3-cfb1-4daf-b6fd-244ab04d8467
+    type: organisation
+    name: United States House of Representatives
+  - id: ab95dad9-0250-4fd4-b341-87bf058e4fb5
+    type: organisation
+    name: United States Congress
+  - id: 9e7154f2-8327-4fe6-ba92-cd50520bb3d9
+    type: project
+    name: ODNI UAP luring operation (December 2025)
+  - id: 5bbe0c04-203e-4bc4-8789-7cf386a3f99d
+    type: project
+    name: President Trump's UAP disclosure initiative
+  - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+    type: event
+    name: December 2025 ODNI UAP luring operation incident
+    metadata:
+      date_start: 2025-12
+  - id: c3a068f0-3872-4c96-9b8f-1ac1ef948d15
+    type: event
+    name: First tranche UAP documents release
+    metadata:
+      date_start: '2026-05-08'
+  - id: 8a02800a-fbeb-453c-997a-9cc4f2354870
+    type: event
+    name: Congressional briefing on December 2025 ODNI UAP incident to House leadership
+    metadata:
+      date_start: 2026-01
+  - id: 24ccdf26-8989-46cd-b59b-368e3779d37a
+    type: event
+    name: Eric Burlison interview with Annie Frey
+    metadata:
+      date_start: 2026-05
+  - id: 595e9fb0-90e4-424c-ae1a-b31be210bede
+    type: event
+    name: Steve Scalise interview with Matt Laslo
+    metadata:
+      date_start: '2026-04-28'
+  - id: 592a459b-a59a-4f83-b22b-61d62cb19cc0
+    type: document
+    name: USPER Statement about UAP Sighting
+  - id: 3a0aaf74-f997-4f0c-928e-a38b71357e2f
+    type: document
+    name: 'ODNI-UAP-D001: USPER Narrative'
+  - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+    type: document
+    name: Infrared aerial photographs from December 2025 ODNI UAP incident
+  - id: 18e0be2c-26b6-4779-adfe-9625f65d3d5e
+    type: document
+    name: |-
+      U.S. Conducted Successful UFO Luring Operation, Advocate Claims, as Government Files Detail Orb Encounters
+  - id: 5d5027b5-cd36-413f-a38f-3378e8c276ae
+    type: topic
+    name: Unidentified Anomalous Phenomena (UAP)
+  - id: 12845029-a598-4383-9e80-5f168d0b1572
+    type: topic
+    name: Unidentified Flying Objects (UFO)
+domain_claims:
+  - id: 6f61ccd8-4941-4186-ba8a-733abc827372
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: article narrative
+    attribution_in_text: false
+    location: char:419-527
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: a9cf6a04-b2ae-43c7-9f64-1ea631709fe6
+        name: Disclosure Foundation
+    quote: |-
+      Jordan Flowers, executive director of the Disclosure Foundation, made the claim during an appearance on CBS News.
+    text: Jordan Flowers is the executive director of the Disclosure Foundation.
+  - id: c93a36c0-64ed-41a5-89ae-278d0698c643
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: article narrative
+    attribution_in_text: false
+    location: char:534-629
+    refs:
+      - id: a9cf6a04-b2ae-43c7-9f64-1ea631709fe6
+        name: Disclosure Foundation
+      - id: 5d5027b5-cd36-413f-a38f-3378e8c276ae
+        name: Unidentified Anomalous Phenomena (UAP)
+    quote: |-
+      The Disclosure Foundation is an advocacy group focused on Unidentified Anomalous Phenomena, or UAP.
+    text: |-
+      The Disclosure Foundation is an advocacy group focused on Unidentified Anomalous Phenomena.
+  - id: 5be7b9ec-67b4-4eb7-afe3-a48039843175
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents and Congressional statements
+      relay:
+        - Jordan Flowers
+    attribution_in_text: false
+    location: char:1084-1269
+    date: 2025-12
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      during the December 2025 incursion in the southwestern United States over a sensitive military facility, the Office of the Director of National Intelligence was conducting a UAP-luring operation.
+    text: |-
+      During December 2025, an incursion occurred in the southwestern United States over a sensitive military facility.
+  - id: 1ea6864e-42dd-418e-9fb0-ec697189a731
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents and Congressional statements
+      relay:
+        - Jordan Flowers
+    attribution_in_text: false
+    location: char:1189-1306
+    date: 2025-12
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: b8f5f5ef-0365-4ea8-a0ee-c27f82882242
+        name: Office of the Director of National Intelligence (ODNI)
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+      - id: 5d5027b5-cd36-413f-a38f-3378e8c276ae
+        name: Unidentified Anomalous Phenomena (UAP)
+    quote: |-
+      the Office of the Director of National Intelligence was conducting a UAP-luring operation. That operation was wildly successful.
+    text: |-
+      The Office of the Director of National Intelligence (ODNI) was conducting a Unidentified Anomalous Phenomena (UAP) luring operation during the December 2025 incursion.
+  - id: 626ac176-b402-470f-8d99-b4bef65e49ca
+    type: opinion
+    attestation: second_hand
+    speaker:
+      id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents and Congressional statements
+      relay:
+        - Jordan Flowers
+    attribution_in_text: false
+    location: char:1280-1306
+    date: 2025-12
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: 9e7154f2-8327-4fe6-ba92-cd50520bb3d9
+        name: ODNI UAP luring operation (December 2025)
+    quote: That operation was wildly successful.
+    text: |-
+      The Office of the Director of National Intelligence (ODNI) Unidentified Anomalous Phenomena (UAP) luring operation was successful.
+  - id: 8c2a153b-eed2-421d-b719-42a7a083bd26
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+      relay:
+        - Jordan Flowers
+    attribution_in_text: false
+    location: char:1320-1425
+    date: 2025-12
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+    quote: |-
+      It produced FLIR [forward-looking infrared] video and photographs of the orbs encountered as part of the operation.
+    text: |-
+      The Unidentified Anomalous Phenomena (UAP) luring operation resulted in forward-looking infrared (FLIR) video and photographs of orbs.
+  - id: 5b589342-4b37-4593-9902-0ca0360f31b2
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: document
+      origin: Federal Bureau of Investigation records
+      relay:
+        - Jordan Flowers
+    attribution_in_text: false
+    location: char:1436-1544
+    date: 2025-12
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: 00626f10-317d-475d-8329-c5889fe03b8d
+        name: Federal Bureau of Investigation (FBI)
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      It resulted in an FBI 302 interview, as well as a personal statement from a senior intelligence official at ODNI
+    text: |-
+      The December 2025 Unidentified Anomalous Phenomena (UAP) incident resulted in a Federal Bureau of Investigation (FBI) 302 interview with a senior intelligence official.
+  - id: 86d34497-e08c-4899-936d-df891a7dd97d
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: document
+      origin: Office of the Director of National Intelligence
+      relay:
+        - Jordan Flowers
+    attribution_in_text: false
+    location: char:1473-1544
+    date: 2025-12
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: b8f5f5ef-0365-4ea8-a0ee-c27f82882242
+        name: Office of the Director of National Intelligence (ODNI)
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: as well as a personal statement from a senior intelligence official at ODNI
+    text: |-
+      The December 2025 incident resulted in a personal statement from a senior intelligence official at the Office of the Director of National Intelligence (ODNI).
+  - id: b71f4bb5-0084-4bde-a4f1-0aeb3c9a0077
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: named
+      origin: Congressional statements and briefing records
+      relay:
+        - Jordan Flowers
+    attribution_in_text: false
+    location: char:1550-1708
+    date: 2025-12
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: 7cc9430a-0a4a-4886-a040-52e6f7a371ef
+        name: Steve Scalise
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: ab45e7cc-d258-402f-a2f0-2a52e6000f06
+        name: Tim Burchett
+      - id: 433079d3-cfb1-4daf-b6fd-244ab04d8467
+        name: United States House of Representatives
+      - id: 8a02800a-fbeb-453c-997a-9cc4f2354870
+        name: Congressional briefing on December 2025 ODNI UAP incident to House leadership
+    quote: |-
+      and precipitated a classified briefing for members of Congress, including [House Majority Leader Steve] Scalise and Representatives [Eric] Burlison and [Tim] Burchett.
+    text: |-
+      The December 2025 Unidentified Anomalous Phenomena (UAP) incident precipitated a classified briefing for members of the United States House of Representatives, including Steve Scalise, Eric Burlison, and Tim Burchett.
+  - id: 18810292-5fb0-461f-b6df-b2af93ac46d2
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: named
+      origin: government officials and Congressional briefing participants
+      relay:
+        - Jordan Flowers
+    attribution_in_text: false
+    location: char:1720-1803
+    date: 2025-12
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      This event was described as incontrovertible proof that there is a real phenomenon here
+    text: |-
+      The December 2025 Unidentified Anomalous Phenomena (UAP) event was described as incontrovertible proof that there is a real phenomenon.
+  - id: ed111f64-1c56-4ccf-846f-e0a7059ffaad
+    type: opinion
+    attestation: second_hand
+    speaker:
+      id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+      name: Jordan Flowers
+    provenance_chain:
+      origin_kind: document
+      origin: Congressional public comments and released documents
+      relay:
+        - Jordan Flowers
+    attribution_in_text: false
+    location: char:2034-2256
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: bc57fe60-c8eb-486c-ae6d-49f0dce827ed
+        name: All-Domain Anomaly Resolution Office (AARO)
+      - id: b8f5f5ef-0365-4ea8-a0ee-c27f82882242
+        name: Office of the Director of National Intelligence (ODNI)
+    quote: |-
+      it suggests not only that AARO—the All-domain Anomaly Resolution Office—and ODNI know this is a real phenomenon, but that they already have the technology and methods, with a proven track record, to lure and attract these things.
+    text: |-
+      The All-Domain Anomaly Resolution Office (AARO) and the Office of the Director of National Intelligence (ODNI) know the Unidentified Anomalous Phenomena (UAP) phenomenon is real and have technology and methods with a proven track record to lure and attract these objects.
+  - id: 27e51863-34af-42a9-ab72-625156df12a0
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:3369-3595
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The official was a passenger in the helicopter and described seeing glowing orbs both at close range and in the distance while a government team investigated unusual noises and UAP sightings in and around a sensitive military facility.
+    text: |-
+      The senior U.S. intelligence official who wrote the account was a passenger in the helicopter during the December 2025 encounter.
+  - id: 36b03a91-ac30-4132-a222-d57ac83218db
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:3420-3595
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      described seeing glowing orbs both at close range and in the distance while a government team investigated unusual noises and UAP sightings in and around a sensitive military facility.
+    text: |-
+      The senior intelligence official saw glowing orbs both at close range and in the distance while a government team investigated unusual noises and Unidentified Anomalous Phenomena (UAP) sightings in and around a sensitive military facility.
+  - id: 030cd13c-f39c-472e-afb4-60817c50d450
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:3606-3738
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      Together, the documents describe a series of encounters at a sensitive government testing site in the western United States in late 2025.
+    text: |-
+      A series of encounters with Unidentified Anomalous Phenomena (UAP) took place at a sensitive government testing site in the western United States in late 2025.
+  - id: b762f04a-2241-4851-af96-0c2ea5366f58
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:3745-3898
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      Although Flowers placed the event in the southwestern United States and said it occurred in December, the released records do not give the exact date or location.
+    text: |-
+      The exact date and location of the December 2025 Unidentified Anomalous Phenomena (UAP) incident are not specified in the released government records.
+  - id: f73bd8ad-907f-4f3b-a0f4-7b4a28a9b5ab
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:3909-3987
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The name of the facility, nearby towns, mountain range and coordinates remain hidden.
+    text: |-
+      The facility name, nearby towns, mountain range and coordinates of the December 2025 Unidentified Anomalous Phenomena (UAP) incident remain redacted in the released documents.
+  - id: 649ea022-7c22-4558-a17d-9313b520149b
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4018-4185
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      According to the Department of War, the senior intelligence official was a passenger in a helicopter that left a Joint Operations Center with another official and two pilots.
+    text: |-
+      A senior intelligence official was a passenger in a helicopter that left a Joint Operations Center with another official and two pilots.
+  - id: aa63a49d-589d-4326-90d3-bca5511a4a2f
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4194-4291
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The team was investigating unusual noises and reports of glowing orbs in and around the military facility.
+    text: |-
+      The helicopter team was investigating unusual noises and reports of glowing orbs in and around the military facility.
+  - id: 58a02beb-e1e2-48ca-bd22-43123ba49345
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4301-4429
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The objects had reportedly been seen over several previous nights, while personnel had also heard loud thuds in the surrounding mountains.
+    text: |-
+      Glowing orbs had reportedly been seen over several previous nights at the military facility.
+  - id: 7712a045-d133-4417-9d29-7874d5fc291a
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4374-4429
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: personnel had also heard loud thuds in the surrounding mountains.
+    text: |-
+      Personnel at the military facility had heard loud thuds in the surrounding mountains.
+  - id: d84c49bf-b58c-4d35-87d1-c37d5a8d40f7
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4441-4520
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      This led the crew to search for debris or other objects that might explain the sightings.
+    text: |-
+      The search by the helicopter crew was conducted to find debris or other objects that might explain the sightings of glowing orbs.
+  - id: 57b48cc7-402b-45dc-bae8-3885690564be
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4532-4595
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: The helicopter flew low through the mountain range for several hours.
+    text: |-
+      The helicopter flew at low altitude through the mountain range for several hours during the search operation.
+  - id: 5c127044-3b89-418c-893e-b67d56b8d7ab
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4603-4745
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The crew examined several pieces of debris, but each was found to be part of old rockets or other projectiles left behind by years of weapons testing.
+    text: The helicopter crew examined several pieces of debris during the search.
+  - id: a552e993-c38a-43a9-9d19-2a2a0be4435e
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4651-4745
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      each was found to be part of old rockets or other projectiles left behind by years of weapons testing.
+    text: |-
+      Each piece of debris examined by the helicopter crew was found to be part of old rockets or other projectiles left behind by years of weapons testing.
+  - id: 9d9dddfa-f241-456d-afa7-0126238a6a7d
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4755-4833
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      During the search, they also discovered a large cave entrance with no visible end.
+    text: The helicopter crew discovered a large cave entrance with no visible end.
+  - id: 15da844e-638f-49fe-8433-b390b04fe784
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4839-4957
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      There was nowhere safe to land, so the pilot circled the area before the crew recorded its location and continued the mission.
+    text: There was nowhere safe for the helicopter to land near the large cave entrance.
+  - id: be726146-9a8e-4acf-94c5-5e27aeb89737
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4874-4957
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      the pilot circled the area before the crew recorded its location and continued the mission.
+    text: |-
+      The helicopter pilot circled the large cave area, the crew recorded its location, and they continued the mission.
+  - id: 93569559-6080-4778-b4c3-cfe74481a336
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:4967-5123
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      After dropping off one member of the team and refuelling, the helicopter was directed towards another area where ground personnel believed they had spotted debris.
+    text: |-
+      After dropping off one team member and refuelling, the helicopter was directed towards another area where ground personnel believed they had spotted debris.
+  - id: 740c3b2e-8065-4af9-8402-7b3fe2c33818
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5132-5148
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: By then, it was dark.
+    text: |-
+      By the time the helicopter was redirected to the second search area, it was dark outside.
+  - id: 3d7f0138-0c3b-4929-b961-0551b18d8800
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5155-5285
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The pilots used night-vision goggles and the helicopter's infrared camera, while the intelligence official watched with the naked eye.
+    text: |-
+      The helicopter pilots used night-vision goggles and the helicopter's infrared camera during the night search.
+  - id: fa02ec37-2c01-4bfa-8d4d-a68da9919c1f
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5230-5285
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: while the intelligence official watched with the naked eye.
+    text: |-
+      The intelligence official watched the search with the naked eye during the night operation.
+  - id: 35313d42-2293-4fe5-9904-d3cf4def75a3
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5291-5316
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: The initial search found nothing.
+    text: The initial search of the second area found nothing.
+  - id: 501fe406-ca4c-4548-9671-85f54805cd9e
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5326-5473
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      As the helicopter began returning to base, however, the Joint Operations Center reported fresh detections in an area where UAP had previously been seen.
+    text: |-
+      As the helicopter began returning to base, the Joint Operations Center reported fresh Unidentified Anomalous Phenomena (UAP) detections in an area where previous sightings had occurred.
+  - id: 53a4bd6c-5701-49d2-aa6a-37e69891cd48
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5515-5582
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: What followed was a series of close UAP encounters lasting over an hour.
+    text: |-
+      A series of close Unidentified Anomalous Phenomena (UAP) encounters lasting over an hour followed the fresh detections reported by the Joint Operations Center.
+  - id: c77a73ab-e6dc-40bf-b230-2b797466be3c
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5610-5708
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      Ground observers using infrared equipment reported seeing a 'super-hot' orb hovering close to the ground.
+    text: |-
+      Ground observers using infrared equipment reported seeing a 'super-hot' orb hovering close to the ground.
+  - id: 7a56ea18-3350-4568-a9ff-57bb5a59ba68
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5717-5744
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: It then moved away at high speed
+    text: The super-hot orb moved away at high speed.
+  - id: 2d8279ac-75ee-42c0-8074-0b3a2b63cbe4
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5750-5781
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: and appeared to split into two objects,
+    text: The super-hot orb appeared to split into two objects.
+  - id: 0fa8edfd-f812-44cc-a90a-8ab8dd31b70b
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5790-5825
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: which accelerated off in different directions.
+    text: The two objects accelerated off in different directions.
+  - id: 8ab8bb3a-9317-4dc4-94d1-b9350a597eb7
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: FBI 302 interview record summarised by Department of War
+    attribution_in_text: false
+    location: char:5838-5937
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+      - id: 00626f10-317d-475d-8329-c5889fe03b8d
+        name: Federal Bureau of Investigation (FBI)
+    quote: |-
+      According to the Department of War's summary of the FBI interview, the orb travelled for around 20 miles
+    text: |-
+      According to the Department of War's summary of the Federal Bureau of Investigation interview, the orb travelled approximately 32 kilometres.
+  - id: 6dbc1a6c-aded-4915-acd6-60910e84889a
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: FBI 302 interview record
+    attribution_in_text: false
+    location: char:5943-5992
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: and moved too quickly for the helicopter to keep up.
+    text: The orb moved too quickly for the helicopter to keep up with it.
+  - id: be740818-454e-405f-a102-99475edaedf7
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:5997-6115
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The ground team then reported that the object had risen from the ground and came within approximately ten feet of the helicopter.
+    text: |-
+      The ground team reported that the object had risen from the ground and came within approximately 3 metres of the helicopter.
+  - id: eda21a67-167e-4619-9f17-8e4c690d594b
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:6128-6175
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: The pilots saw the object through night-vision goggles.
+    text: The helicopter pilots saw the object through night-vision goggles.
+  - id: 95e17753-8548-4cee-b07b-39bd395d31a1
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:6185-6313
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      They also reported seeing something smaller emerge from the two objects before travelling away in a different direction at high speed.
+    text: |-
+      Something smaller emerged from the two objects and travelled away in a different direction at high speed.
+  - id: 65d33826-a1bd-42ca-8e30-e4ca3b153a0b
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:6321-6380
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: The helicopter attempted to follow but could not match its speed.
+    text: |-
+      The helicopter attempted to follow the smaller object but could not match its speed.
+  - id: 1cf03b4b-2824-42dd-a47c-84cc02b18a52
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:6409-6530
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The Joint Operations Center then told the crew that five military aircraft were flying in the area as part of a training mission.
+    text: Five military aircraft were flying in the area as part of a training mission.
+  - id: 4f91f6a3-fe4c-4fd6-9aa4-fc07901f0f43
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:6540-6592
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: The intelligence official described them as fighter jets.
+    text: The intelligence official described the five military aircraft as fighter jets.
+  - id: ffe3b029-cfd6-4351-8a8e-6f3549b64370
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:6599-6741
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      A short time later, the helicopter crew saw what the official described as countless orange lights moving in different directions against the mountains.
+    text: |-
+      The helicopter crew saw what the official described as countless orange lights moving in different directions against the mountains.
+  - id: 36632696-52f8-4661-bed1-8c82c472c8ff
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:6753-6795
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: The display lasted several minutes before fading.
+    text: The display of countless orange lights lasted several minutes before fading.
+  - id: 3f2cf5c9-0e2d-4858-846c-1399dd30e13b
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:6804-6902
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The helicopter was then directed towards further detections and hovered around 700 feet above the ground.
+    text: |-
+      The helicopter was directed towards further detections and hovered approximately 210 metres above the ground.
+  - id: 91380629-0965-498f-8a21-0a836100e7d8
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:6911-6981
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: Two large orbs appeared close to the helicopter, just above the rotor blades.
+    text: Two large orbs appeared close to the helicopter, just above the rotor blades.
+  - id: 8d29b9d1-a34c-4011-9d27-52e948d73a54
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:6990-7079
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The intelligence official described them as oval-shaped and orange, with white or yellow centres.
+    text: |-
+      The intelligence official described the two large orbs as oval-shaped and orange, with white or yellow centres.
+  - id: 34928af4-9eff-495f-a345-1c9be78261ed
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7089-7156
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: He said they appeared to remain still while shining light in every direction.
+    text: |-
+      The two large orbs appeared to remain still while shining light in every direction.
+  - id: 785352d9-9a3a-4b89-8f34-bd7733a03109
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7168-7216
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: More orbs then appeared underneath the original pair.
+    text: More orbs appeared underneath the original two large orbs.
+  - id: eda02cb2-c124-4eb4-81a5-e19d4d98f741
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7245-7407
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      After a few seconds, a third orb flared up below the pair, followed by a fourth below that, forming a total of four or five in a 'T' formation under the original two.
+    text: |-
+      A third orb flared up below the pair of original orbs, followed by a fourth below that, forming a total of four or five orbs in a 'T' formation under the original two.
+  - id: 047a82a8-cf91-48e5-9ba3-c2d0be642b8f
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7414-7496
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The objects remained visible for around 10 to 15 seconds before fading in reverse order.
+    text: |-
+      The orbs in the 'T' formation remained visible for approximately 10 to 15 seconds before fading in reverse order.
+  - id: 485bd28b-2ebd-4a0c-aaef-a0602ad7a238
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7504-7570
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: The pilots briefly considered landing because the objects were so close,
+    text: The helicopter pilots briefly considered landing because the orbs were so close.
+  - id: a0d850cd-3bea-46f9-958a-ac94ec2f78f2
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7577-7605
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: but instead remained in the air.
+    text: The helicopter pilots remained in the air instead of landing.
+  - id: 6004c9f4-78cc-44ea-b5af-578b483a94e7
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7611-7664
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: Similar formations were then seen above the military aircraft.
+    text: Similar orb formations were then seen above the military aircraft.
+  - id: 0f312c68-71e4-4596-a905-db3be2846814
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7675-7747
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: According to the official, the orbs appeared one by one in a horizontal line
+    text: The orbs appeared one by one in a horizontal line above the military aircraft.
+  - id: 61a2b9c0-ceb4-4395-9280-ea446803f30c
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7752-7797
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: and seemed to match the aircraft's speed and direction.
+    text: The orbs seemed to match the military aircraft's speed and direction.
+  - id: 29aacf08-f311-4e01-86dc-a508a1171f97
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7809-7829
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: They then faded and disappeared.
+    text: The orbs then faded and disappeared.
+  - id: b85b7cea-7aac-4c9a-be9f-13976c344bc0
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7843-7942
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      This happened several times as the military aircraft moved through the area and later descended to land.
+    text: |-
+      Similar orb formations appeared multiple times as the military aircraft moved through the area and later descended to land.
+  - id: 28fd655f-aa32-46e1-8d4d-98ad06428926
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:7949-8030
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The intelligence official said it appeared as though the orbs were 'chasing' the aircraft.
+    text: |-
+      The intelligence official said the orbs appeared as though they were 'chasing' the military aircraft.
+  - id: 50eac296-bb4b-4712-82a3-4df26a6284dc
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: USPER Statement about UAP Sighting
+    attribution_in_text: false
+    location: char:8041-8167
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The other government record similarly states: 'The orbs appeared to break off from [the helicopter] and pursue the [military aircraft].'
+    text: |-
+      The government record similarly states that the orbs appeared to break off from the helicopter and pursue the military aircraft.
+  - id: 7585af5b-9cce-43c0-96f3-2fc39449a037
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:8180-8322
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The documents describe more sightings over the next half-hour, including swarms of lights, horizontal formations and three orbs arranged in a triangle.
+    text: |-
+      The released government documents describe more Unidentified Anomalous Phenomena (UAP) sightings over the next half-hour, including swarms of lights, horizontal formations and three orbs arranged in a triangle.
+  - id: 6a05387e-0364-4ba6-8db4-267ed01682d9
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: 'ODNI-UAP-D001: USPER Narrative'
+    attribution_in_text: false
+    location: char:8333-8457
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      After returning to the Joint Operations Center, the intelligence official wrote: 'We were virtually speechless after these observations.'
+    text: |-
+      After returning to the Joint Operations Center, the intelligence official described being virtually speechless after the observations.
+  - id: 6c1c3d0a-3726-48da-80de-ea021f721a07
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: United States Department of War
+    attribution_in_text: false
+    location: char:8671-8780
+    refs:
+      - id: 3eb80268-579a-4bd1-a361-b00550f8ac2f
+        name: United States Department of War
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+    quote: |-
+      The Department of War directly connects the images to the same exercise described by the senior intelligence official.
+    text: |-
+      The United States Department of War directly connects the images to the same exercise described by the senior intelligence official.
+  - id: 20d9098c-428a-4a6d-9a5a-d38f57e7181f
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: United States Department of War
+    attribution_in_text: false
+    location: char:8791-8949
+    refs:
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+    quote: |-
+      Its description states that the official's account is accompanied by infrared imagery taken during the exercise by other federal personnel observing from the ground.
+    text: |-
+      The senior intelligence official's account is accompanied by infrared imagery taken during the exercise by other federal personnel observing from the ground.
+  - id: 205e41ea-5a97-48ac-acc5-26e217164ee4
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: United States Department of War website
+    attribution_in_text: false
+    location: char:9109-9308
+    refs:
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+      - id: 3eb80268-579a-4bd1-a361-b00550f8ac2f
+        name: United States Department of War
+    quote: |-
+      A separate description on the Department of War website says: 'The photos of UAP underneath the helicopter are from this same set of observations, taken through night vision devices by ground-based personnel.'
+    text: |-
+      A description on the United States Department of War website states that photographs of Unidentified Anomalous Phenomena underneath the helicopter are from the same set of observations, taken through night vision devices by ground-based personnel.
+  - id: aa6e62ce-44a0-4d1e-9b80-3b015a682695
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: Infrared aerial photographs from December 2025 ODNI UAP incident
+    attribution_in_text: false
+    location: char:9321-9469
+    refs:
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+    quote: |-
+      The black-and-white images show dark, circular objects that the Department of War says were photographed beneath the helicopter by personnel on the ground.
+    text: |-
+      The black-and-white images show dark, circular objects photographed beneath the helicopter by personnel on the ground.
+  - id: ab93dc20-4532-4269-bbf8-2f32c0a7f076
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: government records
+    attribution_in_text: false
+    location: char:9603-9694
+    refs:
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+    quote: |-
+      The government says the people operating the equipment could not identify what the objects were.
+    text: |-
+      The people operating the equipment could not identify what the objects in the photographs were.
+  - id: 756649ea-a24b-4028-bb61-8d7d3acfb4c2
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: government records
+    attribution_in_text: false
+    location: char:9783-9923
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      Some details were removed to protect the identities of witnesses, the location of the facility and other sensitive information unrelated to UAP.
+    text: |-
+      Some details in the released documents were removed to protect the identities of witnesses, the location of the facility and other sensitive information unrelated to Unidentified Anomalous Phenomena.
+  - id: 9c1d2a4c-9e18-49ca-84b3-7b9d97820fee
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: United States Department of War
+    attribution_in_text: false
+    location: char:9929-10032
+    refs:
+      - id: 3eb80268-579a-4bd1-a361-b00550f8ac2f
+        name: United States Department of War
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+    quote: |-
+      The Department of War says nothing was removed that would alter what the images show about the objects themselves.
+    text: |-
+      The United States Department of War says nothing was removed from the photographs that would alter what the images show about the objects themselves.
+  - id: 4fe7435f-887d-4115-bf8f-66a624874122
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:10045-10123
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The documents also state that the helicopter pilots were recording during the encounter.
+    text: |-
+      The government documents state that the helicopter pilots were recording during the encounter.
+  - id: 805b002c-4127-475b-b072-975394346803
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:10170-10252
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The documents do not openly describe the mission as an attempt to lure or attract UAP.
+    text: |-
+      The released government documents do not openly describe the mission as an attempt to lure or attract Unidentified Anomalous Phenomena.
+  - id: e55f816b-613d-4edb-83f7-2d10d1a9ef6a
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: previously classified operational record
+    attribution_in_text: false
+    location: char:10267-10454
+    date: 2025-12
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      the previously classified operational record contains one potentially important detail. It says that, earlier that day, a government office had completed a 'successful test' at the same facility.
+    text: |-
+      The previously classified operational record contains a reference to a 'successful test' completed earlier that day at the same facility.
+  - id: f3b42fad-0978-453e-97b6-b692097c4dad
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:10465-10513
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: The name of the office and the type of test are redacted.
+    text: |-
+      The name of the government office that conducted the 'successful test' is redacted in the released documents.
+  - id: 45da110e-f3ad-4ef7-a0aa-5efec0e9d777
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: released government documents
+    attribution_in_text: false
+    location: char:10465-10513
+    refs:
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: The name of the office and the type of test are redacted.
+    text: The type of 'successful test' conducted is redacted in the released documents.
+  - id: 522e4482-8ba8-4bc6-bb3a-302ec8db2e09
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: United States Department of War
+    attribution_in_text: false
+    location: char:10524-10653
+    date: 2025-12
+    refs:
+      - id: 3eb80268-579a-4bd1-a361-b00550f8ac2f
+        name: United States Department of War
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The Department of War also describes the encounters as taking place during an 'exercise,' but does not explain what the exercise involved.
+    text: |-
+      The United States Department of War describes the encounters as taking place during an 'exercise'.
+  - id: e5166c2f-26ff-4b17-8738-776a36063ed7
+    type: observation
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: United States Department of War
+    attribution_in_text: false
+    location: char:10618-10653
+    refs:
+      - id: 3eb80268-579a-4bd1-a361-b00550f8ac2f
+        name: United States Department of War
+    quote: does not explain what the exercise involved.
+    text: The United States Department of War does not explain what the exercise involved.
+  - id: b2cb7cb9-6d2f-4623-a11d-ba0f9ee2eb77
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to be an official involved in the operation
+      origin_ref: briefing-officials
+      relay:
+        - Eric Burlison
+    attribution_in_text: false
+    location: char:11212-11403
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      I was briefed on an event that occurred where they basically tried to set up a perfect-case scenario that would cause UAP to come in, and then to capture them—or to try to document or record them.
+    text: |-
+      Eric Burlison was briefed on an event where officials set up a scenario designed to cause Unidentified Anomalous Phenomena (UAP) to come in and allow documentation or recording.
+  - id: f67ca84b-b11d-4705-ae5d-f221d6474240
+    type: opinion
+    attestation: second_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to be an official involved in the operation
+      origin_ref: briefing-officials
+      relay:
+        - Eric Burlison
+    attribution_in_text: false
+    location: char:11411-11427
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: And it was very successful.
+    text: |-
+      Eric Burlison characterises the Unidentified Anomalous Phenomena (UAP) operation as very successful.
+  - id: 130e8b38-d5b5-4395-ae6f-317264f9f8d5
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to be an official involved in the operation
+      origin_ref: briefing-officials
+      relay:
+        - Eric Burlison
+    attribution_in_text: false
+    location: char:11439-11570
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      This only happened a few months ago, and this is when the whole conversation changed, because that event was one that no one could deny.
+    text: |-
+      Eric Burlison says the Unidentified Anomalous Phenomena (UAP) operation occurred a few months before his May 2026 interview.
+  - id: 295304d9-cba5-44bf-97e5-3fa1b03d169e
+    type: opinion
+    attestation: second_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to be an official involved in the operation
+      origin_ref: briefing-officials
+      relay:
+        - Eric Burlison
+    attribution_in_text: false
+    location: char:11480-11570
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      this is when the whole conversation changed, because that event was one that no one could deny.
+    text: |-
+      Eric Burlison characterises the Unidentified Anomalous Phenomena (UAP) incident as a turning point in the public conversation.
+  - id: 608c4de1-5a5f-4751-83f0-1278a1dadd12
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to be an official involved in the operation
+      origin_ref: briefing-officials
+      relay:
+        - Eric Burlison
+    attribution_in_text: false
+    location: char:11600-11646
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: There were so many people who witnessed these things,
+    text: Many people witnessed the Unidentified Anomalous Phenomena (UAP) objects.
+  - id: d6f60f55-6f74-4703-afe9-eaa1d3f81cab
+    type: opinion
+    attestation: second_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to be an official involved in the operation
+      origin_ref: briefing-officials
+      relay:
+        - Eric Burlison
+    attribution_in_text: false
+    location: char:11654-11720
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: and they were all credible people working in our top intelligence sector.
+    text: |-
+      The witnesses to the Unidentified Anomalous Phenomena (UAP) incident were credible people working in the top intelligence sector.
+  - id: 718ef165-d9e0-4f67-bf7f-73e338b9f0bd
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: anonymous
+      origin: a person claiming to be an official involved in the operation
+      origin_ref: briefing-officials
+      relay:
+        - Eric Burlison
+    attribution_in_text: false
+    location: char:11730-11812
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      They brought me in to brief me on this within a few days or weeks after the event happened.
+    text: |-
+      Eric Burlison was brought in to receive a briefing within a few days or weeks after the Unidentified Anomalous Phenomena (UAP) incident occurred.
+  - id: 385e1e16-30b2-40fd-93c8-80d0e94a70d9
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison
+    attribution_in_text: false
+    location: char:11822-11896
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+    quote: I felt that was nice that they did that; they knew I was researching this topic.
+    text: |-
+      Eric Burlison was aware that the officials knew he was researching the Unidentified Anomalous Phenomena (UAP) topic.
+  - id: 8aeefbad-c73e-4bc7-83b8-c54586874457
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison
+    attribution_in_text: false
+    location: char:11961-12009
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: ab95dad9-0250-4fd4-b341-87bf058e4fb5
+        name: United States Congress
+    quote: Yes, other members of Congress have heard about this.
+    text: |-
+      Other members of the United States Congress have heard about the classified Unidentified Anomalous Phenomena (UAP) briefing.
+  - id: 54565778-af52-427f-864e-fd013a4ab6df
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: anonymous
+      origin: officials who organised the briefing
+      origin_ref: briefing-officials
+      relay:
+        - Eric Burlison
+    attribution_in_text: false
+    location: char:12015-12076
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 7cc9430a-0a4a-4886-a040-52e6f7a371ef
+        name: Steve Scalise
+      - id: 8a02800a-fbeb-453c-997a-9cc4f2354870
+        name: Congressional briefing on December 2025 ODNI UAP incident to House leadership
+    quote: Leader Scalise got the briefing along with a couple of other members.
+    text: |-
+      House Majority Leader Steve Scalise received the classified Unidentified Anomalous Phenomena (UAP) briefing.
+  - id: 177f01fe-39d3-4191-b857-9a43ebdf4575
+    type: testimony
+    attestation: second_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: anonymous
+      origin: officials who organised the briefing
+      origin_ref: briefing-officials
+      relay:
+        - Eric Burlison
+    attribution_in_text: false
+    location: char:12015-12076
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 433079d3-cfb1-4daf-b6fd-244ab04d8467
+        name: United States House of Representatives
+    quote: Leader Scalise got the briefing along with a couple of other members.
+    text: |-
+      A couple of other members of the United States House of Representatives received the classified Unidentified Anomalous Phenomena (UAP) briefing alongside Steve Scalise.
+  - id: 2e701026-abae-41e3-b61a-782974cbe5cf
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison
+    attribution_in_text: false
+    location: char:12087-12124
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 7cc9430a-0a4a-4886-a040-52e6f7a371ef
+        name: Steve Scalise
+    quote: I had only told Leader Scalise about this,
+    text: |-
+      Eric Burlison had told Steve Scalise about the classified Unidentified Anomalous Phenomena (UAP) briefing.
+  - id: 1bc3c22d-86d1-46e1-9014-a6252e5cdd43
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: a7498988-79cf-4942-a66f-e621fb5c56b4
+      name: Eric Burlison
+    provenance_chain:
+      origin_kind: speaker
+      origin: Eric Burlison
+    attribution_in_text: false
+    location: char:12130-12159
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: ab95dad9-0250-4fd4-b341-87bf058e4fb5
+        name: United States Congress
+    quote: and now everybody wants this briefing.
+    text: |-
+      Members of the United States Congress now want the classified Unidentified Anomalous Phenomena (UAP) briefing.
+  - id: 5d8a1752-f3b7-4403-852c-6858c8d450df
+    type: testimony
+    attestation: first_hand
+    speaker:
+      id: 7cc9430a-0a4a-4886-a040-52e6f7a371ef
+      name: Steve Scalise
+    provenance_chain:
+      origin_kind: speaker
+      origin: Steve Scalise
+    attribution_in_text: false
+    location: char:12762-12818
+    date: '2026-04-28'
+    refs:
+      - id: 7cc9430a-0a4a-4886-a040-52e6f7a371ef
+        name: Steve Scalise
+      - id: 8a02800a-fbeb-453c-997a-9cc4f2354870
+        name: Congressional briefing on December 2025 ODNI UAP incident to House leadership
+    quote: Well, we had a classified briefing that some of us went to.
+    text: |-
+      House Majority Leader Steve Scalise received a classified Unidentified Anomalous Phenomena (UAP) briefing.
+  - id: 248226fe-f303-40bc-8dd2-0b36e32cd4b2
+    type: opinion
+    attestation: first_hand
+    speaker:
+      id: 7cc9430a-0a4a-4886-a040-52e6f7a371ef
+      name: Steve Scalise
+    provenance_chain:
+      origin_kind: speaker
+      origin: Steve Scalise
+    attribution_in_text: false
+    location: char:12885-13025
+    date: '2026-04-28'
+    refs:
+      - id: 7cc9430a-0a4a-4886-a040-52e6f7a371ef
+        name: Steve Scalise
+    quote: |-
+      Well, you know, whenever you go to a briefing like that, there are some things you see that are eye-opening—and that's about as far as I'll go.
+    text: |-
+      Steve Scalise considers the classified briefing to contain eye-opening information.
+infrastructure_claims:
+  - id: 57126962-59bb-4cc5-9f1e-cd51eac75800
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: article byline
+    attribution_in_text: false
+    location: char:121-196
+    date: '2026-07-12'
+    refs:
+      - id: d57737e0-83ec-490c-87e1-9c4c52a2322f
+        name: Christopher Sharp
+    quote: Written by [Christopher Sharp](https://twitter.com/ChrisUKSharp) - 12 July 2026
+    text: |-
+      Christopher Sharp wrote an article about Unidentified Anomalous Phenomena (UAP) claims on 2026-07-12.
+  - id: 5d3febbd-eabe-431e-aff3-e45a878c8a7e
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: article narrative
+    attribution_in_text: false
+    location: char:419-527
+    refs:
+      - id: b3d83372-b8c0-433b-823c-f77d1f3e3e3f
+        name: Jordan Flowers
+      - id: a9cf6a04-b2ae-43c7-9f64-1ea631709fe6
+        name: Disclosure Foundation
+      - id: 5876e702-4124-48c9-8006-5af18cbcbc76
+        name: CBS News
+    quote: |-
+      Jordan Flowers, executive director of the Disclosure Foundation, made the claim during an appearance on CBS News.
+    text: |-
+      Jordan Flowers, executive director of the Disclosure Foundation, appeared on CBS News to discuss publicly available information about Unidentified Anomalous Phenomena claims.
+  - id: 75de9471-8d00-4dbe-9380-24bfafbe3e5e
+    type: observation
+    provenance_chain:
+      origin_kind: unattributed
+      origin: article narrative
+    attribution_in_text: false
+    location: char:2494-2642
+    refs:
+      - id: 5bbe0c04-203e-4bc4-8789-7cf386a3f99d
+        name: President Trump's UAP disclosure initiative
+      - id: 700d931e-ee8b-4c99-8c17-f6069cbff57f
+        name: December 2025 ODNI UAP luring operation incident
+    quote: |-
+      The event described by Flowers appears to be the same incident recorded in two government documents released under President Trump's UAP disclosure initiative.
+    text: |-
+      Two government documents were released under President Trump's Unidentified Anomalous Phenomena (UAP) disclosure initiative describing the same incident.
+  - id: f7dec0cf-2b18-4128-9d3c-3f377219ecd2
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: government records release
+    attribution_in_text: false
+    location: char:2655-2723
+    refs:
+      - id: 5bbe0c04-203e-4bc4-8789-7cf386a3f99d
+        name: President Trump's UAP disclosure initiative
+      - id: c3a068f0-3872-4c96-9b8f-1ac1ef948d15
+        name: First tranche UAP documents release
+    quote: One was released in the first tranche of files and the other in the second.
+    text: |-
+      One document was released in the first tranche of files and another in the second tranche under President Trump's Unidentified Anomalous Phenomena (UAP) disclosure initiative.
+  - id: 03285ba6-fda2-40a0-b1d8-7eb9e5d76c06
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: United States Department of War
+    attribution_in_text: false
+    location: char:2734-2954
+    refs:
+      - id: 3eb80268-579a-4bd1-a361-b00550f8ac2f
+        name: United States Department of War
+      - id: 00626f10-317d-475d-8329-c5889fe03b8d
+        name: Federal Bureau of Investigation (FBI)
+      - id: 592a459b-a59a-4f83-b22b-61d62cb19cc0
+        name: USPER Statement about UAP Sighting
+    quote: |-
+      The first document, titled [USPER Statement about UAP Sighting](/s/usper-statement-redacted.pdf) , is described by the Department of War as an FBI 302 interview with a senior U.S. intelligence official who witnessed the encounter.
+    text: |-
+      A document titled 'USPER Statement about UAP Sighting' is described by the United States Department of War as a Federal Bureau of Investigation (FBI) 302 interview with a senior U.S. intelligence official who witnessed the encounter.
+  - id: 7e6b9047-7a94-41e0-a3c2-4f6f4587c79b
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: government records release
+    attribution_in_text: false
+    location: char:3045-3207
+    refs:
+      - id: 3a0aaf74-f997-4f0c-928e-a38b71357e2f
+        name: 'ODNI-UAP-D001: USPER Narrative'
+      - id: 5bbe0c04-203e-4bc4-8789-7cf386a3f99d
+        name: President Trump's UAP disclosure initiative
+    quote: |-
+      The second document, titled [ODNI-UAP-D001, USPER Narrative, Senior USIC Official](/s/ODNI-UAP-D001_USPER_Narrative_Senior_USIC.pdf) , was released in the second tranche.
+    text: |-
+      A document titled 'ODNI-UAP-D001: USPER Narrative, Senior USIC Official' was released in the second tranche of files under President Trump's Unidentified Anomalous Phenomena (UAP) disclosure initiative.
+  - id: 8019ab1f-0bd4-49a0-962e-636c7a52b692
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: United States Department of War
+    attribution_in_text: false
+    location: char:3216-3357
+    refs:
+      - id: 3eb80268-579a-4bd1-a361-b00550f8ac2f
+        name: United States Department of War
+      - id: 3a0aaf74-f997-4f0c-928e-a38b71357e2f
+        name: 'ODNI-UAP-D001: USPER Narrative'
+    quote: |-
+      The Department of War describes it as a firsthand account written by a currently serving senior U.S. intelligence official who witnessed the encounters.
+    text: |-
+      The United States Department of War describes the 'ODNI-UAP-D001: USPER Narrative' document as a firsthand account written by a currently serving senior U.S. intelligence official who witnessed the encounters.
+  - id: 1f50f521-5cd2-4ec9-9ad5-4e0fc516a632
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: United States Department of War website
+    attribution_in_text: false
+    location: char:8514-8611
+    refs:
+      - id: 3eb80268-579a-4bd1-a361-b00550f8ac2f
+        name: United States Department of War
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+    quote: |-
+      The Department of War lists 24 images under the 'Related Media' section alongside the government records.
+    text: |-
+      The United States Department of War lists 24 images under the 'Related Media' section alongside the government records.
+  - id: 19c92bfe-69da-42d2-9eaf-25553bb793cb
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: article narrative
+    attribution_in_text: false
+    location: char:8620-8663
+    refs:
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+    quote: Six of those images are reproduced further below.
+    text: Six of the 24 Department of War images are reproduced in the article.
+  - id: e3fa9190-84c5-4172-a066-3624b1a5442d
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: government records release
+    attribution_in_text: false
+    location: char:8958-9096
+    date: '2026-05-08'
+    refs:
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+      - id: c3a068f0-3872-4c96-9b8f-1ac1ef948d15
+        name: First tranche UAP documents release
+      - id: 5bbe0c04-203e-4bc4-8789-7cf386a3f99d
+        name: President Trump's UAP disclosure initiative
+    quote: |-
+      The images were originally released on 8 May 2026, as part of the first tranche of files published under President Trump's UAP disclosure initiative.
+    text: |-
+      The images were originally released on 2026-05-08 as part of the first tranche of files published under President Trump's Unidentified Anomalous Phenomena (UAP) disclosure initiative.
+  - id: 51a1737e-350f-4392-bd38-9dfc16b3c84e
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: government records
+    attribution_in_text: false
+    location: char:9701-9777
+    refs:
+      - id: bc57fe60-c8eb-486c-ae6d-49f0dce827ed
+        name: All-Domain Anomaly Resolution Office (AARO)
+      - id: 00626f10-317d-475d-8329-c5889fe03b8d
+        name: Federal Bureau of Investigation (FBI)
+      - id: 18540c4b-0fa5-4e45-ae9e-1bd01500f2f8
+        name: Infrared aerial photographs from December 2025 ODNI UAP incident
+    quote: The images were provided to the All-Domain Anomaly Resolution Office by the FBI.
+    text: |-
+      The images were provided to the All-Domain Anomaly Resolution Office by the Federal Bureau of Investigation.
+  - id: cb49a4db-ccf5-401d-abfb-2178bd924222
+    type: administrative
+    provenance_chain:
+      origin_kind: unattributed
+      origin: article narrative
+    attribution_in_text: false
+    location: char:11048-11185
+    date: 2026-05
+    refs:
+      - id: a7498988-79cf-4942-a66f-e621fb5c56b4
+        name: Eric Burlison
+      - id: 708bf72c-833d-4d76-b64e-7cb44717ef05
+        name: Annie Frey
+      - id: 24ccdf26-8989-46cd-b59b-368e3779d37a
+        name: Eric Burlison interview with Annie Frey
+    quote: |-
+      Flowers' account closely matches comments made by Republican Representative Eric Burlison during an interview with Annie Frey two months earlier.
+    text: |-
+      Eric Burlison made comments about a Unidentified Anomalous Phenomena (UAP) incident during an interview with Annie Frey.
+  - id: 7eef1869-2b34-4df6-85a8-0c15d5406bbd
+    type: administrative
+    attestation: second_hand
+    provenance_chain:
+      origin_kind: document
+      origin: article narrative
+    attribution_in_text: false
+    location: char:13031-13149
+    refs:
+      - id: b8f5f5ef-0365-4ea8-a0ee-c27f82882242
+        name: Office of the Director of National Intelligence (ODNI)
+      - id: 3eb80268-579a-4bd1-a361-b00550f8ac2f
+        name: United States Department of War
+    quote: |-
+      Liberation Times has requested comment from the Office of the Director of National Intelligence and the Department of War.
+    text: |-
+      Liberation Times has requested comment from the Office of the Director of National Intelligence and the United States Department of War regarding the reported incidents.
