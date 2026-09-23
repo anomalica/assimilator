@@ -123,20 +123,19 @@ def _node_counts(conn: sqlite3.Connection) -> list[tuple[str, str, str, int, int
     """(node_id, node_type, name, claim_count, source_count) for every active
     node a claim references (as speaker or node-ref).
 
-    Sources are distinct WORKS, not distinct records. One work becomes several
-    records on any re-ingest or edition change, and counting records would let a
-    book present twice clear a two-source floor on its own. work_id defaults to
-    the record's own id, so this is identical to a record count until a duplicate
-    is actually linked.
+    Sources are distinct positively established WORK roots, not Records. NULL is
+    unknown and contributes zero; Record identity is never a fallback root.
     """
     return conn.execute(
         f"""
         SELECT n.id, n.node_type, n.name,
                COUNT(DISTINCT x.cid) AS claims,
-               COUNT(DISTINCT COALESCE(r.work_id, x.rid)) AS sources
+               COUNT(DISTINCT pr.id) AS sources
           FROM nodes n
           JOIN ({_NODE_CLAIMS_SQL}) x ON x.nid = n.id
           LEFT JOIN records r ON r.id = x.rid
+          LEFT JOIN provenance_roots pr ON pr.id = r.work_id
+                 AND pr.status = 'established' AND pr.kind = 'work'
          WHERE n.retired_at IS NULL
          GROUP BY n.id
         """
@@ -158,10 +157,12 @@ def _source_spread(conn: sqlite3.Connection) -> dict[str, tuple[int, int]]:
     """
     rows = conn.execute(
         f"""
-        SELECT x.nid, COALESCE(r.work_id, x.rid) AS work,
+        SELECT x.nid, pr.id AS work,
                COUNT(DISTINCT x.cid) AS claims
           FROM ({_NODE_CLAIMS_SQL}) x
-          LEFT JOIN records r ON r.id = x.rid
+          JOIN records r ON r.id = x.rid
+          JOIN provenance_roots pr ON pr.id = r.work_id
+               AND pr.status = 'established' AND pr.kind = 'work'
          GROUP BY x.nid, work ORDER BY x.nid, claims DESC
         """
     ).fetchall()

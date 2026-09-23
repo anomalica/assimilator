@@ -19,17 +19,15 @@ That is not a tidiness problem, it inverts the guards:
   reverses: the pages it blesses most confidently are the ones with the worst
   provenance.
 
-ADR 0039 states the rule this serves - count independence by source, never by
-record count - and names the wire-story reprint as the same defect. ADR 0044's
-provenance chain is the general answer and handles reprints, which no text
-similarity can catch because the bytes really are different. This module is the
-narrower, deterministic half: same TEXT, different bytes. No AI, no embeddings.
+ADR 0051 makes these detectors diagnostic only. Similar text and shared locators
+are candidates for human review, not evidence that two Records have one work
+root. Graph import sets ``records.work_id`` only from a validated, evidenced
+``work_provenance`` declaration or replayable curation. No AI, no embeddings.
 """
 
 from __future__ import annotations
 
 import re
-import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -247,71 +245,3 @@ def find_duplicate_records(
                 pairs.append(DuplicatePair(a, b, round(score, 4), shared, union))
     pairs.sort(key=lambda p: -p.jaccard)
     return pairs
-
-
-def link_works(
-    conn: sqlite3.Connection,
-    ingests_dir: Path,
-    threshold: float = DEFAULT_JACCARD,
-) -> dict:
-    """Collapse duplicate records onto a shared work_id in the graph.
-
-    Union-find over both detectors' pairs, then every record in a group takes the
-    lexicographically smallest member's id as its work_id. Idempotent and
-    order-independent: the same store always yields the same grouping, so this is
-    DERIVED state that a rebuild can recompute rather than something to replay.
-
-    Only records the graph actually holds are touched - the store contains far
-    more than has been digested.
-    """
-    store = ingests_dir / "store"
-    live = live_record_paths(ingests_dir)
-    pairs = find_duplicate_records(store, threshold, paths=live)
-    pairs += find_same_origin_records(store, paths=live)
-
-    parent: dict[str, str] = {}
-
-    def find(x: str) -> str:
-        parent.setdefault(x, x)
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-
-    for pair in pairs:
-        a, b = find(pair.a), find(pair.b)
-        if a != b:
-            parent[min(a, b)] = min(a, b)
-            parent[max(a, b)] = min(a, b)
-
-    by_hash = {
-        row[0].removeprefix("sha256:"): row[1]
-        for row in conn.execute(
-            "SELECT content_hash, id FROM records WHERE content_hash IS NOT NULL"
-        )
-    }
-    groups: dict[str, list[str]] = {}
-    for record_hash in parent:
-        groups.setdefault(find(record_hash), []).append(record_hash)
-
-    linked = 0
-    for members in groups.values():
-        present = sorted(by_hash[h] for h in members if h in by_hash)
-        if len(present) < 2:
-            continue  # the duplicate exists in the store but not in the graph
-        work_id = present[0]
-        for record_id in present:
-            conn.execute(
-                "UPDATE records SET work_id = ? WHERE id = ?", (work_id, record_id)
-            )
-            linked += 1
-    conn.execute("UPDATE records SET work_id = id WHERE work_id IS NULL")
-    conn.commit()
-    return {
-        "duplicate_pairs": len(pairs),
-        "records_linked": linked,
-        "works": conn.execute("SELECT COUNT(DISTINCT work_id) FROM records").fetchone()[
-            0
-        ],
-        "records": conn.execute("SELECT COUNT(*) FROM records").fetchone()[0],
-    }

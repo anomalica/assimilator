@@ -37,6 +37,14 @@ from assimilator.digest_files import (
     digest_is_importable,
     digest_receipt_identity,
 )
+from assimilator.evidence import (
+    prune_unreferenced_provenance_roots,
+    rebuild_evidence_units,
+    replace_claim_anchors,
+    replace_claim_provenance_root,
+    store_record_structure,
+    validate_digest_for_import,
+)
 from assimilator.matching import (
     is_a_description,
     is_fuller_person_name,
@@ -674,7 +682,7 @@ def queue_cross_type_twin(
     return entry
 
 
-def import_extraction(
+def _import_extraction(
     conn: sqlite3.Connection,
     parsed: dict,
     section: str = "domain",
@@ -704,6 +712,11 @@ def import_extraction(
         raise ValueError(f"refusing non-canonical digest path: {source_path}")
     if import_identity is None and source_path:
         import_identity = digest_receipt_identity(Path(source_path), root=root)
+    validated = validate_digest_for_import(
+        parsed,
+        source_path=source_path,
+        source_root=source_root,
+    )
 
     counts = {
         "nodes_created": 0,
@@ -811,6 +824,19 @@ def import_extraction(
     if existing_record is None:
         existing_record = get_record_by_title(conn, record_title)
     if existing_record:
+        declared_hash = (
+            validated.snapshot.content_hash
+            if validated.snapshot is not None
+            else fm.get("content_hash")
+        )
+        if (
+            declared_hash
+            and existing_record.content_hash
+            and declared_hash != existing_record.content_hash
+        ):
+            raise ValueError(
+                "digest Record id/title resolves to a different content_hash"
+            )
         record = existing_record
         # Refresh the record on re-import: metadata (insert-only left every record
         # without a review state forever, which is how the provenance chain stayed
@@ -819,7 +845,9 @@ def import_extraction(
         refreshed = _record_metadata(fm)
         conn.execute(
             "UPDATE records SET metadata = COALESCE(?, metadata), title = ?, "
-            "reference = COALESCE(?, reference), date = COALESCE(?, date) WHERE id = ?",
+            "reference = COALESCE(?, reference), date = COALESCE(?, date), "
+            "content_hash = COALESCE(?, content_hash), "
+            "friendly_name = COALESCE(?, friendly_name) WHERE id = ?",
             (
                 # default=str as insert_record does: the digester's record block
                 # carries dates YAML parses as date objects.
@@ -827,6 +855,8 @@ def import_extraction(
                 record_title,
                 fm.get("record_reference"),
                 str(fm["record_date"]) if fm.get("record_date") else None,
+                declared_hash,
+                fm.get("friendly_name"),
                 record.id,
             ),
         )
@@ -840,7 +870,11 @@ def import_extraction(
         # directly (newer emissions) or we look it up via the friendly
         # filename match against ingests/by-name/ (the deterministic
         # backfill for older YAMLs).
-        content_hash = fm.get("content_hash")
+        content_hash = (
+            validated.snapshot.content_hash
+            if validated.snapshot is not None
+            else fm.get("content_hash")
+        )
         friendly_name = fm.get("friendly_name")
         if not content_hash:
             content_hash, friendly_name = _lookup_ingest_metadata(
@@ -870,6 +904,7 @@ def import_extraction(
         )
         log(f"  Record: {record.title} [{record.id[:8]}]")
     counts["record_id"] = record.id
+    store_record_structure(conn, record.id, validated)
 
     # Build node map: name -> id (from the markdown's node definitions)
     # Match against existing nodes in database(s), create new ones as needed
@@ -1169,6 +1204,7 @@ def import_extraction(
     prior = get_record_claim_hashes(conn, record.id) if existing_record else {}
     carried: list[tuple] = []
     to_insert: list[tuple] = []
+    stored_claim_ids: dict[str, str] = {}
     for claim, chash, entailment in resolved_claims:
         pool = prior.get(chash)
         if pool:
@@ -1191,6 +1227,7 @@ def import_extraction(
             )
             update_claim_entailment(conn, claim_id, entailment)
             carried.append((claim, chash))
+            stored_claim_ids[claim.id] = claim_id
         else:
             to_insert.append((claim, chash, entailment))
 
@@ -1207,8 +1244,25 @@ def import_extraction(
             counts["claims_deleted"] += 1
     for claim, chash, entailment in to_insert:
         insert_claim(conn, claim, claim_hash=chash, entailment=entailment)
+        stored_claim_ids[claim.id] = claim.id
         counts["claims_created"] += 1
     counts["claims_carried"] += len(carried)
+
+    # Evidence identity and provenance are independent of semantic claim_hash.
+    # Refresh both even on the carry-forward path so a source-map or provenance
+    # correction cannot leave stale graph derivations on an unchanged sentence.
+    for claim, _chash, _entailment in resolved_claims:
+        stored_id = stored_claim_ids[claim.id]
+        replace_claim_anchors(
+            conn, stored_id, validated.claim_anchors.get(claim.id, ())
+        )
+        replace_claim_provenance_root(conn, stored_id)
+    prune_unreferenced_provenance_roots(conn)
+
+    # Components are global across category routing. Recompute over both graph
+    # connections so an infrastructure anchor can bridge two domain intervals
+    # (or vice versa) without giving either database a different evidence id.
+    rebuild_evidence_units([conn, *(lookup_conns or [])])
 
     # Stamp the receipt only after the record's complete replacement has
     # succeeded, in the same transaction. Direct unit-level imports without a
@@ -1243,6 +1297,9 @@ def import_extraction(
                 import_identity.get("pre_digest_sha256")
                 or (pre_digest.get("sha256") if isinstance(pre_digest, dict) else None)
             ),
+            digest_schema=validated.schema,
+            record_snapshot_sha256=validated.record_snapshot_sha256,
+            source_map_sha256=validated.source_map_sha256,
             claim_manifest_sha256=(
                 "sha256:" + hashlib.sha256(manifest.encode("utf-8")).hexdigest()
             ),
@@ -1254,8 +1311,53 @@ def import_extraction(
             ),
         }
 
-    conn.commit()
     return counts
+
+
+def import_extraction(
+    conn: sqlite3.Connection,
+    parsed: dict,
+    section: str = "domain",
+    on_progress: callable = None,
+    lookup_conns: list[sqlite3.Connection] | None = None,
+    source_path: str | None = None,
+    import_identity: dict | None = None,
+    source_root: Path | None = None,
+) -> dict:
+    """Atomically validate and import one digest section.
+
+    Validation occurs before the first graph write inside ``_import_extraction``.
+    Savepoints span every connection whose global evidence components can change,
+    so a late integrity failure cannot leave domain and infrastructure disagreeing.
+    """
+    connections: list[sqlite3.Connection] = []
+    for candidate in [conn, *(lookup_conns or [])]:
+        if all(candidate is not existing for existing in connections):
+            connections.append(candidate)
+
+    savepoint = "adr0051_import"
+    for connection in connections:
+        connection.execute(f"SAVEPOINT {savepoint}")
+    try:
+        result = _import_extraction(
+            conn,
+            parsed,
+            section=section,
+            on_progress=on_progress,
+            lookup_conns=lookup_conns,
+            source_path=source_path,
+            import_identity=import_identity,
+            source_root=source_root,
+        )
+    except Exception:
+        for connection in reversed(connections):
+            connection.execute(f"ROLLBACK TO {savepoint}")
+            connection.execute(f"RELEASE {savepoint}")
+        raise
+    for connection in reversed(connections):
+        connection.execute(f"RELEASE {savepoint}")
+        connection.commit()
+    return result
 
 
 def backfill_claim_hashes(
@@ -1355,24 +1457,22 @@ def main(argv: list[str] | None = None) -> int:
 
     domain_conn, infra_conn = _open(db_path), _open(infra_path)
     try:
-        if parsed["domain_claims"]:
-            import_extraction(
-                domain_conn,
-                parsed,
-                section="domain",
-                lookup_conns=[infra_conn],
-                source_path=args.digest,
-                on_progress=print,
-            )
-        if parsed["infrastructure_claims"]:
-            import_extraction(
-                infra_conn,
-                parsed,
-                section="infrastructure",
-                lookup_conns=[domain_conn],
-                source_path=args.digest,
-                on_progress=print,
-            )
+        import_extraction(
+            domain_conn,
+            parsed,
+            section="domain",
+            lookup_conns=[infra_conn],
+            source_path=args.digest,
+            on_progress=print,
+        )
+        import_extraction(
+            infra_conn,
+            parsed,
+            section="infrastructure",
+            lookup_conns=[domain_conn],
+            source_path=args.digest,
+            on_progress=print,
+        )
     finally:
         domain_conn.close()
         infra_conn.close()

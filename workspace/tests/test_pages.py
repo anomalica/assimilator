@@ -14,6 +14,15 @@ def _graph():
         insert_record(
             conn, Record(id=f"r{i}", title=f"R{i}", content_hash=f"sha256:a{i}")
         )
+        conn.execute(
+            "INSERT INTO provenance_roots (id, status, kind, evidence) "
+            "VALUES (?, 'established', 'work', '[\"test fixture\"]')",
+            (f"work-r{i}",),
+        )
+        conn.execute(
+            "UPDATE records SET work_id = ? WHERE id = ?",
+            (f"work-r{i}", f"r{i}"),
+        )
     for nid, name in (
         ("uap", "Unidentified Anomalous Phenomena (UAP)"),
         ("ufo", "Unidentified Flying Object (UFO)"),

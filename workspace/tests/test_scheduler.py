@@ -18,6 +18,7 @@ import yaml
 
 from assimilator import scheduler
 from assimilator.database import init_db, insert_claim, insert_node, insert_record
+from assimilator.digest_files import CURRENT_IMPORT_GENERATION
 from anomalica_common.digest.models import Claim, Node, NodeType, Record
 
 H1 = "1" * 64  # an ingested+reviewed+digestible record
@@ -1039,7 +1040,7 @@ def test_graph_input_fingerprint_names_duplicate_live_bindings(tmp_path, monkeyp
         conn, scheduler._digest_index(digests), digests
     )
     expected_input = {
-        "import_generation": 2,
+        "import_generation": CURRENT_IMPORT_GENERATION,
         "digests": [],
         "curation_sha256": "sha256:" + hashlib.sha256(b"").hexdigest(),
     }

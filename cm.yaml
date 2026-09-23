@@ -32,6 +32,7 @@ stages:
       - apt-get:
           install:
             - gcc
+            - git
             - libc6-dev  # gcc alone (no recommends) has no stdio.h; Triton's helper needs it
   development:
     from: base
@@ -42,8 +43,10 @@ stages:
         - ~/.claude:~/.claude
         - ~/.claude.json:~/.claude.json
         - ~/repos/anomalica/anomalica-common/src:/opt/anomalica-common:ro
+        - ~/repos/anomalica/product/anomalica/architecture/model-policy.yaml:/opt/anomalica-model-policy.yaml:ro
     steps:
       - env:
+          ANOMALICA_MODEL_POLICY: /opt/anomalica-model-policy.yaml
           PYTHONPATH: /opt/anomalica-common
       - pip:
           install:

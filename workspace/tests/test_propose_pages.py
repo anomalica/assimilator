@@ -22,6 +22,14 @@ def _graph():
     init_db(conn)
     for rid in ("r1", "r2", "r3"):
         insert_record(conn, Record(id=rid, title=rid))
+        conn.execute(
+            "INSERT INTO provenance_roots (id, status, kind, evidence) "
+            "VALUES (?, 'established', 'work', '[\"test fixture\"]')",
+            (f"work-{rid}",),
+        )
+        conn.execute(
+            "UPDATE records SET work_id = ? WHERE id = ?", (f"work-{rid}", rid)
+        )
     # Two page-worthy people (9 claims from 3 works, second work carrying 3, every
     # claim about them) and one thin node.
     insert_node(conn, Node(id="alpha", node_type="person", name="Alpha Person"))

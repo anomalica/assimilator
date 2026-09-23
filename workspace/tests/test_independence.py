@@ -13,13 +13,24 @@ import sqlite3
 
 import pytest
 
-from anomalica_common.digest.models import Claim, Node, ProvenanceChain, Record
+from anomalica_common.digest.models import (
+    Claim,
+    Node,
+    ProvenanceChain,
+    Record,
+    SourceAnchor,
+)
 from assimilator.database import (
     init_db,
     insert_alias,
     insert_claim,
     insert_node,
     insert_record,
+)
+from assimilator.evidence import (
+    rebuild_evidence_units,
+    replace_claim_anchors,
+    replace_claim_provenance_root,
 )
 from assimilator.independence import independence_for_nodes
 
@@ -48,12 +59,38 @@ def _claim(c, cid, record, chain, speaker=None):
             provenance_chain=chain,
         ),
     )
+    c.execute(
+        "INSERT OR IGNORE INTO assets (asset_hash, metadata) VALUES (?, '{}')",
+        ("sha256:" + "a" * 64,),
+    )
+    position = c.execute("SELECT COUNT(*) FROM claim_anchors").fetchone()[0] * 10
+    replace_claim_anchors(
+        c,
+        cid,
+        [
+            SourceAnchor(
+                asset_hash="sha256:" + "a" * 64,
+                record_page=1,
+                asset_file_page=1,
+                asset_text_sha256="sha256:" + "b" * 64,
+                asset_span={"start": position, "end": position + 5},
+                body_span={"start": position, "end": position + 5},
+                quote="xxxxx",
+            )
+        ],
+    )
+    replace_claim_provenance_root(c, cid)
+    rebuild_evidence_units([c])
     c.commit()
 
 
 def test_two_records_relaying_one_origin_are_one_source(conn):
     """The case the whole field exists for: a podcast and an article both citing
     the same named origin are two records and one source."""
+    insert_node(
+        conn,
+        Node(id="dia", node_type="organisation", name="Defense Intelligence Agency"),
+    )
     chain = ProvenanceChain(origin_kind="named", origin="Defense Intelligence Agency")
     _claim(conn, "c1", "r1", chain)
     _claim(conn, "c2", "r2", chain)
@@ -81,11 +118,7 @@ def test_an_alias_of_one_origin_does_not_become_a_second_source(conn):
     assert independence_for_nodes(conn, ["subject"])["subject"].sources == 1
 
 
-def test_every_anonymous_origin_collapses_to_one_root(conn):
-    """Across records the prose proves nothing - this record's "the chairman" may
-    be that record's "my DIA contact". Three podcasts relaying one email must not
-    become three sources, so anonymous origins collapse until a matcher can prove
-    two of them distinct."""
+def test_anonymous_origins_remain_unknown(conn):
     for i, rid in enumerate(("r1", "r2", "r3")):
         _claim(
             conn,
@@ -94,10 +127,12 @@ def test_every_anonymous_origin_collapses_to_one_root(conn):
             ProvenanceChain(origin_kind="anonymous", origin="a source"),
         )
 
-    assert independence_for_nodes(conn, ["subject"])["subject"].sources == 1
+    score = independence_for_nodes(conn, ["subject"])["subject"]
+    assert score.sources is None
+    assert score.scored_claims == 0 and score.unscored_claims == 3
 
 
-def test_origin_refs_split_anonymous_sources_only_within_one_record(conn):
+def test_origin_refs_do_not_manufacture_established_roots(conn):
     _claim(
         conn,
         "c1",
@@ -114,9 +149,8 @@ def test_origin_refs_split_anonymous_sources_only_within_one_record(conn):
             origin_kind="anonymous", origin="a technician", origin_ref="technician-1"
         ),
     )
-    # Different source-local handles in another record cannot prove two more
-    # global sources. The conservative count is the maximum distinct set in any
-    # one record, not the sum across records.
+    # Different source-local handles in another record cannot prove global
+    # assertion roots. ADR 0051 therefore leaves every anonymous claim unknown.
     _claim(
         conn,
         "c3",
@@ -126,7 +160,7 @@ def test_origin_refs_split_anonymous_sources_only_within_one_record(conn):
         ),
     )
 
-    assert independence_for_nodes(conn, ["subject"])["subject"].sources == 2
+    assert independence_for_nodes(conn, ["subject"])["subject"].sources is None
 
 
 def test_distinct_speakers_are_distinct_sources(conn):
@@ -147,6 +181,7 @@ def test_a_chainless_claim_is_unscored_not_a_source(conn):
     """A pre-0044 claim has no chain, so its root is unknowable. Counting all
     such claims as one shared "unknown" root would read as one shared SOURCE and
     quietly corroborate everything pre-0044 with everything else."""
+    insert_node(conn, Node(id="nasa", node_type="organisation", name="NASA"))
     _claim(conn, "c1", "r1", ProvenanceChain(origin_kind="named", origin="NASA"))
     _claim(conn, "c2", "r2", None)
     _claim(conn, "c3", "r3", None)
@@ -171,6 +206,7 @@ def test_the_unscored_fraction_is_what_makes_a_count_trustworthy(conn):
     them are both integers. Live example: David Fravor reports 2 origins from 643
     claims, of which 616 are unscored - the number is technically correct and
     means almost nothing without the fraction beside it."""
+    insert_node(conn, Node(id="nasa", node_type="organisation", name="NASA"))
     _claim(conn, "c1", "r1", ProvenanceChain(origin_kind="named", origin="NASA"))
     for i in range(9):
         _claim(conn, f"u{i}", "r2", None)

@@ -30,6 +30,19 @@ def _add_claims(conn, node_id, name, records, subject=True):
         )
 
 
+def _establish_works(conn, record_ids):
+    for record_id in record_ids:
+        root_id = f"work-{record_id}"
+        conn.execute(
+            "INSERT INTO provenance_roots (id, status, kind, evidence) "
+            "VALUES (?, 'established', 'work', '[\"test fixture\"]')",
+            (root_id,),
+        )
+        conn.execute(
+            "UPDATE records SET work_id = ? WHERE id = ?", (root_id, record_id)
+        )
+
+
 # 9 claims from 3 works, the second work carrying 3: clears every page-worthy
 # floor (8 claims, 3 works, second >= 3).
 _SPREAD = ["r1"] * 4 + ["r2"] * 3 + ["r3"] * 2
@@ -42,6 +55,7 @@ def _graph():
     init_db(conn)
     for rid in ("r1", "r2", "r3", "r4"):
         insert_record(conn, Record(id=rid, title=rid))
+    _establish_works(conn, ("r1", "r2", "r3", "r4"))
     nodes = {
         "worthy": ("person", "Ada Worthy"),
         "thin": ("person", "Bo Thin"),  # 7 claims -> fails the claim floor
@@ -143,6 +157,7 @@ def test_subject_reads_through_a_rank_and_a_dated_clause():
     init_db(conn)
     for rid in ("r1", "r2", "r3"):
         insert_record(conn, Record(id=rid, title=rid))
+    _establish_works(conn, ("r1", "r2", "r3"))
     insert_node(conn, Node(id="b", node_type="person", name="William Blanchard"))
     contents = [
         "At midday on 8 July 1947, Colonel William Blanchard ordered a press release.",
@@ -171,3 +186,17 @@ def test_retired_nodes_excluded():
     conn = _graph()
     conn.execute("UPDATE nodes SET retired_at = '2026-01-01' WHERE id = 'worthy'")
     assert "worthy" not in _by_id(page_gate_rows(conn))
+
+
+def test_unknown_work_identity_adds_no_source_count():
+    conn = _graph()
+    conn.execute("UPDATE records SET work_id = NULL")
+
+    assert page_gate_rows(conn) == []
+
+
+def test_non_null_unestablished_work_identity_adds_no_source_count():
+    conn = _graph()
+    conn.execute("UPDATE provenance_roots SET status = 'unknown'")
+
+    assert page_gate_rows(conn) == []

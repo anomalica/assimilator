@@ -53,6 +53,7 @@ RUN python -c "from huggingface_hub import snapshot_download; snapshot_download(
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         gcc \
+        git \
         libc6-dev && \
     rm -rf /var/lib/apt/lists/*
 # Pre-compile .pyc bytecode so imports don't pay the compile cost on every
@@ -69,7 +70,8 @@ ARG USER_GID=1000 \
     USER_UID=1000 \
     USER_NAME=nonroot \
     USER_HOME=/home/nonroot
-ENV PYTHONPATH="/opt/anomalica-common"
+ENV ANOMALICA_MODEL_POLICY="/opt/anomalica-model-policy.yaml" \
+    PYTHONPATH="/opt/anomalica-common"
 RUN pip install --no-cache-dir pytest
 # Pre-compile .pyc bytecode so imports don't pay the compile cost on every
 # startup; the runtime user can't write .pyc back to root-owned site-packages.

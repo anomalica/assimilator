@@ -14,6 +14,14 @@ def _graph():
     init_db(conn)
     for rid in ("r1", "r2"):
         insert_record(conn, Record(id=rid, title=rid))
+        conn.execute(
+            "INSERT INTO provenance_roots (id, status, kind, evidence) "
+            "VALUES (?, 'established', 'work', '[\"test fixture\"]')",
+            (f"work-{rid}",),
+        )
+        conn.execute(
+            "UPDATE records SET work_id = ? WHERE id = ?", (f"work-{rid}", rid)
+        )
     for nm, nid in (("Strong", "strong"), ("Thin", "thin"), ("OneSource", "onesrc")):
         insert_node(conn, Node(id=nid, node_type="person", name=nm))
     # strong: 2 claims from 2 distinct records -> passes 2/2
@@ -97,4 +105,18 @@ def test_floor_tunable():
 def test_retired_nodes_excluded():
     conn = _graph()
     conn.execute("UPDATE nodes SET retired_at = '2026-01-01' WHERE id = 'strong'")
+    assert page_set_node_ids(conn) == []
+
+
+def test_record_identity_is_not_a_fallback_work_root():
+    conn = _graph()
+    conn.execute("UPDATE records SET work_id = NULL")
+
+    assert page_set_node_ids(conn) == []
+
+
+def test_unknown_root_object_is_not_an_established_work():
+    conn = _graph()
+    conn.execute("UPDATE provenance_roots SET status = 'unknown'")
+
     assert page_set_node_ids(conn) == []

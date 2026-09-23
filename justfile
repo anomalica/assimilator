@@ -7,7 +7,9 @@ test:
     docker run --rm \
         -v "$(pwd)/workspace:/home/nonroot/workspace" \
         -v "$HOME/repos/anomalica/anomalica-common/src:/opt/anomalica-common:ro" \
+        -v "$HOME/repos/anomalica/product/anomalica/architecture/model-policy.yaml:/opt/anomalica-model-policy.yaml:ro" \
         -e PYTHONPATH=/opt/anomalica-common \
+        -e ANOMALICA_MODEL_POLICY=/opt/anomalica-model-policy.yaml \
         --user "$(id -u):$(id -g)" \
         -w /home/nonroot/workspace \
         {{IMAGE}} \
@@ -90,7 +92,6 @@ assimilate:
     cd workspace
     python3 -m assimilator.cli assimilate "$digests"
     python3 -m assimilator.cli replay-curation
-    python3 -m assimilator.cli link-works
     python3 -m assimilator.cli propose-pages
 
 # Run `just assimilate` hourly. A STOPGAP: the scheduler generates import jobs

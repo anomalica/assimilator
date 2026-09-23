@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 
 VARIANTS_DIR = "variants"
-CURRENT_IMPORT_GENERATION = 2
+CURRENT_IMPORT_GENERATION = 3
 
 
 def canonical_digests(directory: Path | str) -> list[Path]:

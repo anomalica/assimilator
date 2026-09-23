@@ -391,6 +391,63 @@ def test_substantial_sources_still_rank_first():
     assert {r[-1] for r in kept} == {"big"}
 
 
+def test_unknown_work_records_remain_separate_narrative_sources():
+    from anomalica_common.digest.models import Claim, Record
+    from assimilator.database import insert_claim, insert_record
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(conn, Node(id="N", node_type=NodeType.event, name="An Event"))
+    for record_id in ("r1", "r2"):
+        insert_record(conn, Record(id=record_id, title=record_id))
+        insert_claim(
+            conn,
+            Claim(
+                id=f"claim-{record_id}",
+                content="evidence",
+                claim_type="testimony",
+                record_id=record_id,
+                node_references=["N"],
+            ),
+        )
+
+    assert synthesise._source_focus(conn, "N") == {
+        "record:r1": 1.0,
+        "record:r2": 1.0,
+    }
+
+
+def test_established_work_and_unknown_record_source_keys_cannot_collide():
+    from anomalica_common.digest.models import Claim, Record
+    from assimilator.database import insert_claim, insert_record
+
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_node(conn, Node(id="N", node_type=NodeType.event, name="An Event"))
+    for record_id in ("r1", "r2"):
+        insert_record(conn, Record(id=record_id, title=record_id))
+        insert_claim(
+            conn,
+            Claim(
+                id=f"claim-{record_id}",
+                content="evidence",
+                claim_type="testimony",
+                record_id=record_id,
+                node_references=["N"],
+            ),
+        )
+    conn.execute(
+        """INSERT INTO provenance_roots (id, status, kind)
+           VALUES ('record:r2', 'established', 'work')"""
+    )
+    conn.execute("UPDATE records SET work_id = 'record:r2' WHERE id = 'r1'")
+
+    assert synthesise._source_focus(conn, "N") == {
+        "work:record:r2": 1.0,
+        "record:r2": 1.0,
+    }
+
+
 def _sized_graph(n_claims: int):
     from anomalica_common.digest.models import Claim, Record
     from assimilator.database import insert_claim, insert_record

@@ -53,9 +53,46 @@ def test_init_migrates_an_existing_graph_with_import_receipts():
         "extraction_generation",
         "extraction_config",
         "pre_digest_sha256",
+        "digest_schema",
+        "record_snapshot_sha256",
+        "source_map_sha256",
         "claim_manifest_sha256",
         "imported_at",
     }
+
+
+def test_work_root_migration_retries_until_its_marker_is_committed():
+    conn = _db()
+    record = insert_record(conn, Record(id="record", title="Record"))
+    conn.commit()
+    conn.execute(
+        "UPDATE records SET work_id = 'legacy-heuristic' WHERE id = ?", (record.id,)
+    )
+    conn.execute(
+        "DELETE FROM schema_migrations WHERE name = 'adr0051-explicit-work-roots'"
+    )
+    conn.commit()
+
+    init_db(conn)
+
+    assert conn.execute(
+        "SELECT work_id FROM records WHERE id = ?", (record.id,)
+    ).fetchone() == (None,)
+    assert conn.execute(
+        "SELECT COUNT(*) FROM schema_migrations "
+        "WHERE name = 'adr0051-explicit-work-roots'"
+    ).fetchone() == (1,)
+
+    # Once marked, subsequent starts must not erase work provenance imported by
+    # ADR 0051 or replayed from curation.
+    conn.execute(
+        "UPDATE records SET work_id = 'later-evidenced-root' WHERE id = ?", (record.id,)
+    )
+    conn.commit()
+    init_db(conn)
+    assert conn.execute(
+        "SELECT work_id FROM records WHERE id = ?", (record.id,)
+    ).fetchone() == ("later-evidenced-root",)
 
 
 def test_insert_and_get_node():
@@ -84,6 +121,9 @@ def test_insert_record_and_claim():
     conn = _db()
     node = insert_node(conn, Node(node_type=NodeType.person, name="Alice"))
     record = insert_record(conn, Record(title="Test Record"))
+    assert conn.execute(
+        "SELECT work_id FROM records WHERE id = ?", (record.id,)
+    ).fetchone() == (None,)
     insert_claim(
         conn,
         Claim(
@@ -164,8 +204,8 @@ def test_corroboration_and_independent_sources():
     corrs = get_corroborations(conn, c1.id)
     assert len(corrs) == 1
 
-    # Two distinct chain roots = 2 independent sources
-    assert get_independent_source_count(conn, c1.id) == 2
+    # Provenance alone is insufficient without exact Asset evidence.
+    assert get_independent_source_count(conn, c1.id) == 0
 
 
 def test_same_speaker_not_independent():
@@ -202,8 +242,7 @@ def test_same_speaker_not_independent():
     insert_corroboration(conn, c1.id, c2.id, 0.99)
     conn.commit()
 
-    # Same speaker = 1 independent source despite 2 records
-    assert get_independent_source_count(conn, c1.id) == 1
+    assert get_independent_source_count(conn, c1.id) == 0
 
 
 def test_shared_anonymous_origin_is_one_source():
@@ -238,7 +277,7 @@ def test_shared_anonymous_origin_is_one_source():
     conn.commit()
 
     assert len(set(rec_ids)) == 3  # three records, three speakers...
-    assert get_independent_source_count(conn, claim_ids[0]) == 1  # ...one source
+    assert get_independent_source_count(conn, claim_ids[0]) == 0
 
 
 def test_chainless_legacy_claims_are_not_independent():
@@ -265,7 +304,7 @@ def test_chainless_legacy_claims_are_not_independent():
     insert_corroboration(conn, claim_ids[0], claim_ids[2], 0.99)
     conn.commit()
 
-    assert get_independent_source_count(conn, claim_ids[0]) == 1
+    assert get_independent_source_count(conn, claim_ids[0]) == 0
 
 
 def test_named_origin_resolves_through_aliases():
@@ -309,8 +348,16 @@ def test_named_origin_resolves_through_aliases():
     insert_corroboration(conn, c1.id, c2.id, 0.99)
     conn.commit()
 
-    assert provenance_root(conn, c1.id) == provenance_root(conn, c2.id)
-    assert get_independent_source_count(conn, c1.id) == 1
+    # Direct row insertion does not manufacture explicit roots or evidence units.
+    assert (
+        provenance_root(conn, c1.id)
+        == provenance_root(conn, c2.id)
+        == (
+            "unknown",
+            "",
+        )
+    )
+    assert get_independent_source_count(conn, c1.id) == 0
 
 
 def test_chain_round_trips_through_the_claims_table():
@@ -363,6 +410,8 @@ def test_stats():
     assert s["claims"] == 1
     assert s["by_type"]["person"] == 1
     assert s["by_type"]["organisation"] == 1
+    assert s["evidence_health"]["records_with_established_work"] == 0
+    assert s["evidence_health"]["records_with_unknown_work"] == 1
 
 
 def test_claim_role_roundtrip():

@@ -4,7 +4,7 @@ Scores are computed from graph properties, not assigned by humans.
 The methodology is transparent and reproducible.
 
 Scoring factors:
-- Number of independent records corroborating a claim
+- Number of exact evidence units with distinct established provenance roots
 - Attestation depth (first-hand > second-hand > third-hand)
 - Claim type weight (measurement > testimony > observation > hearsay > opinion)
 """
@@ -47,7 +47,7 @@ class ScoreBreakdown:
 
     def summary(self) -> str:
         parts = [
-            f"{self.record_count} record(s)",
+            f"{self.record_count} independent support(s)",
             self.attestation,
             self.claim_type,
         ]
@@ -82,13 +82,12 @@ def score_claim(conn: sqlite3.Connection, claim_id: str) -> ScoreBreakdown:
     attestation_weight = ATTESTATION_WEIGHTS.get(attestation, 0.5)
     base_weight = type_weight * attestation_weight
 
-    # Corroboration from independent sources (not just records)
-    # Two claims from the same speaker in different records share a provenance
-    # root and count as one source, not two.
+    # Corroboration requires both distinct exact evidence and distinct established
+    # roots. Semantic agreement by itself supplies no bonus.
     corroborations = get_corroborations(conn, claim_id)
     source_count = get_independent_source_count(conn, claim_id)
 
-    # Noisy-OR: each independent corroborating record increases confidence
+    # Noisy-OR: each independent support unit increases confidence
     # The intuition: if one source is wrong with probability (1 - base_weight),
     # two independent sources are both wrong with probability (1 - base_weight)^2
     if source_count <= 1:

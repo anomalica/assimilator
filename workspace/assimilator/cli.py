@@ -383,39 +383,39 @@ def import_cmd(
     domain_conn = _connect(ctx.obj["db_path"])
     infra_conn = _connect(ctx.obj["infra_db_path"])
 
-    if parsed["domain_claims"]:
-        click.echo("Importing domain claims...")
-        counts = import_extraction(
-            domain_conn,
-            parsed,
-            section="domain",
-            lookup_conns=[infra_conn],
-            on_progress=click.echo,
-            source_path=str(path),
-            source_root=digest_root,
-        )
-        click.echo(
-            f"  Domain: {counts['nodes_created']} new nodes, "
-            f"{counts['nodes_matched']} matched, "
-            f"{counts['claims_created']} claims" + _reconcile_suffix(counts)
-        )
+    click.echo("Importing domain claims...")
+    counts = import_extraction(
+        domain_conn,
+        parsed,
+        section="domain",
+        lookup_conns=[infra_conn],
+        on_progress=click.echo,
+        source_path=str(path),
+        source_root=digest_root,
+    )
+    click.echo(
+        f"  Domain: {counts['nodes_created']} new nodes, "
+        f"{counts['nodes_matched']} matched, "
+        f"{counts['claims_created']} claims" + _reconcile_suffix(counts)
+    )
 
-    if parsed["infrastructure_claims"]:
-        click.echo("Importing infrastructure claims...")
-        counts = import_extraction(
-            infra_conn,
-            parsed,
-            section="infrastructure",
-            lookup_conns=[domain_conn],
-            on_progress=click.echo,
-            source_path=str(path),
-            source_root=digest_root,
-        )
-        click.echo(
-            f"  Infrastructure: {counts['nodes_created']} new nodes, "
-            f"{counts['nodes_matched']} matched, "
-            f"{counts['claims_created']} claims" + _reconcile_suffix(counts)
-        )
+    # An empty category is still a complete replacement. Import it to remove
+    # claims moved between categories and to keep structural receipts in step.
+    click.echo("Importing infrastructure claims...")
+    counts = import_extraction(
+        infra_conn,
+        parsed,
+        section="infrastructure",
+        lookup_conns=[domain_conn],
+        on_progress=click.echo,
+        source_path=str(path),
+        source_root=digest_root,
+    )
+    click.echo(
+        f"  Infrastructure: {counts['nodes_created']} new nodes, "
+        f"{counts['nodes_matched']} matched, "
+        f"{counts['claims_created']} claims" + _reconcile_suffix(counts)
+    )
 
     domain_conn.close()
     infra_conn.close()
@@ -577,25 +577,6 @@ def rebuild(
     replay_tags(domain_conn, on_progress=click.echo)
     replay_pages(domain_conn, on_progress=click.echo)
     replay_vetoes(domain_conn, on_progress=click.echo)
-    # Work identity is DERIVED from the ingests store, so a rebuild has to
-    # recompute it or every rebuild silently drops the duplicate links and
-    # restores the inflated source counts they exist to prevent.
-    from assimilator.work_identity import link_works
-
-    ingests_root = Path(
-        os.environ.get(
-            "ANOMALICA_INGESTS_DIR",
-            str(Path(__file__).resolve().parents[3] / "ingests"),
-        )
-    )
-    if (ingests_root / "store").is_dir():
-        result = link_works(domain_conn, ingests_root)
-        click.echo(
-            f"Linked works: {result['records']} records resolve to "
-            f"{result['works']} works ({result['duplicate_pairs']} duplicate pairs)"
-        )
-    else:
-        click.echo(f"No ingests store at {ingests_root} - work identity not linked")
     curation_replay_report = build_curation_replay_report(
         replay_result, disposition_report, domain_conn
     )
@@ -625,6 +606,17 @@ def stats(ctx: click.Context) -> None:
     click.echo(f"Claim-node references: {s['claim_node_refs']}")
     click.echo(f"Aliases: {s['aliases']}")
     click.echo(f"Corroborations: {s['corroborations']}")
+    evidence = s["evidence_health"]
+    click.echo(
+        "Evidence: "
+        f"{evidence['anchored_claims']} anchored claims, "
+        f"{evidence['claims_with_established_root']} claims with established roots"
+    )
+    click.echo(
+        "Work provenance: "
+        f"{evidence['records_with_established_work']} established, "
+        f"{evidence['records_with_unknown_work']} unknown"
+    )
     e = s.get("entailment") or {}
     if e.get("assessed"):
         click.echo(
@@ -1438,7 +1430,7 @@ def propose_pages_cmd(ctx: click.Context) -> None:
 )
 @click.option("--threshold", default=None, type=float, help="Jaccard cut.")
 def duplicate_records_cmd(ingests: str | None, threshold: float | None) -> None:
-    """Find records that are the same WORK under different content hashes.
+    """Find possible same-work Records for human provenance review.
 
     A record is addressed by its exact bytes, so one work enters the store again
     on any re-download, re-export, edition change or OCR pass - and every consumer
@@ -1447,7 +1439,9 @@ def duplicate_records_cmd(ingests: str | None, threshold: float | None) -> None:
     a node whose claims all come from one book is correctly flagged today, and
     reads as excellently spread once the book is present twice.
 
-    Two complementary passes, both deterministic and offline: shingle overlap
+    These are candidates, not established work roots: similarity and a shared URL
+    never write ``records.work_id``. Two complementary passes, both deterministic
+    and offline: shingle overlap
     (catches two files of one book, which share no URL) and exact source_url /
     source_id match (catches one URL fetched twice, whose text may have drifted
     past any similarity cut).
@@ -1561,38 +1555,6 @@ def export_claim_ref_status_cmd(ctx: click.Context, out: Path | None) -> None:
         )
         for row in result["stale_rows"]:
             click.echo(f"  {row['claim_id']} -> {row['node_id']}")
-
-
-@main.command(name="link-works")
-@click.option(
-    "--ingests",
-    type=click.Path(),
-    default=lambda: os.environ.get("ANOMALICA_INGESTS_DIR"),
-    help="Path to the ingests repo (default: ANOMALICA_INGESTS_DIR or ../ingests)",
-)
-@click.pass_context
-def link_works_cmd(ctx: click.Context, ingests: str | None) -> None:
-    """Collapse duplicate records onto a shared work id, so sources count once.
-
-    Everything that counts "sources" counts distinct works, not distinct records:
-    one work becomes several records on any re-ingest or edition change, and a
-    book present twice would otherwise clear a two-source floor on its own. Runs
-    the duplicate detectors over the live record set and links what they find.
-
-    Derived and idempotent - recompute it after a rebuild rather than replaying
-    it. Deterministic, no AI.
-    """
-    from assimilator.work_identity import link_works
-
-    root = Path(ingests) if ingests else Path(__file__).resolve().parents[3] / "ingests"
-    conn = _connect(ctx.obj["db_path"])
-    result = link_works(conn, root)
-    conn.close()
-    click.echo(
-        f"{result['duplicate_pairs']} duplicate pair(s) in the store; "
-        f"{result['records_linked']} graph record(s) linked. "
-        f"{result['records']} records resolve to {result['works']} works."
-    )
 
 
 @main.command(name="page-floor")

@@ -60,6 +60,7 @@ def _database(
     content_hash: str = "",
     generation: int = CURRENT_IMPORT_GENERATION,
     receipt_sha256: str | None = None,
+    section: str = "domain",
 ) -> None:
     conn = sqlite3.connect(path)
     init_db(conn)
@@ -67,7 +68,7 @@ def _database(
         identity = digest_file_identity(digest, digest.parent)
         record_title = yaml.safe_load(digest.read_text())["record"]["title"]
         manifest = json.dumps(
-            {"section": "domain", "claims": []}, separators=(",", ":")
+            {"section": section, "claims": []}, separators=(",", ":")
         ).encode()
         conn.execute(
             "INSERT INTO records "
@@ -79,20 +80,21 @@ def _database(
                 f"sha256:{content_hash}",
                 json.dumps({"run_kind": "production"}),
                 "2026-09-15T00:00:00+00:00",
-                record_id,
+                None,
             ),
         )
         conn.execute(
             "INSERT INTO digest_import_receipts "
             "(record_content_hash, record_id, digest_path, digest_sha256, "
-            "import_generation, claim_manifest_sha256, imported_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "import_generation, digest_schema, claim_manifest_sha256, imported_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 f"sha256:{content_hash}",
                 record_id,
                 identity["digest_path"],
                 receipt_sha256 or identity["digest_sha256"],
                 generation,
+                "anomalica/digest/1",
                 "sha256:" + hashlib.sha256(manifest).hexdigest(),
                 "2026-09-15T00:00:00+00:00",
             ),
@@ -112,7 +114,13 @@ def _valid_candidate(tmp_path: Path) -> tuple[Path, Path, Path, Path, str, str]:
         record_id=record_id,
         content_hash=content_hash,
     )
-    _database(infrastructure)
+    _database(
+        infrastructure,
+        digest=digest,
+        record_id=record_id,
+        content_hash=content_hash,
+        section="infrastructure",
+    )
     return domain, infrastructure, digests, digest, record_id, content_hash
 
 
@@ -409,7 +417,47 @@ def test_real_canonical_claims_match_an_independent_import(tmp_path, monkeypatch
         "records_match": True,
         "nodes_match": True,
         "aliases_match": True,
+        "evidence_tables_match": {
+            "assets": True,
+            "record_selections": True,
+            "record_page_maps": True,
+            "claim_anchors": True,
+            "evidence_units": True,
+            "claim_evidence_units": True,
+            "provenance_roots": True,
+            "claim_provenance_roots": True,
+            "provenance_lineage": True,
+        },
+        "receipt_bindings_match": True,
     }
+
+    conn = sqlite3.connect(candidate)
+    conn.execute("UPDATE records SET work_id = 'corrupt-work-root'")
+    conn.commit()
+    conn.close()
+    corrupted_work = validate_rebuild_candidate(
+        candidate,
+        infrastructure,
+        digests,
+        curation,
+        replay_report,
+        source,
+        document,
+        policy,
+        checked_at,
+        records,
+    )
+    assert corrupted_work["valid"] is False
+    assert (
+        corrupted_work["databases"]["domain"]["receipt_checks"][
+            "claim_materialisation"
+        ]["records_match"]
+        is False
+    )
+    conn = sqlite3.connect(candidate)
+    conn.execute("UPDATE records SET work_id = NULL")
+    conn.commit()
+    conn.close()
 
     conn = sqlite3.connect(infrastructure)
     conn.execute("DELETE FROM claims")

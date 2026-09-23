@@ -42,7 +42,7 @@ def test_base_score_observation_first_hand():
 
     s = score_claim(conn, c.id)
     assert s.score == 0.75  # observation (0.75) * first_hand (1.0)
-    assert s.record_count == 1
+    assert s.record_count == 0
 
 
 def test_base_score_opinion_third_hand():
@@ -64,7 +64,7 @@ def test_base_score_opinion_third_hand():
     assert abs(s.score - expected) < 0.001
 
 
-def test_corroboration_increases_score():
+def test_semantic_corroboration_without_exact_evidence_does_not_increase_score():
     conn = _db()
     alice = insert_node(conn, Node(node_type=NodeType.person, name="Alice"))
     bob = insert_node(conn, Node(node_type=NodeType.person, name="Bob"))
@@ -101,8 +101,8 @@ def test_corroboration_increases_score():
     conn.commit()
 
     corroborated = score_claim(conn, c1.id)
-    assert corroborated.score > single.score
-    assert corroborated.record_count == 2
+    assert corroborated.score == single.score
+    assert corroborated.record_count == 0
 
 
 def test_repetition_of_one_root_does_not_increase_score():

@@ -178,6 +178,29 @@ def _pin_determinism(mp: pytest.MonkeyPatch) -> CountingUuid:
     """
     from anomalica_common.digest import yaml_format
     from assimilator import database, import_markdown
+    from digester import cli as digester_cli
+    from digester.input_rights import (
+        ORDINARY_EXTRACTION_USE,
+        _bind,
+        hosted_route,
+    )
+
+    # This seam test serves canned responses and sends no source text to a hosted
+    # provider. One shared Digester fixture deliberately has no copyright block,
+    # so ordinary hosted-input authorisation correctly refuses it before the
+    # canned transport seam. Bind that fixture locally without weakening the
+    # production authoriser; Digester owns the separate rights-gate tests.
+    def _fixture_authority(path, model, use_api=False):
+        route = hosted_route(model, use_api)
+        return _bind(
+            path,
+            provider=route.provider,
+            route=route.route,
+            use=ORDINARY_EXTRACTION_USE,
+            require_open_status=False,
+        )
+
+    mp.setattr(digester_cli, "authorise_ordinary_extraction", _fixture_authority)
 
     digest_ids = CountingUuid()
     mp.setattr(yaml_format, "uuid", digest_ids)
@@ -218,28 +241,35 @@ def _open_graph(root: Path) -> tuple[sqlite3.Connection, sqlite3.Connection]:
 
 
 def _assimilate(domain, infrastructure, digest_path: Path) -> dict:
-    """Fold one digest into the graph, both sections, as the CLI does."""
+    """Fold one comparison digest into both graph sections.
+
+    The canned Digester run correctly marks its output as ``comparison``, so it
+    must not pass the canonical-path gate used by the CLI.  Supply the receipt
+    identity explicitly while exercising the same parsed import seam; this
+    preserves exact-byte receipt assertions without pretending fixture output
+    is a production corpus input.
+    """
     from anomalica_common.digest.yaml_format import parse_digest_yaml
+    from assimilator.digest_files import digest_receipt_identity
     from assimilator.import_markdown import import_extraction
 
     parsed = parse_digest_yaml(digest_path.read_text())
+    identity = digest_receipt_identity(digest_path, root=digest_path.parent)
     counts = {}
-    if parsed["domain_claims"]:
-        counts["domain"] = import_extraction(
-            domain,
-            parsed,
-            section="domain",
-            lookup_conns=[infrastructure],
-            source_path=str(digest_path),
-        )
-    if parsed["infrastructure_claims"]:
-        counts["infrastructure"] = import_extraction(
-            infrastructure,
-            parsed,
-            section="infrastructure",
-            lookup_conns=[domain],
-            source_path=str(digest_path),
-        )
+    counts["domain"] = import_extraction(
+        domain,
+        parsed,
+        section="domain",
+        lookup_conns=[infrastructure],
+        import_identity=identity,
+    )
+    counts["infrastructure"] = import_extraction(
+        infrastructure,
+        parsed,
+        section="infrastructure",
+        lookup_conns=[domain],
+        import_identity=identity,
+    )
     return counts
 
 
@@ -605,15 +635,15 @@ def test_the_role_a_node_plays_in_a_claim_reaches_the_edge_that_records_it(pipel
     assert values == {"subject", "participant", "setting", "mentioned"}
 
 
-def test_two_distinct_anonymous_sources_in_one_record_count_as_two_sources(pipeline):
-    """The loss shows up as a WRONG NUMBER, not as a missing column.
+def test_digest_1_origins_do_not_claim_anchor_based_independence(pipeline):
+    """Legacy provenance labels survive without becoming evidence units.
 
     Document A names three distinct origins for the claims about the boxed
     tapes: a duty officer at Whitchurch Down (`duty-officer-1`), a colleague at
-    the observatory (`colleague-1`), and the incident file. `origin_ref` exists
-    precisely so two anonymous sources inside one record stop collapsing into
-    one - and with the column gone, independence reports two sources where the
-    evidence names three.
+    the observatory (`colleague-1`), and the incident file.  The legacy digest
+    has no exact source anchors, however, so ADR 0051 requires all three claims
+    to remain unscored rather than treating those labels as independent
+    evidence.
     """
     from assimilator.independence import independence_for_nodes
 
@@ -638,8 +668,9 @@ def test_two_distinct_anonymous_sources_in_one_record_count_as_two_sources(pipel
     assert len(origins) == 3
 
     scored = independence_for_nodes(pipeline.domain, [node_id])[node_id]
-    assert scored.scored_claims == 3
-    assert scored.sources == 3
+    assert scored.scored_claims == 0
+    assert scored.unscored_claims == 3
+    assert scored.sources is None
 
 
 def test_the_graph_can_say_how_a_claim_may_be_rendered(pipeline):
@@ -732,7 +763,8 @@ def test_a_second_import_carries_every_claim_forward_rather_than_reinserting_it(
             assert counts["nodes_created"] == 0, (key, section)
             assert counts["claims_created"] == 0, (key, section)
             assert counts["claims_deleted"] == 0, (key, section)
-            assert counts["claims_carried"] > 0, (key, section)
+            expected = len(reimported["digests"][key].get(f"{section}_claims") or [])
+            assert counts["claims_carried"] == expected, (key, section)
 
 
 def test_a_re_emitted_digest_finds_its_record_by_content_hash_not_by_id(
@@ -805,7 +837,14 @@ def test_changed_unknown_digest_is_inherited_and_blocks_metered_article_job(
         target = store / f"{content_hash}.md"
         shutil.copyfile(document.store_path, target)
         (by_name / f"{key}.md").symlink_to(target)
-        shutil.copyfile(pipeline.digests[key], digests / f"{key}.yaml")
+        copied_digest = digests / f"{key}.yaml"
+        shutil.copyfile(pipeline.digests[key], copied_digest)
+        # The pipeline fixture is correctly emitted as comparison output.  This
+        # scheduler test needs a canonical corpus input so it can exercise
+        # freshness rather than the earlier comparison-output exclusion gate.
+        copied_document = yaml.safe_load(copied_digest.read_text())
+        copied_document["run_kind"] = "production"
+        copied_digest.write_text(yaml.safe_dump(copied_document, sort_keys=False))
 
     (digests / "digest-generation.json").write_text(
         json.dumps(

@@ -29,7 +29,32 @@ from assimilator.scheduler import (
 from assimilator.import_markdown import import_extraction
 from assimilator.replay_dispositions import validate_replay_dispositions
 
-_COUNT_TABLES = ("nodes", "records", "claims", "digest_import_receipts")
+_COUNT_TABLES = (
+    "nodes",
+    "records",
+    "claims",
+    "digest_import_receipts",
+    "assets",
+    "record_selections",
+    "record_page_maps",
+    "claim_anchors",
+    "evidence_units",
+    "claim_evidence_units",
+    "provenance_roots",
+    "claim_provenance_roots",
+    "provenance_lineage",
+)
+_EVIDENCE_TABLES = (
+    "assets",
+    "record_selections",
+    "record_page_maps",
+    "claim_anchors",
+    "evidence_units",
+    "claim_evidence_units",
+    "provenance_roots",
+    "claim_provenance_roots",
+    "provenance_lineage",
+)
 CURATION_REPLAY_REPORT_SCHEMA = "anomalica/candidate-curation-replay/1"
 CURATION_REPLAY_REPORT_FILENAME = "curation-replay-report.json"
 _CURATION_STATE_TABLES = {
@@ -279,15 +304,14 @@ def _independent_canonical_replay(
                 source_path=str(path),
                 source_root=str(canonical_root),
             )
-            if parsed["infrastructure_claims"]:
-                import_extraction(
-                    infrastructure,
-                    parsed,
-                    section="infrastructure",
-                    lookup_conns=[domain],
-                    source_path=str(path),
-                    source_root=str(canonical_root),
-                )
+            import_extraction(
+                infrastructure,
+                parsed,
+                section="infrastructure",
+                lookup_conns=[domain],
+                source_path=str(path),
+                source_root=str(canonical_root),
+            )
 
         from assimilator.claim_ref_status_ledger import replay_claim_ref_status
         from assimilator.merge import replay_candidate_curation, replay_rename_proposals
@@ -541,10 +565,10 @@ def _claim_materialisation_checks(
     actual_refs = _table_materialisation(candidate, "claim_node_refs")
     expected_refs = _table_materialisation(expected, "claim_node_refs")
     actual_records = _table_materialisation(
-        candidate, "records", excluded={"created_at", "work_id"}
+        candidate, "records", excluded={"created_at"}
     )
     expected_records = _table_materialisation(
-        expected, "records", excluded={"created_at", "work_id"}
+        expected, "records", excluded={"created_at"}
     )
     actual_nodes = (
         []
@@ -558,19 +582,37 @@ def _claim_materialisation_checks(
     )
     actual_aliases = [] if curated else _table_materialisation(candidate, "aliases")
     expected_aliases = [] if curated else _table_materialisation(expected, "aliases")
+    evidence_tables_match = {
+        table: _table_materialisation(candidate, table)
+        == _table_materialisation(expected, table)
+        for table in _EVIDENCE_TABLES
+    }
+    receipt_bindings_match = _table_materialisation(
+        candidate,
+        "digest_import_receipts",
+        excluded={"imported_at"},
+    ) == _table_materialisation(
+        expected,
+        "digest_import_receipts",
+        excluded={"imported_at"},
+    )
     return {
         "ok": not manifest_mismatches
         and actual_claims == expected_claims
         and actual_refs == expected_refs
         and actual_records == expected_records
         and actual_nodes == expected_nodes
-        and actual_aliases == expected_aliases,
+        and actual_aliases == expected_aliases
+        and all(evidence_tables_match.values())
+        and receipt_bindings_match,
         "claim_manifest_mismatches": manifest_mismatches,
         "claims_match": actual_claims == expected_claims,
         "claim_node_refs_match": actual_refs == expected_refs,
         "records_match": actual_records == expected_records,
         "nodes_match": actual_nodes == expected_nodes,
         "aliases_match": actual_aliases == expected_aliases,
+        "evidence_tables_match": evidence_tables_match,
+        "receipt_bindings_match": receipt_bindings_match,
     }
 
 

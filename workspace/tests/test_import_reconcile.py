@@ -11,6 +11,7 @@ from __future__ import annotations
 import sqlite3
 
 from assimilator.database import init_db
+from assimilator.digest_files import CURRENT_IMPORT_GENERATION
 from assimilator.import_markdown import backfill_claim_hashes, import_extraction
 from assimilator.matching import match_node
 
@@ -454,7 +455,7 @@ def test_exact_digest_receipt_changes_in_place_and_reimport_replaces(tmp_path):
     assert receipt[1] == "digests/nimitz.yaml"
     assert receipt[2] == first["receipt"]["digest_sha256"]
     assert receipt[3:7] == (
-        2,
+        CURRENT_IMPORT_GENERATION,
         3,
         "sha256:" + "c" * 64,
         "sha256:" + "d" * 64,

@@ -15,6 +15,11 @@ from anomalica_common.digest.models import (
 )
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    name TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS nodes (
     id TEXT PRIMARY KEY,
     node_type TEXT NOT NULL,
@@ -34,12 +39,9 @@ CREATE TABLE IF NOT EXISTS records (
     friendly_name TEXT,
     metadata TEXT,
     created_at TEXT NOT NULL,
-    -- The WORK this record is a manifestation of. Records are addressed by exact
-    -- bytes, so one work becomes several records on any re-download, re-export or
-    -- edition change - and counting distinct records then counts one work as
-    -- several independent sources. Defaults to the record's own id (one record,
-    -- one work); `link-works` collapses detected duplicates onto a shared id.
-    -- Everything that counts "sources" must count THIS, not record_id.
+    -- Positively evidenced work-provenance root. NULL is unknown and never falls
+    -- back to Record identity, Asset identity, publisher or a text-similarity
+    -- grouping (ADR 0051).
     work_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_records_content_hash ON records(content_hash);
@@ -56,11 +58,44 @@ CREATE TABLE IF NOT EXISTS digest_import_receipts (
     extraction_generation INTEGER,
     extraction_config TEXT,
     pre_digest_sha256 TEXT,
+    digest_schema TEXT,
+    record_snapshot_sha256 TEXT,
+    source_map_sha256 TEXT,
     claim_manifest_sha256 TEXT NOT NULL,
     imported_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_digest_import_receipts_record
     ON digest_import_receipts(record_id);
+
+-- ADR 0051's immutable Asset and ordered Record structure. These rows are
+-- derived exclusively from the validated digest Record snapshot.
+CREATE TABLE IF NOT EXISTS assets (
+    asset_hash TEXT PRIMARY KEY,
+    metadata TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS record_selections (
+    record_id TEXT NOT NULL REFERENCES records(id),
+    ordinal INTEGER NOT NULL CHECK (ordinal > 0),
+    asset_hash TEXT NOT NULL REFERENCES assets(asset_hash),
+    selector_type TEXT NOT NULL CHECK (selector_type IN ('whole', 'pdf_page')),
+    asset_file_page INTEGER CHECK (asset_file_page > 0),
+    PRIMARY KEY (record_id, ordinal),
+    CHECK ((selector_type = 'whole' AND asset_file_page IS NULL) OR
+           (selector_type = 'pdf_page' AND asset_file_page IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_record_selections_asset
+    ON record_selections(asset_hash);
+
+CREATE TABLE IF NOT EXISTS record_page_maps (
+    record_id TEXT NOT NULL REFERENCES records(id),
+    record_page INTEGER NOT NULL CHECK (record_page > 0),
+    asset_hash TEXT NOT NULL REFERENCES assets(asset_hash),
+    asset_file_page INTEGER NOT NULL CHECK (asset_file_page > 0),
+    PRIMARY KEY (record_id, record_page)
+);
+CREATE INDEX IF NOT EXISTS idx_record_page_maps_asset
+    ON record_page_maps(asset_hash, asset_file_page);
 
 CREATE TABLE IF NOT EXISTS claims (
     id TEXT PRIMARY KEY,
@@ -114,6 +149,73 @@ CREATE TABLE IF NOT EXISTS claims (
     -- writer's nullable declaration, not a value consumers may infer.
     origin_ref TEXT,
     attribution_in_text INTEGER CHECK (attribution_in_text IN (0, 1))
+);
+
+-- Ordered exact claim-source coordinates. digest/1 claims have no rows here;
+-- their scalar location remains display-only and cannot drive evidence identity.
+CREATE TABLE IF NOT EXISTS claim_anchors (
+    claim_id TEXT NOT NULL REFERENCES claims(id),
+    ordinal INTEGER NOT NULL CHECK (ordinal > 0),
+    asset_hash TEXT NOT NULL REFERENCES assets(asset_hash),
+    record_page INTEGER NOT NULL CHECK (record_page > 0),
+    asset_file_page INTEGER NOT NULL CHECK (asset_file_page > 0),
+    asset_text_sha256 TEXT NOT NULL,
+    asset_start INTEGER NOT NULL CHECK (asset_start >= 0),
+    asset_end INTEGER NOT NULL CHECK (asset_end > asset_start),
+    body_start INTEGER NOT NULL CHECK (body_start >= 0),
+    body_end INTEGER NOT NULL CHECK (body_end > body_start),
+    quote TEXT NOT NULL CHECK (length(quote) > 0),
+    PRIMARY KEY (claim_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_claim_anchors_frame
+    ON claim_anchors(asset_hash, asset_file_page, asset_text_sha256,
+                     asset_start, asset_end);
+
+-- Rebuild-stable transitive overlap components. Component ids are codec hashes,
+-- never row ids or import-order sequence numbers.
+CREATE TABLE IF NOT EXISTS evidence_units (
+    id TEXT PRIMARY KEY,
+    asset_hash TEXT NOT NULL REFERENCES assets(asset_hash),
+    asset_file_page INTEGER NOT NULL CHECK (asset_file_page > 0),
+    asset_text_sha256 TEXT NOT NULL,
+    span_start INTEGER NOT NULL CHECK (span_start >= 0),
+    span_end INTEGER NOT NULL CHECK (span_end > span_start)
+);
+
+CREATE TABLE IF NOT EXISTS claim_evidence_units (
+    claim_id TEXT NOT NULL REFERENCES claims(id),
+    evidence_unit_id TEXT NOT NULL REFERENCES evidence_units(id),
+    PRIMARY KEY (claim_id, evidence_unit_id)
+);
+CREATE INDEX IF NOT EXISTS idx_claim_evidence_units_unit
+    ON claim_evidence_units(evidence_unit_id);
+
+-- Work and assertion-origin roots are explicit graph objects. Unknown roots are
+-- retained for diagnosis but never count as independent support.
+CREATE TABLE IF NOT EXISTS provenance_roots (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('established', 'unknown')),
+    kind TEXT NOT NULL,
+    metadata TEXT,
+    evidence TEXT
+);
+
+CREATE TABLE IF NOT EXISTS claim_provenance_roots (
+    claim_id TEXT NOT NULL REFERENCES claims(id),
+    provenance_root_id TEXT NOT NULL REFERENCES provenance_roots(id),
+    basis TEXT NOT NULL,
+    PRIMARY KEY (claim_id, provenance_root_id)
+);
+CREATE INDEX IF NOT EXISTS idx_claim_provenance_roots_root
+    ON claim_provenance_roots(provenance_root_id);
+
+CREATE TABLE IF NOT EXISTS provenance_lineage (
+    root_a TEXT NOT NULL REFERENCES provenance_roots(id),
+    root_b TEXT NOT NULL REFERENCES provenance_roots(id),
+    relation TEXT NOT NULL CHECK (relation IN ('shared', 'derived', 'distinct')),
+    evidence TEXT,
+    PRIMARY KEY (root_a, root_b, relation),
+    CHECK (root_a < root_b)
 );
 
 -- salience: what ROLE the node plays in this claim, which the edge alone never
@@ -518,6 +620,23 @@ def init_db(conn: sqlite3.Connection) -> None:
         ):
             if column not in rcols:
                 conn.execute(f"ALTER TABLE record_relations ADD COLUMN {column} {kind}")
+    receipts_exist = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' "
+        "AND name='digest_import_receipts'"
+    ).fetchone()
+    if receipts_exist:
+        receipt_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(digest_import_receipts)")
+        }
+        for column in (
+            "digest_schema",
+            "record_snapshot_sha256",
+            "source_map_sha256",
+        ):
+            if column not in receipt_columns:
+                conn.execute(
+                    f"ALTER TABLE digest_import_receipts ADD COLUMN {column} TEXT"
+                )
     rename_proposals_exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='rename_proposals'"
     ).fetchone()
@@ -555,10 +674,8 @@ def init_db(conn: sqlite3.Connection) -> None:
                 DROP TABLE rename_proposals_legacy;
                 """
             )
-    # Work-identity migration: which WORK a record manifests. Backfilled to the
-    # record's own id (one record, one work) so a pre-existing database counts
-    # sources exactly as it did before the column existed - the guard lands as a
-    # no-op and only bites once `link-works` collapses a detected duplicate.
+    # Work-identity migration. Unknown is NULL; a Record id is not evidence that
+    # the Record is a distinct work.
     records_exist = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='records'"
     ).fetchone()
@@ -566,7 +683,6 @@ def init_db(conn: sqlite3.Connection) -> None:
         record_cols = {row[1] for row in conn.execute("PRAGMA table_info(records)")}
         if "work_id" not in record_cols:
             conn.execute("ALTER TABLE records ADD COLUMN work_id TEXT")
-            conn.execute("UPDATE records SET work_id = id WHERE work_id IS NULL")
     # Source-spread migration: how a node's claims are DISTRIBUTED across its
     # sources, which source_count cannot express. Existing rows stay NULL until
     # the next `propose-pages` recomputes the derived table.
@@ -586,6 +702,20 @@ def init_db(conn: sqlite3.Connection) -> None:
             if column not in proposal_cols:
                 conn.execute(f"ALTER TABLE page_proposals ADD COLUMN {column} INTEGER")
     conn.executescript(SCHEMA)
+    # Previous work_id values were heuristic Record ids or text-similarity group
+    # ids and cannot be promoted into evidenced roots. A marker ROW, rather than
+    # the new table's existence, makes an interrupted migration retry safely:
+    # the reset and marker insert share one transaction.
+    work_root_migration = "adr0051-explicit-work-roots"
+    work_root_migrated = conn.execute(
+        "SELECT 1 FROM schema_migrations WHERE name = ?", (work_root_migration,)
+    ).fetchone()
+    if not work_root_migrated:
+        conn.execute("UPDATE records SET work_id = NULL")
+        conn.execute(
+            "INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)",
+            (work_root_migration, _now()),
+        )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claims_role ON claims(claim_role)")
 
 
@@ -690,11 +820,9 @@ def insert_record(conn: sqlite3.Connection, record: Record) -> Record:
             record.friendly_name,
             metadata_json,
             now,
-            # One record, one work, until a duplicate scan says otherwise. Seeded
-            # rather than left NULL so every source count can group by work_id
-            # unconditionally and a record that was never scanned still counts
-            # once, instead of collapsing all unscanned records into one NULL work.
-            record.id,
+            # Unknown work identity is NULL. ADR 0051 expressly forbids Record,
+            # Asset, title, publisher or disjoint selection as a fallback root.
+            None,
         ),
     )
     return record.model_copy(update={"created_at": datetime.fromisoformat(now)})
@@ -734,6 +862,9 @@ def put_digest_import_receipt(
     extraction_generation: int | None,
     extraction_config: str | None,
     pre_digest_sha256: str | None,
+    digest_schema: str,
+    record_snapshot_sha256: str | None,
+    source_map_sha256: str | None,
     claim_manifest_sha256: str,
 ) -> None:
     """Replace the exact digest receipt for a stable record identity."""
@@ -746,8 +877,9 @@ def put_digest_import_receipt(
         "INSERT INTO digest_import_receipts "
         "(record_content_hash, record_id, digest_path, digest_sha256, "
         "import_generation, extraction_generation, extraction_config, "
-        "pre_digest_sha256, claim_manifest_sha256, imported_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "pre_digest_sha256, digest_schema, record_snapshot_sha256, "
+        "source_map_sha256, claim_manifest_sha256, imported_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(record_content_hash) DO UPDATE SET "
         "record_id=excluded.record_id, digest_path=excluded.digest_path, "
         "digest_sha256=excluded.digest_sha256, "
@@ -755,6 +887,9 @@ def put_digest_import_receipt(
         "extraction_generation=excluded.extraction_generation, "
         "extraction_config=excluded.extraction_config, "
         "pre_digest_sha256=excluded.pre_digest_sha256, "
+        "digest_schema=excluded.digest_schema, "
+        "record_snapshot_sha256=excluded.record_snapshot_sha256, "
+        "source_map_sha256=excluded.source_map_sha256, "
         "claim_manifest_sha256=excluded.claim_manifest_sha256, "
         "imported_at=excluded.imported_at",
         (
@@ -766,6 +901,9 @@ def put_digest_import_receipt(
             extraction_generation,
             extraction_config,
             pre_digest_sha256,
+            digest_schema,
+            record_snapshot_sha256,
+            source_map_sha256,
             claim_manifest_sha256,
             _now(),
         ),
@@ -848,6 +986,9 @@ def get_record_claim_hashes(
 def delete_claim(conn: sqlite3.Connection, claim_id: str) -> None:
     """Remove a claim and its node references (used when a re-import drops a
     claim that no longer appears in the record's digest)."""
+    conn.execute("DELETE FROM claim_evidence_units WHERE claim_id = ?", (claim_id,))
+    conn.execute("DELETE FROM claim_anchors WHERE claim_id = ?", (claim_id,))
+    conn.execute("DELETE FROM claim_provenance_roots WHERE claim_id = ?", (claim_id,))
     conn.execute("DELETE FROM claim_node_refs WHERE claim_id = ?", (claim_id,))
     conn.execute(
         "DELETE FROM corroborations WHERE claim_a = ? OR claim_b = ?",
@@ -988,95 +1129,30 @@ def get_corroborations(
 
 
 def provenance_root(conn: sqlite3.Connection, claim_id: str) -> tuple[str, str]:
-    """The root of a claim's provenance chain - the identity independence keys on
-    (ADR 0044). Two claims sharing a root are ONE source, however many records,
-    speakers or outlets repeated them.
-
-    The rule that matters is the direction of the error. Over-counting roots is the
-    unsafe failure: it lets ten podcasts relaying one anonymous email look like ten
-    independent attestations, so corroboration ends up rewarding repetition. Every
-    branch here therefore collapses toward FEWER roots when identity is uncertain.
-
-    - ``speaker`` / ``unattributed``: the speaker is the only thing standing behind
-      the assertion, so they are the root.
-    - ``named`` / ``document``: the origin is a node, so it resolves through the
-      alias graph - "DIA" and "Defense Intelligence Agency" are one root, not two.
-      Unresolvable origins fall back to their normalised prose.
-    - ``anonymous``: an unnamed origin can never be a node, so there is no id to join
-      on and the only comparable identity is the prose. Until the semantic matcher
-      pins distinct anonymous origins apart, they ALL collapse to a single root -
-      the conservative floor. Clustering can only ever split them back out, which
-      raises independence; it can never inflate it.
-    - chain not captured (pre-0044 digest): all such claims collapse to ONE
-      ``unknown`` root. Absence means the chain was never recorded, never that the
-      claim is independent - defaulting it to independent is exactly the failure
-      0044 exists to close. A re-digest backfills the chain and independence rises
-      to what the evidence actually supports.
-    """
+    """Return one explicit established root, never an inferred fallback root."""
     row = conn.execute(
-        "SELECT speaker_id, record_id, origin_kind, origin FROM claims WHERE id = ?",
+        "SELECT pr.kind, pr.id FROM claim_provenance_roots cpr "
+        "JOIN provenance_roots pr ON pr.id = cpr.provenance_root_id "
+        "WHERE cpr.claim_id = ? AND pr.status = 'established' "
+        "ORDER BY CASE pr.kind WHEN 'assertion_origin' THEN 0 ELSE 1 END, pr.id "
+        "LIMIT 1",
         (claim_id,),
     ).fetchone()
-    if row is None:
-        return ("unknown", "")
-    speaker_id, record_id, origin_kind, origin = row
-
-    if not origin_kind:
-        return ("unknown", "")
-
-    if origin_kind in ("speaker", "unattributed"):
-        return ("speaker", speaker_id) if speaker_id else ("record", record_id)
-
-    if origin_kind == "anonymous":
-        return ("anonymous", "")
-
-    # named / document: resolve the origin to a node so aliases and acronyms
-    # collapse onto one identity.
-    name = (origin or "").strip()
-    if not name:
-        return ("unknown", "")
-    node = find_node_by_name(conn, name)
-    if node:
-        return ("node", node.id)
-    return (origin_kind, name.casefold())
+    return (str(row[0]), str(row[1])) if row is not None else ("unknown", "")
 
 
 def get_independent_source_count(conn: sqlite3.Connection, claim_id: str) -> int:
-    """Count independent sources corroborating a claim - the number of DISTINCT
-    provenance-chain roots across the corroboration group (ADR 0044). Ten outlets
-    reporting one press release is one source, not ten."""
+    """Conservative support count across semantic corroboration neighbours.
+
+    A support must have both a validated evidence unit and an established explicit
+    provenance root. Shared evidence units and shared/derived root lineage each
+    cap the count independently. digest/1 and overlap-unknown claims add zero.
+    """
+    from assimilator.evidence import assess_evidence_support
+
     corroborated = get_corroborations(conn, claim_id)
     all_claim_ids = [claim_id] + [cid for cid, _ in corroborated]
-    rows = conn.execute(
-        f"SELECT speaker_id, record_id, origin_kind, origin, origin_ref FROM claims "
-        f"WHERE id IN ({','.join('?' for _ in all_claim_ids)})",  # noqa: S608
-        all_claim_ids,
-    ).fetchall()
-    roots = set()
-    anonymous_by_record: dict[str, set[str]] = {}
-    anonymous_records: set[str] = set()
-    for speaker_id, record_id, origin_kind, origin, origin_ref in rows:
-        if origin_kind == "anonymous":
-            anonymous_records.add(record_id)
-            if origin_ref:
-                anonymous_by_record.setdefault(record_id, set()).add(origin_ref)
-            continue
-        if not origin_kind:
-            roots.add(("unknown", ""))
-        elif origin_kind in ("speaker", "unattributed"):
-            roots.add(("speaker", speaker_id) if speaker_id else ("record", record_id))
-        else:
-            name = (origin or "").strip()
-            node = find_node_by_name(conn, name) if name else None
-            roots.add(("node", node.id) if node else (origin_kind, name.casefold()))
-    anonymous_count = max(
-        (
-            max(1, len(anonymous_by_record.get(record_id, set())))
-            for record_id in anonymous_records
-        ),
-        default=0,
-    )
-    return len(roots) + anonymous_count
+    return assess_evidence_support(conn, all_claim_ids).independent_sources
 
 
 def get_stats(conn: sqlite3.Connection) -> dict:
@@ -1088,6 +1164,14 @@ def get_stats(conn: sqlite3.Connection) -> dict:
         "claim_node_refs",
         "aliases",
         "corroborations",
+        "assets",
+        "record_selections",
+        "record_page_maps",
+        "claim_anchors",
+        "evidence_units",
+        "claim_evidence_units",
+        "provenance_roots",
+        "claim_provenance_roots",
     ):
         row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # noqa: S608
         stats[table] = row[0]
@@ -1099,6 +1183,26 @@ def get_stats(conn: sqlite3.Connection) -> dict:
         "SELECT node_type, COUNT(*) FROM nodes WHERE retired_at IS NULL GROUP BY node_type"
     ).fetchall()
     stats["by_type"] = {row[0]: row[1] for row in type_counts}
+    stats["evidence_health"] = {
+        "records_with_established_work": conn.execute(
+            "SELECT COUNT(*) FROM records r JOIN provenance_roots pr "
+            "ON pr.id = r.work_id WHERE pr.status = 'established' "
+            "AND pr.kind = 'work'"
+        ).fetchone()[0],
+        "records_with_unknown_work": conn.execute(
+            "SELECT COUNT(*) FROM records r WHERE NOT EXISTS "
+            "(SELECT 1 FROM provenance_roots pr WHERE pr.id = r.work_id "
+            "AND pr.status = 'established' AND pr.kind = 'work')"
+        ).fetchone()[0],
+        "anchored_claims": conn.execute(
+            "SELECT COUNT(DISTINCT claim_id) FROM claim_anchors"
+        ).fetchone()[0],
+        "claims_with_established_root": conn.execute(
+            "SELECT COUNT(DISTINCT cpr.claim_id) FROM claim_provenance_roots cpr "
+            "JOIN provenance_roots pr ON pr.id = cpr.provenance_root_id "
+            "WHERE pr.status = 'established'"
+        ).fetchone()[0],
+    }
     stats["entailment"] = entailment_counts(conn)
     return stats
 

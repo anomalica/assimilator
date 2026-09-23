@@ -37,6 +37,11 @@ from anomalica_common.slug import node_slug, section_for
 from anomalica_common.titles import capitalise_first, collapse_bare_title_acronyms
 from assimilator.database import get_independent_source_count
 from assimilator.database import claim_ref_statuses
+from assimilator.evidence import (
+    established_root_ids_for_claim,
+    evidence_unit_ids_for_claim,
+    source_anchors_for_claim,
+)
 from assimilator.propose_pages import proposed_node_ids
 from assimilator.data_dir import data_dir
 
@@ -114,6 +119,7 @@ _COL_CONTENT = 1
 _COL_EXCERPT = 2
 _COL_ATTESTATION = 4
 _COL_SPEAKER_ID = 9
+_COL_WORK = 20
 _COL_ENTAILMENT = 21  # label; score, model and premise follow
 
 # Attestation ranked by evidential weight. Measured across the corpus: first_hand
@@ -231,6 +237,7 @@ def _spread_across_sources(
     importance=None,
     budget: int | None = None,
     cost=None,
+    source_index: int = -1,
 ) -> list:
     """Fill the cap ROUND-ROBIN across sources, not chronologically.
 
@@ -265,7 +272,7 @@ def _spread_across_sources(
         return rows
     by_work: dict[object, list[int]] = {}
     for index, row in enumerate(rows):
-        by_work.setdefault(row[-1], []).append(index)
+        by_work.setdefault(row[source_index], []).append(index)
 
     queues = list(by_work.values())
     if max_sources and len(queues) > max_sources:
@@ -280,7 +287,11 @@ def _spread_across_sources(
         by_first_index = {q[0]: q for q in queues}
         ranked = sorted(
             queues,
-            key=lambda q: (-(focus or {}).get(rows[q[0]][-1], 0.0), -len(q), q[0]),
+            key=lambda q: (
+                -(focus or {}).get(rows[q[0]][source_index], 0.0),
+                -len(q),
+                q[0],
+            ),
         )
         # The minimum is a TIEBREAKER, not a filter. It exists so a two-claim
         # record scoring 100% focus cannot outrank a primary account - not to
@@ -366,26 +377,35 @@ def _spread_across_sources(
 
 
 def _source_focus(conn: sqlite3.Connection, node_id: str) -> dict:
-    """work_id -> share of that source's claims that concern this node.
+    """Selection-source key -> share of that source concerning this node.
 
     "How much of this record is about the node", not "how many claims it has".
     A 41-claim congressional statement 63% about an encounter is a primary
     account of it; a 1,457-claim book mentioning it in 2.7% of its claims is not,
     however many claims that amounts to.
+
+    This is narrative selection, not an independence count. Records with unknown
+    work provenance therefore remain separate operational queues rather than all
+    collapsing into one fake ``unknown`` work; only established work roots group
+    several Records.
     """
     rows = conn.execute(
         """
-        SELECT COALESCE(r.work_id, r.id) AS work,
-               COUNT(DISTINCT c.id) AS here,
-               (SELECT COUNT(*) FROM claims c2
-                 WHERE COALESCE(
-                   (SELECT r2.work_id FROM records r2 WHERE r2.id = c2.record_id),
-                   c2.record_id) = COALESCE(r.work_id, r.id)) AS total
-          FROM claims c
-          JOIN records r ON r.id = c.record_id
+        WITH keyed_claims AS (
+            SELECT c.id, c.speaker_id,
+                   CASE WHEN pr.id IS NOT NULL THEN 'work:' || pr.id
+                        ELSE 'record:' || c.record_id END AS work
+              FROM claims c
+              JOIN records r ON r.id = c.record_id
+              LEFT JOIN provenance_roots pr ON pr.id = r.work_id
+                     AND pr.status = 'established' AND pr.kind = 'work'
+        )
+        SELECT c.work, COUNT(DISTINCT c.id) AS here,
+               (SELECT COUNT(*) FROM keyed_claims c2 WHERE c2.work = c.work) AS total
+          FROM keyed_claims c
          WHERE c.speaker_id = ?
             OR c.id IN (SELECT claim_id FROM claim_node_refs WHERE node_id = ?)
-         GROUP BY work
+         GROUP BY c.work
         """,
         (node_id, node_id),
     ).fetchall()
@@ -604,11 +624,15 @@ def build_entity_brief(
                c.attestation, c.location_in_record, c.date, c.date_end, c.claim_hash,
                c.speaker_id, sp.name,
                c.record_id, r.title, r.date, r.reference, r.content_hash, r.friendly_name,
-               c.origin_kind, c.origin, c.relay, COALESCE(r.work_id, c.record_id),
+               c.origin_kind, c.origin, c.relay,
+               CASE WHEN wr.id IS NOT NULL THEN 'work:' || wr.id
+                    ELSE 'record:' || c.record_id END,
                c.entailment_label, c.entailment_score, c.entailment_model,
                c.entailment_premise, c.origin_ref, c.attribution_in_text
         FROM claims c
         LEFT JOIN records r ON r.id = c.record_id
+        LEFT JOIN provenance_roots wr ON wr.id = r.work_id
+               AND wr.status = 'established' AND wr.kind = 'work'
         LEFT JOIN nodes sp ON sp.id = c.speaker_id
         WHERE c.speaker_id IN ({ids})
            OR c.id IN (SELECT claim_id FROM claim_node_refs WHERE node_id IN ({ids}))
@@ -662,6 +686,7 @@ def build_entity_brief(
         importance=lambda r: _importance(r, node_id, corroborated, ref_status),
         budget=token_budget,
         cost=_claim_token_cost,
+        source_index=_COL_WORK,
     )
     # WHICH claims survive the cap is decided above, by importance and spread
     # across sources. The ORDER they are written in is decided here, and it is
@@ -703,6 +728,18 @@ def build_entity_brief(
             attribution_in_text,
         ) = row
         node_refs = _claim_node_refs(conn, cid, slug_map)
+        source_anchors = source_anchors_for_claim(conn, cid)
+        evidence_unit_ids = evidence_unit_ids_for_claim(conn, cid)
+        provenance_root_ids = established_root_ids_for_claim(conn, cid)
+        independent_sources = get_independent_source_count(conn, cid)
+        independence_status = (
+            "established"
+            if source_anchors
+            and evidence_unit_ids
+            and provenance_root_ids
+            and independent_sources > 0
+            else "unknown"
+        )
         claim_payload = {
             "claim_id": cid,
             "claim_hash": chash,
@@ -765,9 +802,13 @@ def build_entity_brief(
             "date": date,
             "date_end": date_end,
             "location_in_record": location,
+            **({"source_anchors": source_anchors} if source_anchors else {}),
             "evidence": {
                 "score": None,  # neutral until algorithmic-evidence-scoring pins
-                "independent_sources": get_independent_source_count(conn, cid),
+                "evidence_unit_ids": evidence_unit_ids,
+                "provenance_root_ids": provenance_root_ids,
+                "independence_status": independence_status,
+                "independent_sources": independent_sources,
             },
             "provenance": {
                 "record_id": rec_id,
